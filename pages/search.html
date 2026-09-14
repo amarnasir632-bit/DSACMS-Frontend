@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#14253e">
+
+  <!-- SEO (SEO-002 / SEO-003 / SEO-004) -->
+  <title>بحث وتصنيف المحتوى العلمي | DSACMS</title>
+  <meta name="description" content="ابحث في المحتوى العلمي والصوتي في أرشيف DSACMS حسب التصنيف والعنوان والكلمات المفتاحية، بنتائج منظمة ومعلومات واضحة.">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://dsacms.example/pages/search.html">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="ar_AR">
+  <meta property="og:title" content="بحث وتصنيف المحتوى العلمي | DSACMS">
+  <meta property="og:description" content="تصفّح وابحث عن المواد العلمية والملفات الصوتية في أرشيف DSACMS.">
+  <meta property="og:url" content="https://dsacms.example/pages/search.html">
+  <meta property="og:image" content="https://dsacms.example/assets/images/logo.png">
+
+  <link rel="stylesheet" href="../assets/css/style.css">
+  <link rel="icon" type="image/png" href="../assets/images/logo.png">
+</head>
+
+<body data-page="search" data-base="../">
+
+  <a class="skip-link" href="#main">تخطَّ إلى نتائج البحث</a>
+
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a class="brand" href="../index.html" aria-label="DSACMS – الصفحة الرئيسية">
+        <img src="../assets/images/الشعار بدون خلفية .png" alt="شعار نظام DSACMS" height="60" style="object-fit: contain;" onerror="this.onerror=null;this.src='../assets/images/logo.png';">
+        <span>DSACMS<small>أرشيف المحتوى العلمي والصوتي</small></span>
+      </a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="فتح أو إغلاق قائمة التنقل">
+        <span class="icon-menu" aria-hidden="true">☰</span>
+        <span class="icon-close" aria-hidden="true">✕</span>
+      </button>
+      <nav id="site-nav" class="site-nav" aria-label="القائمة الرئيسية">
+        <ul>
+          <li><a href="../index.html">الرئيسية</a></li>
+          <li><a href="search.html" aria-current="page">تصفّح المحتوى</a></li>
+          <li><a href="login.html">تسجيل الدخول للإدارة</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="site-main">
+    <div class="container">
+
+      <!-- رأس صفحة البحث -->
+      <header style="margin-block-end: var(--space-4);">
+        <h1 style="font-size: var(--fs-xl);">بحث وتصنيف المحتوى العلمي</h1>
+        <p class="section-desc" style="margin-block-end: var(--space-4);">استخدم مربع البحث أو الفلاتر للعثور على المادة المطلوبة.</p>
+      </header>
+
+      <!-- نموذج البحث السريع فوق الشبكة (SR-001 / SR-002) -->
+      <form id="search-form" role="search" aria-label="بحث في المحتوى" style="margin-block-end: var(--space-4);">
+        <div class="search-bar" style="max-width: 44rem;">
+          <label class="visually-hidden" for="search-q">كلمة البحث</label>
+          <input type="search" id="search-q" name="q" placeholder="ابحث بالعنوان أو المؤلف أو الكلمات المفتاحية…" autocomplete="off">
+          <button type="submit">بحث</button>
+        </div>
+      </form>
+
+      <div class="search-layout">
+
+        <!-- لوحة الفلاتر الجانبية -->
+        <aside class="filter-panel" aria-label="خيارات التصفية">
+          <h2 id="filter-title">
+            <span aria-hidden="true">⚙</span> التصفية والفرز
+          </h2>
+
+          <!-- تصنيف المحتوى (FR-003 / FR-015) -->
+          <fieldset class="filter-group">
+            <legend id="filter-cat-label">التصنيف</legend>
+            <label class="visually-hidden" for="filter-category">اختر تصنيفاً</label>
+            <select id="filter-category" name="category" aria-labelledby="filter-cat-label">
+              <option value="">جميع التصنيفات</option>
+              <!-- تُملأ الخيارات عبر JS -->
+            </select>
+          </fieldset>
+
+          <!-- تصفية الصوت -->
+          <fieldset class="filter-group">
+            <legend>نوع الملف</legend>
+            <label class="visually-hidden" for="filter-media">نوع المحتوى</label>
+            <select id="filter-media" name="media" aria-label="نوع المحتوى">
+              <option value="">الكل</option>
+              <option value="audio">يحتوي ملف صوتي</option>
+              <option value="no-audio">بدون ملف صوتي</option>
+            </select>
+          </fieldset>
+
+          <!-- مرتب حسب -->
+          <fieldset class="filter-group">
+            <legend id="filter-sort-label">ترتيب حسب</legend>
+            <label class="visually-hidden" for="filter-sort">طريقة الترتيب</label>
+            <select id="filter-sort" name="sort" aria-labelledby="filter-sort-label">
+              <option value="newest">الأحدث أولاً</option>
+              <option value="oldest">الأقدم أولاً</option>
+              <option value="title-asc">العنوان (أ → ي)</option>
+              <option value="title-desc">العنوان (ي → أ)</option>
+            </select>
+          </fieldset>
+
+          <button class="btn btn--outline btn--sm" id="clear-filters" type="button" style="width: 100%;">
+            مسح جميع الفلاتر
+          </button>
+        </aside>
+
+        <section aria-labelledby="results-heading">
+          <h2 id="results-heading" class="visually-hidden">نتائج البحث والتصفح</h2>
+
+          <!-- معلومات النتائج -->
+          <div class="results-top">
+            <p class="results-count" id="results-count" aria-live="polite">
+              عُثر على <span id="count-num">0</span> نتيجة
+            </p>
+          </div>
+
+          <!-- شبكة النتائج -->
+          <div class="grid grid--content" id="results-grid" aria-live="polite"></div>
+
+          <!-- حالة فارغة -->
+          <div class="empty-state" id="empty-state" hidden>
+            <div class="icon" aria-hidden="true">🔍</div>
+            <h3>لم تُعثر على نتائج</h3>
+            <p>جرّب تغيير كلمات البحث أو تعديل خيارات التصفية.</p>
+          </div>
+
+          <!-- صفحة تحميل -->
+          <div class="empty-state" id="loading-state" hidden>
+            <div class="icon" aria-hidden="true" style="animation: pulse 1.2s infinite;">⏳</div>
+            <p>جارٍ تحميل النتائج…</p>
+          </div>
+
+        </section>
+      </div>
+
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <h3>عن النظام</h3>
+          <p style="font-size: var(--fs-sm); color: #c4d8d3;">نظام إدارة وأرشفة المحتوى العلمي والصوتي – الإصدار الأول يركز على المحتوى الصوتي مع إتاحة التوسع مستقبلاً.</p>
+        </div>
+        <nav aria-label="روابط سريعة">
+          <h3>روابط سريعة</h3>
+          <ul>
+            <li><a href="../index.html">الرئيسية</a></li>
+            <li><a href="search.html">تصفّح المحتوى</a></li>
+            <li><a href="login.html">لوحة الإدارة</a></li>
+          </ul>
+        </nav>
+        <nav aria-label="تصنيفات شائعة">
+          <h3>تصنيفات شائعة</h3>
+          <ul id="footer-categories"></ul>
+        </nav>
+        <div>
+          <h3>التواصل</h3>
+          <ul>
+            <li><a href="mailto:info@dsacms.example">info@dsacms.example</a></li>
+            <li>الخرطوم – السودان</li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© <span id="year">2026</span> DSACMS – جميع الحقوق محفوظة</p>
+        <p style="direction:ltr;unicode-bidi:embed;font-size:var(--fs-xs);">Built with HTML5 · CSS3 · Vanilla JS</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="../assets/js/main.js" defer></script>
+</body>
+</html>

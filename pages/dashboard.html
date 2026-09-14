@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#14253e">
+
+  <title>لوحة إدارة المحتوى | DSACMS</title>
+  <meta name="description" content="لوحة إدارة المحتوى والتصنيفات والمستخدمين وسجل العمليات في نظام DSACMS.">
+  <meta name="robots" content="noindex, nofollow">
+
+  <link rel="stylesheet" href="../assets/css/style.css">
+  <link rel="icon" type="image/png" href="../assets/images/logo.png">
+</head>
+
+<body data-page="dashboard" data-base="../">
+
+  <a class="skip-link" href="#main">تخطَّ إلى لوحة الإدارة</a>
+
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a class="brand" href="../index.html" aria-label="DSACMS – الصفحة الرئيسية">
+        <img src="../assets/images/الشعار بدون خلفية .png" alt="شعار نظام DSACMS" height="60" style="object-fit: contain;" onerror="this.onerror=null;this.src='../assets/images/logo.png';">
+        <span>DSACMS<small>لوحة إدارة المحتوى</small></span>
+      </a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="فتح أو إغلاق قائمة التنقل">
+        <span class="icon-menu" aria-hidden="true">☰</span>
+        <span class="icon-close" aria-hidden="true">✕</span>
+      </button>
+      <nav id="site-nav" class="site-nav" aria-label="القائمة الرئيسية">
+        <ul>
+          <li><a href="../index.html">الرئيسية</a></li>
+          <li><a href="search.html">المحتوى</a></li>
+          <li><a href="search.html">العودة للموقع</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="site-main">
+    <div class="container">
+
+      <!-- ترويسة اللوحة -->
+      <header style="display:flex;justify-content:space-between;align-items:center;gap:var(--space-3);flex-wrap:wrap;margin-block-end:var(--space-5);">
+        <div>
+          <h1 style="font-size:var(--fs-xl);">لوحة إدارة المحتوى</h1>
+          <p class="section-desc">إدارة المواد العلمية والتصنيفات والعناصر المستقبلية وفق الصلاحيات (RBAC).</p>
+        </div>
+      </header>
+
+      <div class="dash-layout">
+
+        <!-- التنقل الداخلي للوحة -->
+        <nav class="dash-nav" aria-label="أقسام لوحة الإدارة">
+          <div class="dash-user">
+            <strong id="dash-user-name">—</strong>
+            <span id="dash-user-role">—</span>
+          </div>
+          <ul id="dash-tabs">
+            <li><button type="button" data-tab="overview" aria-current="true">📊 نظرة عامة</button></li>
+            <li><button type="button" data-tab="content">📚 إدارة المحتوى</button></li>
+            <li><button type="button" data-tab="editor" id="editor-tab-btn">➕ إضافة / تعديل مادة</button></li>
+            <li><button type="button" data-tab="categories">🗂 التصنيفات</button></li>
+            <li><button type="button" data-tab="users" data-admin-only>👥 المستخدمون</button></li>
+            <li><button type="button" data-tab="audit" data-admin-only>🧾 سجل العمليات</button></li>
+          </ul>
+        </nav>
+
+        <!-- الحاويات -->
+        <div id="dash-content">
+          <!-- ===== نظرة عامة ===== -->
+          <section class="dash-panel" id="panel-overview" aria-hidden="false" aria-labelledby="panel-overview-title">
+            <div class="dash-panel-head">
+              <h2 id="panel-overview-title">نظرة عامة</h2>
+            </div>
+            <div class="stat-grid" id="stat-grid">
+              <!-- تُملأ بالبطاقات عبر JS -->
+            </div>
+          </section>
+
+          <!-- ===== إدارة المحتوى ===== -->
+          <section class="dash-panel" id="panel-content" aria-hidden="true" aria-labelledby="panel-content-title">
+            <div class="dash-panel-head">
+              <h2 id="panel-content-title">المحتوى</h2>
+              <div class="list-toolbar">
+                <label class="visually-hidden" for="content-filter">بحث في المحتوى</label>
+                <input type="search" id="content-filter" class="field" placeholder="بحث بالعنوان أو المؤلف…">
+                <button type="button" class="btn btn--primary btn--sm" id="btn-new-content">إضافة مادة</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table" id="content-table">
+                <thead>
+                  <tr>
+                    <th scope="col">العنوان</th>
+                    <th scope="col">التصنيف</th>
+                    <th scope="col">الحالة</th>
+                    <th scope="col">المدة</th>
+                    <th scope="col">التاريخ</th>
+                    <th scope="col">إجراءات</th>
+                  </tr>
+                </thead>
+                <tbody id="content-tbody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- ===== محرر المادة: إضافة / تعديل (FR-010 / FR-011 / AF-001) ===== -->
+          <section class="dash-panel" id="panel-editor" aria-hidden="true" aria-labelledby="panel-editor-title">
+            <div class="dash-panel-head">
+              <h2 id="panel-editor-title">إضافة مادة جديدة</h2>
+            </div>
+
+            <div class="alert alert--success" id="editor-alert" role="alert" aria-live="assertive" hidden></div>
+
+            <form id="content-form" novalidate>
+              <!-- حقل سري معلومة داخلياً -->
+              <input type="hidden" id="cf-id" name="id">
+
+              <div class="grid grid--content">
+                <div class="form-group">
+                  <label for="cf-title">العنوان <span class="req">*</span></label>
+                  <input type="text" id="cf-title" name="title" class="field" required aria-required="true" maxlength="150">
+                  <p class="field-error-msg" id="err-cf-title">العنوان مطلوب.</p>
+                </div>
+                <div class="form-group">
+                  <label for="cf-author">المؤلف <span class="req">*</span></label>
+                  <input type="text" id="cf-author" name="author" class="field" required aria-required="true" maxlength="100">
+                  <p class="field-error-msg" id="err-cf-author">المؤلف مطلوب.</p>
+                </div>
+              </div>
+
+              <div class="grid grid--content">
+                <div class="form-group">
+                  <label for="cf-category">التصنيف <span class="req">*</span></label>
+                  <select id="cf-category" name="category" class="field" required aria-required="true">
+                    <!-- تملأ عبر JS -->
+                  </select>
+                  <p class="field-error-msg" id="err-cf-category">اختر تصنيفاً.</p>
+                </div>
+                <div class="form-group">
+                  <label for="cf-status">الحالة</label>
+                  <select id="cf-status" name="status" class="field">
+                    <option value="published">منشور</option>
+                    <option value="draft">مسودة (Draft)</option>
+                    <option value="archived">مؤرشف</option>
+                  </select>
+                  <p class="hint">المواد غير المنشورة لا تظهر للمستخدم العام (BR-002).</p>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <label for="cf-description">الوصف</label>
+                <textarea id="cf-description" name="description" class="field" rows="4" maxlength="1000"></textarea>
+              </div>
+
+              <div class="grid grid--content">
+                <div class="form-group">
+                  <label for="cf-keywords">الكلمات المفتاحية</label>
+                  <input type="text" id="cf-keywords" name="keywords" class="field" placeholder="الكلمة1, الكلمة2, كلمة3" aria-describedby="cf-keywords-hint">
+                  <p class="hint" id="cf-keywords-hint">افصل بين الكلمات بفاصلة.</p>
+                </div>
+                <div class="form-group">
+                  <label for="cf-date">تاريخ النشر</label>
+                  <input type="date" id="cf-date" name="pubDate" class="field">
+                </div>
+              </div>
+
+              <div class="grid grid--content">
+                <div class="form-group">
+                  <label for="cf-duration">المدة (بالثواني)</label>
+                  <input type="number" id="cf-duration" name="duration" class="field" min="0" step="1" aria-describedby="cf-duration-hint">
+                  <p class="hint" id="cf-duration-hint">تُحدَّد تلقائياً من الملف الصوتي عند رفعه.</p>
+                </div>
+                <div class="form-group">
+                  <label for="cf-audio">الملف الصوتي (AF-001 / AF-002)</label>
+                  <input type="file" id="cf-audio" name="audioFile" class="field" accept=".mp3,.wav,.ogg,.m4a,audio/mpeg,audio/wav,audio/ogg" aria-describedby="cf-audio-hint">
+                  <p class="hint" id="cf-audio-hint">الصيغ المسموحة: MP3، WAV، OGG، M4A — الحد الأقصى: 100MB.</p>
+                  <p class="field-error-msg" id="err-cf-audio"></p>
+                </div>
+              </div>
+
+              <div class="form-group" style="display:flex;gap:var(--space-2);flex-wrap:wrap;">
+                <button type="submit" class="btn btn--primary" id="cf-submit">حفظ المادة</button>
+                <button type="button" class="btn btn--outline" id="cf-reset">إلغاء / مسح النموذج</button>
+              </div>
+            </form>
+          </section>
+
+          <!-- ===== التصنيفات ===== -->
+          <section class="dash-panel" id="panel-categories" aria-hidden="true" aria-labelledby="panel-categories-title">
+            <div class="dash-panel-head">
+              <h2 id="panel-categories-title">إدارة التصنيفات</h2>
+            </div>
+            <!-- نموذج إضافة تصنيف -->
+            <form id="category-form" class="list-toolbar" style="margin-block-end:var(--space-4);">
+              <label class="visually-hidden" for="new-category">اسم التصنيف الجديد</label>
+              <input type="text" id="new-category" class="field" placeholder="اسم التصنيف الجديد…" required maxlength="50">
+              <button type="submit" class="btn btn--primary btn--sm">إضافة</button>
+            </form>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col">التصنيف</th>
+                    <th scope="col">عدد المواد</th>
+                    <th scope="col">إجراءات</th>
+                  </tr>
+                </thead>
+                <tbody id="categories-tbody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- ===== المستخدمون (Admin فقط) ===== -->
+          <section class="dash-panel" id="panel-users" aria-hidden="true" aria-labelledby="panel-users-title">
+            <div class="dash-panel-head">
+              <h2 id="panel-users-title">إدارة المستخدمين</h2>
+            </div>
+            <form id="user-form" class="grid grid--content" style="margin-block-end:var(--space-4);">
+              <div class="form-group">
+                <label for="new-user-name">الاسم</label>
+                <input type="text" id="new-user-name" class="field" required maxlength="80" aria-required="true">
+              </div>
+              <div class="form-group">
+                <label for="new-user-username">اسم المستخدم</label>
+                <input type="text" id="new-user-username" class="field" required maxlength="40" aria-required="true">
+              </div>
+              <div class="form-group">
+                <label for="new-user-password">كلمة المرور</label>
+                <input type="password" id="new-user-password" class="field" autocomplete="new-password" required aria-required="true"
+                       aria-describedby="new-pass-hint">
+                <p class="hint" id="new-pass-hint">8+ أحرف مع رقم وحرف كبير.</p>
+              </div>
+              <div class="form-group">
+                <label for="new-user-role">الدور</label>
+                <select id="new-user-role" class="field">
+                  <option value="admin">Administrator</option>
+                  <option value="manager">Content Manager</option>
+                  <option value="viewer">Viewer</option>
+                </select>
+              </div>
+              <div class="form-group" style="align-self:end;">
+                <button type="submit" class="btn btn--primary">إضافة مستخدم</button>
+              </div>
+            </form>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col">الاسم</th>
+                    <th scope="col">اسم المستخدم</th>
+                    <th scope="col">الدور</th>
+                    <th scope="col">الحالة</th>
+                    <th scope="col">إجراءات</th>
+                  </tr>
+                </thead>
+                <tbody id="users-tbody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <!-- ===== سجل العمليات (Admin فقط – FR-019 / SEC-012) ===== -->
+          <section class="dash-panel" id="panel-audit" aria-hidden="true" aria-labelledby="panel-audit-title">
+            <div class="dash-panel-head">
+              <h2 id="panel-audit-title">سجل العمليات (Audit Log)</h2>
+              <div class="list-toolbar">
+                <label class="visually-hidden" for="audit-filter">تصفية السجل</label>
+                <input type="search" id="audit-filter" class="field" placeholder="تصفية…" aria-label="تصفية سجل العمليات">
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th scope="col">الزمن</th>
+                    <th scope="col">المستخدم</th>
+                    <th scope="col">الإجراء</th>
+                    <th scope="col">الكيان</th>
+                    <th scope="col">النتيجة</th>
+                  </tr>
+                </thead>
+                <tbody id="audit-tbody"></tbody>
+              </table>
+              <p class="dash-empty" id="audit-empty" hidden>لا توجد سجلات.</p>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ===== نافذة تأكيد الجمل (Delete/Archive confirmations) ===== -->
+  <div class="modal-backdrop" id="confirm-modal" hidden role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-desc">
+    <div class="modal" tabindex="-1">
+      <h3 id="modal-title">تأكيد الإجراء</h3>
+      <p id="modal-desc"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn btn--outline" id="modal-cancel">إلغاء</button>
+        <button type="button" class="btn btn--danger" id="modal-confirm">تأكيد</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- منطقة الإشعارات -->
+  <div class="toast-region" id="toast-region" aria-live="polite"></div>
+
+  <!-- التسجيل لا يجب أن يكون متاحاً للجمهور -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-bottom">
+        <p>© <span id="year">2026</span> DSACMS – لوحة الإدارة</p>
+        <p style="direction:ltr;unicode-bidi:embed;font-size:var(--fs-xs);">Protected by RBAC · Audit Logging</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- التذييل -->
+  <script src="../assets/js/main.js" defer></script>
+</body>
+</html>
