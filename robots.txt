@@ -1,0 +1,13 @@
+# robots.txt – نظام DSACMS (SEO-006)
+# استبدل dsacms.example بالنطاق الفعلي عند النشر.
+
+# جميع روبوتات محركات البحث مسموح لها بشكل عام
+User-agent: *
+Disallow:
+
+# صفحات الإدارة لا تُفهرَس
+Disallow: /pages/dashboard.html
+Disallow: /pages/login.html
+
+# خريطة الموقع
+Sitemap: https://dsacms.example/sitemap.xml
