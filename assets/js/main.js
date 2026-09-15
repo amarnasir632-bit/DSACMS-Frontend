@@ -1661,7 +1661,7 @@
         const btn = e.target.closest("[data-action]");
         if (!btn) return;
         const { action, id } = btn.dataset;
-        const content = loadContents().find((c) => c.id === id);
+        let content = loadContents().find((c) => c.id === id);
         if (!content) return;
 
         if (action === "edit") {
@@ -1678,8 +1678,18 @@
             `تأكيد تغيير حالة «${content.title}» إلى ${next === "archived" ? "مؤرشفة" : "منشورة"}.`
           );
           if (!ok) return;
-          content.status = next;
-          saveContents(loadContents().map((x) => (x.id === id ? content : x)));
+          try {
+            const result = await fetchApi(`/materials/${encodeURIComponent(id)}/status`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: next }),
+            });
+            content = normalizeMaterial(result.material);
+            apiContents = loadContents().map((x) => (x.id === id ? content : x));
+          } catch (error) {
+            showToast(error.message || "تعذر تحديث حالة المادة على الخادم.", "error");
+            return;
+          }
           logAudit(next === "archived" ? "ARCHIVE_CONTENT" : "PUBLISH_CONTENT", content.title, "OK");
           showToast(next === "archived" ? "تمت أرشفة المادة." : "تم نشر المادة.");
           refreshAll();
@@ -1690,7 +1700,13 @@
             `سيتم حذف «${content.title}» نهائياً من الأرشيف. هل تريد المتابعة؟`
           );
           if (!ok) return;
-          saveContents(loadContents().filter((x) => x.id !== id));
+          try {
+            await fetchApi(`/materials/${encodeURIComponent(id)}`, { method: "DELETE" });
+            saveContents(loadContents().filter((x) => x.id !== id));
+          } catch (error) {
+            showToast(error.message || "تعذر حذف المادة من الخادم.", "error");
+            return;
+          }
           logAudit("DELETE_CONTENT", content.title, "OK");
           showToast("تم حذف المادة.");
           refreshAll();
