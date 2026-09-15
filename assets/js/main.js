@@ -6,7 +6,7 @@
      1) المنظّم العام (IIFE) ومصادر البيانات التجريبية
      2) طبقة التخزين (localStorage) – تحاكي قاعدة البيانات في الإنتاج
      3) التحقق من المدخلات وسياسة كلمات المرور (SEC-005 / SEC-008)
-     4) إدارة الجلسات والأدوار (RBAC) وأقفال المحاولات الفاشلة (SEC-011)
+     4) إدارة الجلسات والأدوار (RBAC)
      5) مشغّل الصوت الموحّد (Audio Player Controller)
      6) تهيئة كل صفحة بحسب data-page
    ========================================================================== */
@@ -94,7 +94,6 @@
     users: "dsacms_users",
     session: "dsacms_session",
     audit: "dsacms_audit",
-    lockout: "dsacms_lockout",
   };
 
   /** التصنيفات الافتراضية (FR-015) */
@@ -507,55 +506,6 @@
     if (!/\d/.test(pw)) return "كلمة المرور يجب أن تحتوي على رقم واحد على الأقل.";
     if (!/[A-Z\u0621-\u064a]/.test(pw)) return "كلمة المرور يجب أن تحتوي على حرف كبير أو حرف عربي على الأقل.";
     return null;
-  }
-
-  /* سياسة إغلاق الحساب بعد محاولات فاشلة (SEC-011): 5 محاولات في 30 دقيقة
-     → تجميد الحساب لمدة 3 أيام */
-  const LOCK_WINDOW_MS = 30 * 60 * 1000;   // 30 دقيقة
-  const LOCK_MAX_ATTEMPTS = 5;             // 5 محاولات
-  const LOCK_DURATION_MS = 3 * 24 * 60 * 60 * 1000; // 3 أيام
-
-  function loadLock() {
-    return store.read(STORE.lockout, { attempts: [], lockedUntil: 0 });
-  }
-  function saveLock(lock) {
-    store.write(STORE.lockout, lock);
-  }
-
-  /** هل الحساب مُجمّد حالياً؟ */
-  function isLocked() {
-    const lock = loadLock();
-    return Date.now() < lock.lockedUntil;
-  }
-  function lockedRemainingText() {
-    const lock = loadLock();
-    const ms = lock.lockedUntil - Date.now();
-    if (ms <= 0) return "";
-    const hours = Math.floor(ms / 3600000);
-    const mins = Math.floor((ms % 3600000) / 60000);
-    if (hours > 0) return `${hours} ساعة و ${mins} دقيقة`;
-    return `${Math.max(1, mins)} دقيقة`;
-  }
-
-  /** تسجيل محاولة فاشلة – يعيد حالة القفل الجديدة */
-  function recordFailedAttempt(username) {
-    const lock = loadLock();
-    const now = Date.now();
-    lock.attempts.push({ at: now, username });
-    lock.attempts = lock.attempts.filter((a) => now - a.at < LOCK_WINDOW_MS);
-
-    if (lock.attempts.length >= LOCK_MAX_ATTEMPTS) {
-      lock.lockedUntil = now + LOCK_DURATION_MS; // تجميد تلقائي لمدة 3 أيام
-      lock.attempts = [];
-      saveLock(lock);
-      logAudit("LOGIN_FAILED", `قفل الحساب بعد ${LOCK_MAX_ATTEMPTS} محاولات فاشلة (${username})`, "LOCKED");
-      return { locked: true };
-    }
-    saveLock(lock);
-    return {
-      locked: false,
-      remaining: LOCK_MAX_ATTEMPTS - lock.attempts.length,
-    };
   }
 
   /** التحقق من بيانات الدخول مقابل المستخدمين النشطين */
@@ -1338,33 +1288,16 @@
       });
     }
 
-    // قفل الحساب (SEC-011)
+    // تم إيقاف تجميد الحساب؛ تبقى رسالة الخطأ والتحقق من بيانات الدخول فقط.
     function renderLockState() {
-      if (isLocked()) {
-        const rem = lockedRemainingText();
-        if (errorBox && errorText) {
-          errorBox.hidden = false;
-          errorText.textContent = `تم تجميد الحساب بسبب أكثر من 5 محاولات فاشلة. إعادة المحاولة بعد ${rem}.`;
-        }
-        ["login-username", "login-password", "login-submit"].forEach((id) => {
-          const el = $('#' + id);
-          if (el) el.disabled = true;
-        });
-        return;
-      }
-      // عرض عدد المحاولات المتبقية
-      const lock = loadLock();
-      if (lock.attempts.length > 0 && attemptsHint) {
-        attemptsHint.hidden = false;
-        attemptsHint.textContent = `محاولات خاطئة قريبة: ${lock.attempts.length} من ${LOCK_MAX_ATTEMPTS} – سيتم تجميد الحساب إذا تكررت المحاولات.`;
-      }
+      if (attemptsHint) attemptsHint.hidden = true;
+      const submit = $("#login-submit");
+      if (submit) submit.disabled = false;
     }
     renderLockState();
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      if (isLocked()) return;
-
       const username = userInput.value.trim();
       const password = passInput.value;
       let valid = true;
@@ -1397,18 +1330,11 @@
         console.error("Login request failed", error);
       }
       if (!user) {
-        // محاولة فاشلة → نظام القفل
-        const res = recordFailedAttempt(username);
         if (errorBox && errorText) {
           errorBox.hidden = false;
-          if (res.locked) {
-            errorText.textContent = "تم تجميد الحساب لمدة 3 أيام بسبب المحاولات المتكررة.";
-          } else {
-            errorText.textContent = `بيانات الدخول غير صحيحة. المحاولات المتبقية: ${res.remaining}.`;
-          }
+          errorText.textContent = "بيانات الدخول غير صحيحة. تحقق من اسم المستخدم أو كلمة المرور وحاول مرة أخرى.";
         }
         logAudit("LOGIN_FAILED", username, "DENIED");
-        renderLockState();
         if (submit) submit.disabled = false;
         return;
       }

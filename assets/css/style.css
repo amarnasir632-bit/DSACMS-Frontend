@@ -1844,6 +1844,39 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   .container {
     width: min(100% - 1.5rem, var(--container));
   }
+  .nav-wrap {
+    height: auto;
+    min-height: 4.25rem;
+    gap: var(--space-2);
+    padding-block: var(--space-2);
+  }
+  .brand,
+  .navbar-brand {
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: var(--space-1);
+    font-size: clamp(0.82rem, 3.8vw, 1rem);
+    line-height: 1.25;
+  }
+  .brand img,
+  .navbar-brand img {
+    flex: 0 0 auto;
+    width: 2.7rem;
+    height: 2.7rem !important;
+  }
+  .brand > span,
+  .navbar-brand > span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .brand small,
+  .navbar-brand small {
+    font-size: 0.68rem;
+    line-height: 1.25;
+  }
+  .nav-toggle {
+    flex: 0 0 auto;
+  }
   .auth-card {
     padding: var(--space-4);
   }
