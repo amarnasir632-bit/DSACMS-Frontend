@@ -1119,7 +1119,7 @@
     // جلب المعرّف من الرابط (SEO-001: رابط مستقل لكل مادة)
     const params = new URLSearchParams(window.location.search);
     const id = params.get("id") || "";
-    const content = publicContents().find((c) => c.id === id || c.slug === id);
+    const content = loadContents().find((c) => c.id === id || c.slug === id);
 
     if (!content) {
       notFound.hidden = false;
