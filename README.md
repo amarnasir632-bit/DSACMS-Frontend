@@ -40,7 +40,7 @@ python3 -m http.server 5500
 `https://dsacms-backend.vercel.app/api`.
 
 للعمل مع Backend محلي، غيّر العنوان في إعدادات الواجهة إلى عنوان الخادم المحلي
-وشغّل Backend حسب [backend/README.md](./backend/README.md).
+واستخدم مستودع [DSACMS-Backend](https://github.com/amarnasir632-bit/DSACMS-Backend).
 
 ## الصفحات
 
@@ -95,7 +95,8 @@ node --check assets/js/main.js
 git diff --check
 ```
 
-فحوص Backend وأوامر النشر موضحة في [backend/README.md](./backend/README.md).
+فحوص Backend وأوامر النشر موضحة في مستودع
+[DSACMS-Backend](https://github.com/amarnasir632-bit/DSACMS-Backend).
 سجل المشاكل والحلول التشغيلية موجود في
 [docs/OPERATIONS.md](./docs/OPERATIONS.md).
 
