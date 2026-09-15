@@ -615,6 +615,8 @@ table {
   min-width: 0;
   border: 0;
   background: transparent;
+  color: var(--color-info);
+  caret-color: var(--color-info);
   padding: var(--space-3) var(--space-4);
   font-size: var(--fs-base);
 }
