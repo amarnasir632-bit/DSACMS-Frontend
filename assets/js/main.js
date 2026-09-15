@@ -370,7 +370,15 @@
   }
 
   async function fetchApi(path, options) {
-    const response = await fetch(`${API_CONFIG.baseUrl}${path}`, options);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const requestOptions = { ...(options || {}), signal: controller.signal };
+    let response;
+    try {
+      response = await fetch(`${API_CONFIG.baseUrl}${path}`, requestOptions);
+    } finally {
+      clearTimeout(timeout);
+    }
     if (!response.ok) {
       throw new Error(`API request failed: ${response.status}`);
     }
@@ -420,12 +428,19 @@
   }
 
   async function loadRemoteData() {
-    const [categories, materials] = await Promise.all([
+    const results = await Promise.allSettled([
       fetchApi("/categories"),
       fetchApi("/materials"),
     ]);
-    apiCategories = categories.map(normalizeCategory);
-    apiContents = materials.map(normalizeMaterial);
+    if (results[0].status === "fulfilled") {
+      apiCategories = results[0].value.map(normalizeCategory);
+    }
+    if (results[1].status === "fulfilled") {
+      apiContents = results[1].value.map(normalizeMaterial);
+    }
+    if (results.every((result) => result.status === "rejected")) {
+      throw results[0].reason;
+    }
   }
 
   function loadUsers() {
