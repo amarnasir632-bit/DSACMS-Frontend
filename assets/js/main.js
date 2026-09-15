@@ -2106,6 +2106,12 @@
           }
           const ok = await confirmAction("حذف المستخدم", `سيتم حذف حساب «${u.name}» (${u.username}). هل أنت متأكد؟`);
           if (!ok) return;
+          try {
+            await fetchApi(`/auth/users/${encodeURIComponent(u.id)}`, { method: "DELETE" });
+          } catch (error) {
+            showToast(error.message || "تعذر حذف المستخدم من الخادم.", "error");
+            return;
+          }
           saveUsers(users.filter((x) => x.id !== u.id));
           logAudit("DELETE_USER", u.username, "OK");
           showToast("تم حذف المستخدم.");
