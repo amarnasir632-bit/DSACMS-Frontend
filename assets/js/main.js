@@ -1155,10 +1155,10 @@
     const articleBody = $("#article-body");
     const pdfReader = $("#pdf-reader");
     const pdfFrame = $("#pdf-frame");
-    if (readingSection && (content.type === "article" || content.type === "book")) {
+    if (readingSection && (content.type === "article" || content.type === "book" || (content.body && content.body.length))) {
       readingSection.hidden = false;
-      $("#reading-title").textContent = content.type === "book" ? "قراءة الكتاب" : "المقال";
-      if (content.type === "article") {
+      $("#reading-title").textContent = content.type === "book" ? "قراءة الكتاب" : "نص المادة";
+      if (content.body && content.body.length) {
         articleBody.innerHTML = (content.body || [content.description])
           .map((paragraph) => `<p>${escapeHTML(paragraph)}</p>`)
           .join("");
@@ -1849,8 +1849,8 @@
         };
 
         try {
-          const saved = await fetchApi("/materials", {
-            method: "POST",
+          const saved = await fetchApi(existing ? `/materials/${encodeURIComponent(existing.id)}` : "/materials", {
+            method: existing ? "PUT" : "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               title: item.title,
