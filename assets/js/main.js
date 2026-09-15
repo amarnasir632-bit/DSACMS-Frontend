@@ -418,6 +418,7 @@
     return new Promise((resolve, reject) => {
       const request = new XMLHttpRequest();
       request.open("PUT", uploadUrl);
+      request.timeout = 10 * 60 * 1000;
       request.setRequestHeader("Content-Type", contentType);
       request.upload.addEventListener("progress", (event) => {
         if (!event.lengthComputable) return;
@@ -439,7 +440,12 @@
         }
         reject(new Error(`فشل رفع الملف إلى Internet Archive (${request.status}): ${request.responseText.slice(0, 220)}`));
       });
-      request.addEventListener("error", () => reject(new Error("تعذر الاتصال بخدمة Internet Archive.")));
+      request.addEventListener("error", () => reject(new Error(
+        file.size > 4 * 1024 * 1024
+          ? "تعذر رفع الملف لأن Vercel يرفض الملفات الأكبر من 4MB. استخدم ملفًا أصغر أو ارفع الملف من خلال تخزين يدعم الملفات الكبيرة."
+          : "تعذر الاتصال بخدمة Internet Archive أو خادم الرفع."
+      )));
+      request.addEventListener("timeout", () => reject(new Error("انتهت مهلة رفع الملف. تحقق من الاتصال وحاول مرة أخرى.")));
       request.addEventListener("abort", () => reject(new Error("تم إلغاء رفع الملف.")));
       request.send(file);
     });
@@ -1812,7 +1818,7 @@
 
     // التحقق من صيغة وحجم الملف الصوتي (AF-002 / SEC-009)
     const ALLOWED_AUDIO = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/x-wav", "audio/mp4", "audio/m4a"];
-    const MAX_AUDIO = 100 * 1024 * 1024; // 100MB
+    const MAX_AUDIO = 4 * 1024 * 1024; // Vercel Serverless request limit
 
     function validateAudioFile(file) {
       const errEl = $("#err-cf-audio");
@@ -1823,7 +1829,7 @@
         return false;
       }
       if (file.size > MAX_AUDIO) {
-        errEl.textContent = `حجم الملف كبير (${Math.round(file.size / 1048576)}MB) – الحد الأقصى 100MB.`;
+        errEl.textContent = `حجم الملف كبير (${Math.round(file.size / 1048576)}MB) – الحد الأقصى الحالي 4MB بسبب حد Vercel.`;
         errEl.setAttribute("data-visible", "true");
         return false;
       }
