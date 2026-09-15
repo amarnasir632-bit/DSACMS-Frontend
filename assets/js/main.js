@@ -385,9 +385,21 @@
         const payload = await response.json();
         detail = payload.error ? `: ${payload.error}` : "";
       } catch (_) {
-        detail = "";
+        try {
+          const text = await response.text();
+          detail = text ? `: ${text.slice(0, 180)}` : "";
+        } catch (readError) {
+          console.warn("Unable to read API error response", readError);
+        }
       }
-      throw new Error(`API request failed: ${response.status}${detail}`);
+      const error = new Error(`API request failed: ${response.status}${detail}`);
+      console.error("DSACMS API request failed", {
+        path,
+        method: requestOptions.method || "GET",
+        status: response.status,
+        detail,
+      });
+      throw error;
     }
     return response.json();
   }
@@ -424,10 +436,10 @@
           return;
         }
         if (request.status === 403) {
-          reject(new Error("مفتاح Internet Archive غير صالح أو منتهي. حدّث IA_ACCESS_KEY وIA_SECRET_KEY في Vercel."));
+          reject(new Error(`رفض Internet Archive الطلب (403): ${request.responseText.slice(0, 220) || "تحقق من مفاتيح IA وإعدادات العنصر."}`));
           return;
         }
-        reject(new Error(`فشل رفع الملف إلى Internet Archive (${request.status}).`));
+        reject(new Error(`فشل رفع الملف إلى Internet Archive (${request.status}): ${request.responseText.slice(0, 220)}`));
       });
       request.addEventListener("error", () => reject(new Error("تعذر الاتصال بخدمة Internet Archive.")));
       request.addEventListener("abort", () => reject(new Error("تم إلغاء رفع الملف.")));
