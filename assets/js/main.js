@@ -80,8 +80,13 @@
   }
 
   /* ----------------------------------------------------------------------
-     1) مصادر البيانات التجريبية (Mock Data – تحاكي قاعدة البيانات)
+     1) مصدر البيانات (REST API)
      ---------------------------------------------------------------------- */
+  const API_CONFIG = {
+    baseUrl: (window.DSACMS_API_BASE || "http://localhost:3000/api").replace(/\/$/, ""),
+  };
+  let apiCategories = [];
+  let apiContents = [];
   /** مفاتيح التخزين الدائم المحلي */
   const STORE = {
     contents: "dsacms_contents",
@@ -93,7 +98,7 @@
   };
 
   /** التصنيفات الافتراضية (FR-015) */
-  const DEFAULT_CATEGORIES = [
+  const DEFAULT_CATEGORIES = /*
     { id: "fiqh", name: "الفقه", icon: "🕌", desc: "الأحكام الفقهية وتطبيقاتها" },
     { id: "tafsir", name: "التفسير", icon: "📖", desc: "تفسير آيات القرآن الكريم" },
     { id: "hadith", name: "الحديث", icon: "🗞️", desc: "شرح أحاديث النبي ﷺ" },
@@ -102,10 +107,10 @@
     { id: "language", name: "اللغة العربية", icon: "✍️", desc: "قواعد اللغة والإملاء والنحو" },
     { id: "literature", name: "الأدب", icon: "📚", desc: "البلاغة والأدب والشعر" },
     { id: "history", name: "التاريخ", icon: "📜", desc: "الدروس والعبر من التاريخ" },
-  ];
+  */ [];
 
   /** المواد العلمية الافتراضية – audio مع مسار نسبي أو null عند الغياب */
-  const DEFAULT_CONTENTS = [
+  const DEFAULT_CONTENTS = /*
     {
       id: "muqaddimat-usul-fiqh",
       title: "مقدمة في علم أصول الفقه",
@@ -278,7 +283,7 @@
       audio: null,
       status: "draft",
     },
-  ];
+  */ [];
 
   /** المستخدمون التجريبيون – كلمات المرور مخزّنة بشكل مجزّأ (SEC-004)
       ملاحظة: هذا تحويل بسيط لهدف العرض فقط؛ الإنتاج يتطلب تجزئة من جانب الخادم. */
@@ -291,10 +296,10 @@
     return "h" + (h >>> 0).toString(36);
   };
 
-  const DEFAULT_USERS = [
+  const DEFAULT_USERS = /*
     { id: "u1", name: "مدير النظام", username: "admin", passHash: hashDemo("Admin1234"), role: "admin", status: "active" },
     { id: "u2", name: "مديرة المحتوى", username: "manager", passHash: hashDemo("Manager1234"), role: "manager", status: "active" },
-  ];
+  */ [];
 
   /* ----------------------------------------------------------------------
      2) طبقة التخزين (Storage Layer) – بواجهة جاهزة للاستبدال بـ API لاحقاً
@@ -317,22 +322,67 @@
   };
 
   function loadCategories() {
-    return store.read(STORE.categories, DEFAULT_CATEGORIES);
+    return apiCategories;
   }
   function saveCategories(list) {
-    store.write(STORE.categories, list);
+    apiCategories = Array.isArray(list) ? list : [];
   }
 
   function loadContents() {
-    return store.read(STORE.contents, DEFAULT_CONTENTS);
+    return apiContents;
   }
   function saveContents(list) {
-    store.write(STORE.contents, list);
+    apiContents = Array.isArray(list) ? list : [];
   }
 
   /** المحتوى العام: المواد المنشورة فقط (BR-002 / FR-027) */
   function publicContents() {
     return loadContents().filter((c) => c.status === "published");
+  }
+
+  function normalizeCategory(row) {
+    return {
+      id: String(row.id),
+      name: row.name,
+      desc: row.description || "",
+      icon: "📚",
+    };
+  }
+
+  function normalizeMaterial(row) {
+    return {
+      id: String(row.id),
+      title: row.title,
+      description: row.description || "",
+      author: row.author || "غير محدد",
+      category: row.category_id ? String(row.category_id) : "",
+      categoryName: row.category_name || "عام",
+      keywords: Array.isArray(row.keywords) ? row.keywords : [],
+      body: Array.isArray(row.body) ? row.body : [],
+      pubDate: row.created_at,
+      duration: Number(row.duration_seconds) || 0,
+      audio: row.audio_url || null,
+      pdf: row.document_url || null,
+      type: row.content_type || "audio",
+      status: row.status || "published",
+    };
+  }
+
+  async function fetchApi(path, options) {
+    const response = await fetch(`${API_CONFIG.baseUrl}${path}`, options);
+    if (!response.ok) {
+      throw new Error(`API request failed: ${response.status}`);
+    }
+    return response.json();
+  }
+
+  async function loadRemoteData() {
+    const [categories, materials] = await Promise.all([
+      fetchApi("/categories"),
+      fetchApi("/materials"),
+    ]);
+    apiCategories = categories.map(normalizeCategory);
+    apiContents = materials.map(normalizeMaterial);
   }
 
   function loadUsers() {
@@ -672,7 +722,7 @@
     const durEl = get('[data-role="duration"]');
     const muteBtn = get('[data-role="mute"]');
     const volEl = get('[data-role="volume"]');
-    const src = BASE + config.src;
+    const src = resolveContentUrl(config.src);
 
     AudioPlayer.register(id, {
       onPlay() {
@@ -873,6 +923,9 @@
     "?id=" +
     encodeURIComponent(id);
 
+  const resolveContentUrl = (path) =>
+    /^https?:\/\//i.test(String(path || "")) ? String(path) : BASE + String(path || "");
+
   /** بطاقة مادة علمية قابلة لإعادة الاستخدام */
   function contentCard(c) {
     const cat = loadCategories().find((x) => x.id === c.category);
@@ -880,16 +933,14 @@
     const hasAudio = !!c.audio;
     const type = c.type || (hasAudio ? "audio" : "article");
     const typeLabel = type === "book" ? "كتاب PDF" : type === "article" ? "مقال مكتوب" : "مادة صوتية";
+    const downloadPath = c.audio || c.pdf || "";
+    const downloadLabel = c.audio ? "تحميل الصوت" : c.pdf ? "تحميل PDF" : "";
     return `
     <article class="card item-card">
       <div class="item-media">
-        <button type="button" class="mini-player"
-                data-mini data-content-id="${escapeHTML(c.id)}"
-                ${hasAudio ? "" : 'aria-disabled="true" title="لا يوجد ملف صوتي"'}>
-          ${hasAudio
-            ? '<span class="icon" aria-hidden="true">▶</span><span data-label>تشغيل</span>'
-            : '<span class="icon" aria-hidden="true">⛔</span><span data-label>بدون صوت</span>'}
-        </button>
+        ${hasAudio
+          ? `<audio class="native-audio" controls preload="none" src="${escapeHTML(resolveContentUrl(c.audio))}" aria-label="تشغيل ${escapeHTML(c.title)}"></audio>`
+          : ""}
         <span class="duration">${typeLabel}${hasAudio ? ` · ${duration}` : ""}</span>
       </div>
       <div class="item-body">
@@ -902,6 +953,9 @@
         <p class="item-excerpt">${escapeHTML(c.description)}</p>
         <div class="item-actions">
           <a class="btn btn--outline btn--sm" href="${detailHref(c.id)}">تفاصيل المادة</a>
+          ${downloadPath
+            ? `<a class="btn btn--accent btn--sm card-download" href="${escapeHTML(encodeURI(resolveContentUrl(downloadPath)))}" download>${downloadLabel}</a>`
+            : ""}
         </div>
       </div>
     </article>`;
@@ -1993,27 +2047,40 @@
   /* ----------------------------------------------------------------------
      11) نقطة الانطلاق حسب الصفحة
      ---------------------------------------------------------------------- */
-  document.addEventListener("DOMContentLoaded", () => {
-    initShared();
+  document.addEventListener("DOMContentLoaded", async () => {
+    try {
+      const pagesUsingContent = ["index", "search", "detail", "dashboard"];
+      if (pagesUsingContent.includes(PAGE)) {
+        await loadRemoteData();
+      }
+      initShared();
 
-    switch (PAGE) {
-      case "index":
-        initHome();
-        break;
-      case "search":
-        initSearch();
-        break;
-      case "detail":
-        initDetail();
-        break;
-      case "login":
-        initLogin();
-        break;
-      case "dashboard":
-        initDashboard();
-        break;
-      default:
-        break;
+      switch (PAGE) {
+        case "index":
+          initHome();
+          break;
+        case "search":
+          initSearch();
+          break;
+        case "detail":
+          initDetail();
+          break;
+        case "login":
+          initLogin();
+          break;
+        case "dashboard":
+          initDashboard();
+          break;
+        default:
+          break;
+      }
+    } catch (error) {
+      console.error("Unable to load DSACMS data", error);
+      const message = "تعذر تحميل البيانات من الخادم. يرجى المحاولة لاحقًا.";
+      ["#categories-grid", "#latest-grid", "#results-grid"].forEach((selector) => {
+        const container = $(selector);
+        if (container) container.innerHTML = `<p class="alert alert--error" role="alert">${message}</p>`;
+      });
     }
   });
 })();
