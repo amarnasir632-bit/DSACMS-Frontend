@@ -404,53 +404,6 @@
     return response.json();
   }
 
-  async function uploadToArchive(file) {
-    const extension = file.name.includes(".") ? file.name.split(".").pop().toLowerCase() : "bin";
-    const key = `audio/${Date.now()}-${crypto.randomUUID()}.${extension}`;
-    const contentType = file.type || "application/octet-stream";
-    const uploadUrl = `${API_CONFIG.baseUrl}/uploads?key=${encodeURIComponent(key)}&contentType=${encodeURIComponent(contentType)}`;
-
-    const progress = $("#upload-progress");
-    const progressBar = $("#upload-progress-bar");
-    const progressValue = $("#upload-progress-value");
-    const progressLabel = $("#upload-progress-label");
-    if (progress) progress.hidden = false;
-    return new Promise((resolve, reject) => {
-      const request = new XMLHttpRequest();
-      request.open("PUT", uploadUrl);
-      request.timeout = 10 * 60 * 1000;
-      request.setRequestHeader("Content-Type", contentType);
-      request.upload.addEventListener("progress", (event) => {
-        if (!event.lengthComputable) return;
-        const percent = Math.round((event.loaded / event.total) * 100);
-        if (progressBar) progressBar.value = percent;
-        if (progressValue) progressValue.textContent = `${percent}%`;
-        if (progressLabel) progressLabel.textContent = percent === 100 ? "اكتمل رفع الملف، جارٍ حفظ البيانات…" : "جاري رفع الملف…";
-      });
-      request.addEventListener("load", () => {
-        if (request.status >= 200 && request.status < 300) {
-          let response = {};
-          try { response = JSON.parse(request.responseText || "{}"); } catch (_) {}
-          resolve(response.publicUrl);
-          return;
-        }
-        if (request.status === 403) {
-          reject(new Error(`رفض Internet Archive الطلب (403): ${request.responseText.slice(0, 220) || "تحقق من مفاتيح IA وإعدادات العنصر."}`));
-          return;
-        }
-        reject(new Error(`فشل رفع الملف إلى Internet Archive (${request.status}): ${request.responseText.slice(0, 220)}`));
-      });
-      request.addEventListener("error", () => reject(new Error(
-        file.size > 4 * 1024 * 1024
-          ? "تعذر رفع الملف لأن Vercel يرفض الملفات الأكبر من 4MB. استخدم ملفًا أصغر أو ارفع الملف من خلال تخزين يدعم الملفات الكبيرة."
-          : "تعذر الاتصال بخدمة Internet Archive أو خادم الرفع."
-      )));
-      request.addEventListener("timeout", () => reject(new Error("انتهت مهلة رفع الملف. تحقق من الاتصال وحاول مرة أخرى.")));
-      request.addEventListener("abort", () => reject(new Error("تم إلغاء رفع الملف.")));
-      request.send(file);
-    });
-  }
-
   async function loadRemoteData() {
     const results = await Promise.allSettled([
       fetchApi("/categories"),
@@ -1789,6 +1742,7 @@
       if (cfDate) cfDate.value = (content.pubDate || "").slice(0, 10);
       if (cfDuration) cfDuration.value = content.duration || "";
       if (cfType) cfType.value = content.type || (content.audio ? "audio" : "article");
+      if (cfAudio) cfAudio.value = content.audio || "";
       if (cfPdf) cfPdf.value = content.pdf || "";
       if (cfBody) cfBody.value = (content.body || []).join("\n\n");
       if (editorAlert) editorAlert.hidden = true;
@@ -1798,8 +1752,6 @@
     function resetEditor() {
       if (cfForm) cfForm.reset();
       showEditorStep(1);
-      const progress = $("#upload-progress");
-      if (progress) progress.hidden = true;
       if ($("#cf-id")) $("#cf-id").value = "";
       if (editorTitle) editorTitle.textContent = "إضافة مادة جديدة";
       if (cfSubmit) cfSubmit.textContent = "حفظ المادة";
@@ -1816,49 +1768,28 @@
     }
     if (cfReset) cfReset.addEventListener("click", resetEditor);
 
-    // التحقق من صيغة وحجم الملف الصوتي (AF-002 / SEC-009)
-    const ALLOWED_AUDIO = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/x-wav", "audio/mp4", "audio/m4a"];
-    const MAX_AUDIO = 4 * 1024 * 1024; // Vercel Serverless request limit
-
-    function validateAudioFile(file) {
-      const errEl = $("#err-cf-audio");
-      if (!file) return true;
-      if (!ALLOWED_AUDIO.includes(file.type)) {
-        errEl.textContent = formatType(file); // نعرض تفصيلة
-        errEl.setAttribute("data-visible", "true");
+    function isDirectUrl(value) {
+      try {
+        const url = new URL(String(value).trim());
+        return url.protocol === "http:" || url.protocol === "https:";
+      } catch (_) {
         return false;
       }
-      if (file.size > MAX_AUDIO) {
-        errEl.textContent = `حجم الملف كبير (${Math.round(file.size / 1048576)}MB) – الحد الأقصى الحالي 4MB بسبب حد Vercel.`;
+    }
+
+    function validateAudioUrl(value) {
+      const errEl = $("#err-cf-audio");
+      if (!value) {
+        errEl.setAttribute("data-visible", "false");
+        return true;
+      }
+      if (!isDirectUrl(value)) {
+        errEl.textContent = "أدخل رابطًا مباشرًا صالحًا يبدأ بـ https:// أو http://.";
         errEl.setAttribute("data-visible", "true");
         return false;
       }
       errEl.setAttribute("data-visible", "false");
       return true;
-    }
-    function formatType(file) {
-      return `صيغة الملف غير مدعومة (${file.type || "غير معروفة"}). الصيغ المسموحة: MP3، WAV، OGG، M4A.`;
-    }
-    if (cfAudio) {
-      cfAudio.addEventListener("change", () => {
-        const file = cfAudio.files[0];
-        if (!file) return;
-        if (!validateAudioFile(file)) {
-          cfAudio.value = "";
-          return;
-        }
-        // قراءة مدة الملف الصوتي المرفوع (AF-006 متطلبات إدارية)
-        const url = URL.createObjectURL(file);
-        const probe = new Audio();
-        probe.addEventListener("loadedmetadata", () => {
-          if (cfDuration) {
-            cfDuration.value = Math.round(probe.duration);
-          }
-          URL.revokeObjectURL(url);
-        });
-        probe.src = url;
-        showToast(`الملف «${file.name}» جاهز، صيغة صحيحة.`, "info");
-      });
     }
 
     // حفظ المادة
@@ -1870,7 +1801,11 @@
         if (!cfTitle.value.trim()) { showFieldError("err-cf-title", cfTitle); ok = false; } else hideFieldError("err-cf-title", cfTitle);
         if (!cfAuthor.value.trim()) { showFieldError("err-cf-author", cfAuthor); ok = false; } else hideFieldError("err-cf-author", cfAuthor);
         if (!cfCategory.value) { showFieldError("err-cf-category", cfCategory); ok = false; } else hideFieldError("err-cf-category", cfCategory);
-        if (cfAudio && !validateAudioFile(cfAudio.files[0])) ok = false;
+        if (cfAudio && !validateAudioUrl(cfAudio.value)) ok = false;
+        if (cfPdf && cfPdf.value.trim() && !isDirectUrl(cfPdf.value)) {
+          showToast("رابط PDF غير صالح. استخدم رابطًا مباشرًا يبدأ بـ https:// أو http://.", "error");
+          ok = false;
+        }
         if (!ok) {
           if (cfSubmit) cfSubmit.disabled = false;
           return;
@@ -1896,7 +1831,7 @@
             : [],
           pubDate: cfDate && cfDate.value ? cfDate.value : new Date().toISOString().slice(0, 10),
           duration: cfDuration ? Number(cfDuration.value) || 0 : 0,
-          audio: existing ? existing.audio : null,
+          audio: cfAudio ? cfAudio.value.trim() : (existing && existing.audio) || null,
           type: cfType ? cfType.value : (existing && existing.type) || "audio",
           pdf: cfPdf ? cfPdf.value.trim() : (existing && existing.pdf) || "",
           body: cfBody
@@ -1904,15 +1839,7 @@
             : (existing && existing.body) || [],
         };
 
-        const file = cfAudio && cfAudio.files[0];
         try {
-          if (file) {
-            showToast("جارٍ رفع الملف إلى Internet Archive…", "info");
-            item.audio = await uploadToArchive(file);
-          }
-
-          const progressLabel = $("#upload-progress-label");
-          if (progressLabel) progressLabel.textContent = "تم رفع الملف، جارٍ حفظ المادة في قاعدة البيانات…";
           const saved = await fetchApi("/materials", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1944,8 +1871,6 @@
           console.error("Unable to save material", error);
           showToast(error.message || "تعذر حفظ المادة أو رفع الملف. لم يتم اعتماد العملية.", "error");
         } finally {
-          const progress = $("#upload-progress");
-          if (progress) progress.hidden = true;
           if (cfSubmit) cfSubmit.disabled = false;
         }
       });

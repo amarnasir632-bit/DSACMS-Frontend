@@ -186,20 +186,20 @@
                 <div class="form-group">
                   <label for="cf-duration">المدة (بالثواني)</label>
                   <input type="number" id="cf-duration" name="duration" class="field" min="0" step="1" aria-describedby="cf-duration-hint">
-                  <p class="hint" id="cf-duration-hint">تُحدَّد تلقائياً من الملف الصوتي عند رفعه.</p>
+                  <p class="hint" id="cf-duration-hint">أدخل مدة المادة الصوتية يدويًا.</p>
                 </div>
                 <div class="form-group">
-                  <label for="cf-audio">الملف الصوتي (AF-001 / AF-002)</label>
-                  <input type="file" id="cf-audio" name="audioFile" class="field" accept=".mp3,.wav,.ogg,.m4a,audio/mpeg,audio/wav,audio/ogg" aria-describedby="cf-audio-hint">
-                  <p class="hint" id="cf-audio-hint">الصيغ المسموحة: MP3، WAV، OGG، M4A — الحد الأقصى: 100MB.</p>
+                  <label for="cf-audio">رابط الملف الصوتي</label>
+                  <input type="url" id="cf-audio" name="audioUrl" class="field" maxlength="2000" placeholder="https://archive.org/download/.../audio.mp3" inputmode="url" aria-describedby="cf-audio-hint">
+                  <p class="hint" id="cf-audio-hint">الصق رابطًا مباشرًا للملف من Internet Archive أو Google Drive أو أي تخزين عام.</p>
                   <p class="field-error-msg" id="err-cf-audio"></p>
                 </div>
               </div>
 
               <div class="form-group">
-                <label for="cf-pdf">رابط أو مسار ملف PDF</label>
-                <input type="text" id="cf-pdf" name="pdf" class="field" maxlength="500" placeholder="docs/book.pdf">
-                <p class="hint">يُستخدم لعرض الكتاب داخل الصفحة وإظهار زر التحميل.</p>
+                <label for="cf-pdf">رابط ملف PDF</label>
+                <input type="url" id="cf-pdf" name="pdf" class="field" maxlength="2000" placeholder="https://archive.org/download/.../book.pdf" inputmode="url">
+                <p class="hint">الصق رابطًا مباشرًا عامًا؛ يُستخدم لعرض الكتاب وإظهار زر التحميل.</p>
               </div>
               <div class="editor-step__actions">
                 <button type="button" class="btn btn--outline" data-step-prev="2">السابق</button>
@@ -220,10 +220,6 @@
                 <button type="submit" class="btn btn--primary" id="cf-submit">حفظ المادة</button>
                 <button type="button" class="btn btn--outline" id="cf-reset">إلغاء / مسح النموذج</button>
               </div>
-              </div>
-              <div class="upload-progress" id="upload-progress" hidden aria-live="polite">
-                <div class="upload-progress__head"><span id="upload-progress-label">جاري الرفع…</span><strong id="upload-progress-value">0%</strong></div>
-                <progress id="upload-progress-bar" max="100" value="0">0%</progress>
               </div>
             </form>
           </section>
