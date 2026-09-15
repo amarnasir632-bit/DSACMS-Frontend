@@ -113,6 +113,37 @@
 
             <div class="alert alert--success" id="editor-alert" role="alert" aria-live="assertive" hidden></div>
 
+            <section class="admin-guide" aria-labelledby="admin-guide-title">
+              <div class="admin-guide__head">
+                <div>
+                  <p class="admin-guide__eyebrow">دليل الروابط المباشرة</p>
+                  <h3 id="admin-guide-title">كيف تحصل على رابط الصوت أو PDF؟</h3>
+                </div>
+                <span class="admin-guide__badge">مهم</span>
+              </div>
+              <p class="admin-guide__intro">استخدم رابطًا عامًا مباشرًا؛ لا تستخدم رابط صفحة المعاينة. افتح القسم المناسب للاطلاع على الخطوات المصورة.</p>
+              <div class="admin-guide__grid">
+                <details class="admin-guide__card" open>
+                  <summary>Internet Archive</summary>
+                  <ol class="admin-guide__steps">
+                    <li><img src="../assets/images/guide/step1.svg" alt="خطوة 1: فتح Internet Archive ورفع الملف" loading="lazy"><span>افتح Internet Archive، ارفع الملف، ثم املأ العنوان والوصف والبيانات المطلوبة.</span></li>
+                    <li><img src="../assets/images/guide/step2.svg" alt="خطوة 2: تعبئة بيانات الملف في Internet Archive" loading="lazy"><span>أكمل بيانات العنصر وانتظر انتهاء الرفع والمعالجة.</span></li>
+                    <li><img src="../assets/images/guide/step3.svg" alt="خطوة 3: فتح خيارات التنزيل في Internet Archive" loading="lazy"><span>افتح صفحة العنصر، مرر إلى <strong>Download Options</strong>، ثم اضغط بزر الماوس الأيمن على صيغة الملف المطلوبة.</span></li>
+                    <li><img src="../assets/images/guide/step4.svg" alt="خطوة 4: نسخ عنوان رابط الملف" loading="lazy"><span>اختر <strong>Copy link address</strong> والصق العنوان في حقل رابط الصوت أو PDF هنا.</span></li>
+                  </ol>
+                </details>
+                <details class="admin-guide__card">
+                  <summary>Google Drive</summary>
+                  <ol class="admin-guide__steps admin-guide__steps--drive">
+                    <li><span>ارفع الملف إلى Google Drive ثم اضغط عليه بزر الماوس الأيمن واختر <strong>Share</strong>.</span></li>
+                    <li><span>غيّر الصلاحية من <strong>Restricted</strong> إلى <strong>Anyone with the link</strong>، واجعل الدور Viewer.</span></li>
+                    <li><span>اضغط <strong>Copy link</strong> والصق الرابط في حقل الصوت أو PDF. سيحوّل النظام تلقائيًا رابط العرض إلى رابط تنزيل مباشر.</span></li>
+                  </ol>
+                  <p class="admin-guide__note">يجب أن يكون الملف عامًا؛ الروابط التي تتطلب تسجيل الدخول لن تعمل للمستخدمين.</p>
+                </details>
+              </div>
+            </section>
+
             <form id="content-form" novalidate>
               <!-- حقل سري معلومة داخلياً -->
               <input type="hidden" id="cf-id" name="id">

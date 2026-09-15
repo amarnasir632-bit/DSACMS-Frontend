@@ -1703,6 +1703,20 @@
       }
     }
 
+    function normalizeGoogleDriveUrl(value) {
+      const raw = String(value || "").trim();
+      if (!raw) return "";
+      let url;
+      try { url = new URL(raw); } catch (_) { return raw; }
+      if (!["drive.google.com", "www.drive.google.com"].includes(url.hostname)) return raw;
+      let fileId = url.searchParams.get("id");
+      const match = url.pathname.match(/^\/file\/d\/([^/]+)/);
+      if (!fileId && match) fileId = match[1];
+      return fileId
+        ? `https://drive.usercontent.google.com/download?id=${encodeURIComponent(fileId)}&export=download`
+        : raw;
+    }
+
     function validateAudioUrl(value) {
       const errEl = $("#err-cf-audio");
       if (!value) {
@@ -1749,13 +1763,31 @@
     }
 
     if (cfAudio) {
+      const normalizeAudioInput = () => {
+        const normalized = normalizeGoogleDriveUrl(cfAudio.value);
+        if (normalized && normalized !== cfAudio.value.trim()) {
+          cfAudio.value = normalized;
+          showToast("تم تحويل رابط Google Drive إلى رابط تنزيل مباشر.", "info");
+        }
+      };
       cfAudio.addEventListener("change", () => {
+        normalizeAudioInput();
         const url = cfAudio.value.trim();
         if (validateAudioUrl(url)) loadAudioDuration(url);
       });
       cfAudio.addEventListener("blur", () => {
+        normalizeAudioInput();
         const url = cfAudio.value.trim();
         if (validateAudioUrl(url)) loadAudioDuration(url);
+      });
+    }
+    if (cfPdf) {
+      cfPdf.addEventListener("blur", () => {
+        const normalized = normalizeGoogleDriveUrl(cfPdf.value);
+        if (normalized && normalized !== cfPdf.value.trim()) {
+          cfPdf.value = normalized;
+          showToast("تم تحويل رابط Google Drive إلى رابط تنزيل مباشر.", "info");
+        }
       });
     }
     if (cfType) {
@@ -1773,6 +1805,8 @@
         if (!cfTitle.value.trim()) { showFieldError("err-cf-title", cfTitle); ok = false; } else hideFieldError("err-cf-title", cfTitle);
         if (!cfAuthor.value.trim()) { showFieldError("err-cf-author", cfAuthor); ok = false; } else hideFieldError("err-cf-author", cfAuthor);
         if (!cfCategory.value) { showFieldError("err-cf-category", cfCategory); ok = false; } else hideFieldError("err-cf-category", cfCategory);
+        if (cfAudio) cfAudio.value = normalizeGoogleDriveUrl(cfAudio.value);
+        if (cfPdf) cfPdf.value = normalizeGoogleDriveUrl(cfPdf.value);
         if (cfAudio && !validateAudioUrl(cfAudio.value)) ok = false;
         if (cfPdf && cfPdf.value.trim() && !isDirectUrl(cfPdf.value)) {
           showToast("رابط PDF غير صالح. استخدم رابطًا مباشرًا يبدأ بـ https:// أو http://.", "error");
