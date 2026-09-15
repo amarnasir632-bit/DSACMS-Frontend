@@ -380,7 +380,14 @@
       clearTimeout(timeout);
     }
     if (!response.ok) {
-      throw new Error(`API request failed: ${response.status}`);
+      let detail = "";
+      try {
+        const payload = await response.json();
+        detail = payload.error ? `: ${payload.error}` : "";
+      } catch (_) {
+        detail = "";
+      }
+      throw new Error(`API request failed: ${response.status}${detail}`);
     }
     return response.json();
   }
@@ -1871,6 +1878,8 @@
             item.audio = await uploadToArchive(file);
           }
 
+          const progressLabel = $("#upload-progress-label");
+          if (progressLabel) progressLabel.textContent = "تم رفع الملف، جارٍ حفظ المادة في قاعدة البيانات…";
           const saved = await fetchApi("/materials", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1902,6 +1911,8 @@
           console.error("Unable to save material", error);
           showToast(error.message || "تعذر حفظ المادة أو رفع الملف. لم يتم اعتماد العملية.", "error");
         } finally {
+          const progress = $("#upload-progress");
+          if (progress) progress.hidden = true;
           if (cfSubmit) cfSubmit.disabled = false;
         }
       });
