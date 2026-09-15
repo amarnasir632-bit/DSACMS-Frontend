@@ -426,23 +426,24 @@
       apiCategories = results[0].value.map(normalizeCategory);
     }
 
-    async function loadRemoteUsers() {
-      const users = await fetchApi("/auth/users");
-      if (Array.isArray(users)) {
-        apiUsers = users.map((user) => ({
-          ...user,
-          id: String(user.id),
-          status: user.status || "active",
-          passHash: "",
-        }));
-        saveUsers(apiUsers);
-      }
-    }
     if (results[1].status === "fulfilled") {
       apiContents = results[1].value.map(normalizeMaterial);
     }
     if (results.every((result) => result.status === "rejected")) {
       throw results[0].reason;
+    }
+  }
+
+  async function loadRemoteUsers() {
+    const users = await fetchApi("/auth/users");
+    if (Array.isArray(users)) {
+      apiUsers = users.map((user) => ({
+        ...user,
+        id: String(user.id),
+        status: user.status || "active",
+        passHash: "",
+      }));
+      saveUsers(apiUsers);
     }
   }
 
@@ -2100,6 +2101,16 @@
         if (del) {
           const u = users.find((x) => x.id === del.dataset.id);
           if (!u) return;
+          if (!/^\d+$/.test(String(u.id))) {
+            showToast("هذه نسخة قديمة من الحساب. أعد تحميل قائمة المستخدمين من الخادم ثم حاول مرة أخرى.", "error");
+            try {
+              await loadRemoteUsers();
+              renderUserTable();
+            } catch (error) {
+              console.error("Unable to refresh users before deletion", error);
+            }
+            return;
+          }
           if (u.username === session.username) {
             showToast("لا يمكنك حذف حسابك الحالي.", "error");
             return;
