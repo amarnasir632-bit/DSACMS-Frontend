@@ -139,6 +139,10 @@
   padding: 0;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html {
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
@@ -1177,6 +1181,9 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   gap: var(--space-5);
   align-items: start;
 }
+.detail-layout > * {
+  min-width: 0;
+}
 .breadcrumbs {
   display: flex;
   flex-wrap: wrap;
@@ -2074,6 +2081,10 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   .player__top,
   .player__seek {
     gap: var(--space-2);
+  }
+  .player__title {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .stat-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
