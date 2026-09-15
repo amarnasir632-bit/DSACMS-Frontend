@@ -296,10 +296,11 @@
     return "h" + (h >>> 0).toString(36);
   };
 
-  const DEFAULT_USERS = /*
-    { id: "u1", name: "مدير النظام", username: "admin", passHash: hashDemo("Admin1234"), role: "admin", status: "active" },
-    { id: "u2", name: "مديرة المحتوى", username: "manager", passHash: hashDemo("Manager1234"), role: "manager", status: "active" },
-  */ [];
+  const DEFAULT_USERS = [
+    { id: "u1", name: "مدير النظام", username: "admin", email: "admin@dsacms.local", passHash: hashDemo("Admin1234"), role: "admin", status: "active" },
+    { id: "u2", name: "مديرة المحتوى", username: "manager", email: "manager@dsacms.local", passHash: hashDemo("Manager1234"), role: "manager", status: "active" },
+    { id: "u3", name: "مدير الموقع", username: "amarnasir632@gmail.com", email: "amarnasir632@gmail.com", passHash: hashDemo("admin1234"), role: "admin", status: "active" },
+  ];
 
   /* ----------------------------------------------------------------------
      2) طبقة التخزين (Storage Layer) – بواجهة جاهزة للاستبدال بـ API لاحقاً
@@ -386,7 +387,20 @@
   }
 
   function loadUsers() {
-    return store.read(STORE.users, DEFAULT_USERS);
+    const stored = store.read(STORE.users, null);
+    if (!Array.isArray(stored)) {
+      saveUsers(DEFAULT_USERS);
+      return DEFAULT_USERS.map((user) => ({ ...user }));
+    }
+
+    const merged = [...stored];
+    DEFAULT_USERS.forEach((defaultUser) => {
+      if (!merged.some((user) => user.id === defaultUser.id || user.username.toLowerCase() === defaultUser.username.toLowerCase())) {
+        merged.push({ ...defaultUser });
+      }
+    });
+    if (merged.length !== stored.length) saveUsers(merged);
+    return merged;
   }
   function saveUsers(list) {
     store.write(STORE.users, list);
@@ -513,7 +527,10 @@
   function authenticate(username, password) {
     const users = loadUsers();
     const user = users.find(
-      (u) => u.username.toLowerCase() === String(username).trim().toLowerCase()
+      (u) =>
+        [u.username, u.email].filter(Boolean).some(
+          (identifier) => identifier.toLowerCase() === String(username).trim().toLowerCase()
+        )
     );
     if (user && user.status === "active" && user.passHash === hashDemo(password)) {
       return user;
@@ -1879,6 +1896,7 @@
               <button type="button" class="btn btn--outline btn--sm" data-user-status data-id="${escapeHTML(u.id)}">
                 ${u.status === "active" ? "تعطيل" : "تفعيل"}
               </button>
+              <button type="button" class="btn btn--outline btn--sm" data-user-reset data-id="${escapeHTML(u.id)}">استعادة كلمة السر</button>
               <button type="button" class="btn btn--danger-outline btn--sm" data-user-delete data-id="${escapeHTML(u.id)}">حذف</button>
             </td>
           </tr>`
@@ -1909,6 +1927,7 @@
 
       usersTbody.addEventListener("click", async (e) => {
         const st = e.target.closest("[data-user-status]");
+        const reset = e.target.closest("[data-user-reset]");
         const del = e.target.closest("[data-user-delete]");
         const users = loadUsers();
 
@@ -1929,6 +1948,21 @@
           logAudit("UPDATE_USER_STATUS", u.username, "OK");
           showToast("تم تحديث حالة المستخدم.");
           renderUserTable();
+        }
+        if (reset) {
+          const u = users.find((x) => x.id === reset.dataset.id);
+          if (!u) return;
+          const temporaryPassword = window.prompt(`أدخل كلمة مرور جديدة للحساب «${u.name}».`);
+          if (temporaryPassword === null) return;
+          const policyError = passwordPolicyError(temporaryPassword);
+          if (policyError) {
+            showToast(policyError, "error");
+            return;
+          }
+          u.passHash = hashDemo(temporaryPassword);
+          saveUsers(users);
+          logAudit("RESET_USER_PASSWORD", u.username, "OK");
+          showToast(`تمت استعادة كلمة مرور حساب ${u.name}.`);
         }
         if (del) {
           const u = users.find((x) => x.id === del.dataset.id);
@@ -1975,6 +2009,7 @@
           id: "u" + Date.now().toString(36),
           name,
           username,
+          email: username.includes("@") ? username : "",
           passHash: hashDemo(password),
           role,
           status: "active",
