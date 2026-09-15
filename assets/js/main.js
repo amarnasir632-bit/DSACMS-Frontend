@@ -31,13 +31,7 @@
   function resolveDownloadUrl(value) {
     const resolved = resolveMediaUrl(value);
     if (!/^https?:\/\//i.test(resolved)) return resolved;
-    try {
-      const url = new URL(resolved);
-      url.searchParams.set("download", "1");
-      return url.toString();
-    } catch (_) {
-      return resolved;
-    }
+    return `${API_CONFIG.baseUrl}/download?url=${encodeURIComponent(resolved)}`;
   }
 
   /** تحديد الصفحة الحالية */
