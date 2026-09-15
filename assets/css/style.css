@@ -1450,22 +1450,6 @@ input[type="range"]:focus-visible::-moz-range-thumb {
 .password-policy ul li {
   margin-block-end: var(--space-1);
 }
-.demo-credentials {
-  margin-block-start: var(--space-4);
-  background: var(--color-info-bg);
-  border: 1px solid currentColor;
-  color: var(--color-info);
-  border-radius: var(--radius-md);
-  padding: var(--space-3);
-  font-size: var(--fs-sm);
-}
-.demo-credentials code {
-  direction: ltr;
-  display: inline-block;
-  unicode-bidi: embed;
-  font-weight: 700;
-}
-
 /* ---------------------------------------------------------------
    15) لوحة التحكم (Dashboard)
    --------------------------------------------------------------- */
@@ -1792,13 +1776,65 @@ input[type="range"]:focus-visible::-moz-range-thumb {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-1);
+    overflow-x: auto;
   }
   .dash-nav button {
     width: auto;
+    white-space: nowrap;
+  }
+  .dash-panel,
+  .dash-panel-head,
+  .dash-layout,
+  .grid,
+  .form-group,
+  .list-toolbar {
+    min-width: 0;
   }
 }
 
 @media (max-width: 44rem) {
+  html,
+  body {
+    overflow-x: hidden;
+  }
+  .container {
+    width: min(100% - 1.5rem, var(--container));
+  }
+  .auth-card {
+    padding: var(--space-4);
+  }
+  .dash-panel-head,
+  .list-toolbar {
+    align-items: stretch;
+  }
+  .list-toolbar > * {
+    width: 100%;
+    min-width: 0;
+  }
+  .list-toolbar .field {
+    min-width: 0;
+  }
+  .table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .data-table {
+    min-width: 38rem;
+  }
+  .data-table th,
+  .data-table td {
+    padding: var(--space-2);
+    font-size: var(--fs-xs);
+  }
+  .data-table .row-actions {
+    flex-wrap: wrap;
+    min-width: 12rem;
+  }
+  .data-table .row-actions .btn {
+    white-space: nowrap;
+  }
   .hero-pad {
     padding-inline: 0;
   }
@@ -1822,6 +1858,17 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   }
   .player__volume {
     justify-content: flex-end;
+  }
+  .player__top,
+  .player__seek {
+    gap: var(--space-2);
+  }
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+  .stat-card {
+    padding: var(--space-3);
   }
   .section-title {
     font-size: var(--fs-lg);
