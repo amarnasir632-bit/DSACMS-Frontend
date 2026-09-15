@@ -57,12 +57,14 @@
 
         <div class="form-group password-wrap">
           <label for="login-password">كلمة المرور <span class="req" aria-label="مطلوب">*</span></label>
-          <input type="password" id="login-password" name="password" required
-                 class="field" autocomplete="current-password" placeholder="••••••••" aria-required="true"
-                 aria-describedby="password-hint">
-          <button type="button" class="password-toggle" id="password-toggle" aria-label="إظهار كلمة المرور">
-            <span aria-hidden="true">👁</span>
-          </button>
+          <div class="password-control">
+            <input type="password" id="login-password" name="password" required
+                   class="field" autocomplete="current-password" placeholder="••••••••" aria-required="true"
+                   aria-describedby="password-hint">
+            <button type="button" class="password-toggle" id="password-toggle" aria-label="إظهار كلمة المرور">
+              <span aria-hidden="true">👁</span>
+            </button>
+          </div>
           <p class="field-error-msg" id="err-password">الرجاء إدخال كلمة المرور.</p>
         </div>
 

@@ -1405,6 +1405,9 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   font-size: var(--fs-sm);
 }
 .password-wrap {
+  position: static;
+}
+.password-control {
   position: relative;
 }
 .password-wrap .field {
