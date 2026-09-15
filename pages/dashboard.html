@@ -117,6 +117,8 @@
               <!-- حقل سري معلومة داخلياً -->
               <input type="hidden" id="cf-id" name="id">
 
+              <div class="editor-step is-active" data-editor-step="1">
+                <p class="editor-step__label">الخطوة 1 من 3: المعلومات الأساسية</p>
               <div class="grid grid--content">
                 <div class="form-group">
                   <label for="cf-title">العنوان <span class="req">*</span></label>
@@ -153,7 +155,13 @@
                 <label for="cf-description">الوصف</label>
                 <textarea id="cf-description" name="description" class="field" rows="4" maxlength="1000"></textarea>
               </div>
+              <div class="editor-step__actions">
+                <button type="button" class="btn btn--primary" data-step-next="1">التالي</button>
+              </div>
+              </div>
 
+              <div class="editor-step" data-editor-step="2" hidden>
+                <p class="editor-step__label">الخطوة 2 من 3: نوع الملف والمحتوى</p>
               <div class="grid grid--content">
                 <div class="form-group">
                   <label for="cf-keywords">الكلمات المفتاحية</label>
@@ -193,7 +201,14 @@
                 <input type="text" id="cf-pdf" name="pdf" class="field" maxlength="500" placeholder="docs/book.pdf">
                 <p class="hint">يُستخدم لعرض الكتاب داخل الصفحة وإظهار زر التحميل.</p>
               </div>
+              <div class="editor-step__actions">
+                <button type="button" class="btn btn--outline" data-step-prev="2">السابق</button>
+                <button type="button" class="btn btn--primary" data-step-next="2">التالي</button>
+              </div>
+              </div>
 
+              <div class="editor-step" data-editor-step="3" hidden>
+                <p class="editor-step__label">الخطوة 3 من 3: النص والحفظ</p>
               <div class="form-group">
                 <label for="cf-body">نص المقال</label>
                 <textarea id="cf-body" name="body" class="field" rows="5" placeholder="ضع كل فقرة في سطر مستقل"></textarea>
@@ -201,8 +216,14 @@
               </div>
 
               <div class="form-group" style="display:flex;gap:var(--space-2);flex-wrap:wrap;">
+                <button type="button" class="btn btn--outline" data-step-prev="3">السابق</button>
                 <button type="submit" class="btn btn--primary" id="cf-submit">حفظ المادة</button>
                 <button type="button" class="btn btn--outline" id="cf-reset">إلغاء / مسح النموذج</button>
+              </div>
+              </div>
+              <div class="upload-progress" id="upload-progress" hidden aria-live="polite">
+                <div class="upload-progress__head"><span id="upload-progress-label">جاري الرفع…</span><strong id="upload-progress-value">0%</strong></div>
+                <progress id="upload-progress-bar" max="100" value="0">0%</progress>
               </div>
             </form>
           </section>
@@ -256,6 +277,7 @@
                 <label for="new-user-role">الدور</label>
                 <select id="new-user-role" class="field">
                   <option value="admin">Administrator</option>
+                  <option value="site_admin">مدير الموقع</option>
                   <option value="manager">Content Manager</option>
                   <option value="viewer">Viewer</option>
                 </select>

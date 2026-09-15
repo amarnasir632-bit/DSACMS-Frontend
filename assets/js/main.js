@@ -386,25 +386,37 @@
       body: JSON.stringify({ key, contentType: file.type || "application/octet-stream" }),
     });
 
-    const uploadResponse = await fetch(uploadUrl, {
-      method: "PUT",
-      headers: { "Content-Type": file.type || "application/octet-stream" },
-      body: file,
+    const progress = $("#upload-progress");
+    const progressBar = $("#upload-progress-bar");
+    const progressValue = $("#upload-progress-value");
+    const progressLabel = $("#upload-progress-label");
+    if (progress) progress.hidden = false;
+    return new Promise((resolve, reject) => {
+      const request = new XMLHttpRequest();
+      request.open("PUT", uploadUrl);
+      request.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+      request.upload.addEventListener("progress", (event) => {
+        if (!event.lengthComputable) return;
+        const percent = Math.round((event.loaded / event.total) * 100);
+        if (progressBar) progressBar.value = percent;
+        if (progressValue) progressValue.textContent = `${percent}%`;
+        if (progressLabel) progressLabel.textContent = percent === 100 ? "اكتمل رفع الملف، جارٍ حفظ البيانات…" : "جاري رفع الملف…";
+      });
+      request.addEventListener("load", () => {
+        if (request.status >= 200 && request.status < 300) {
+          resolve(publicUrl);
+          return;
+        }
+        if (request.status === 403) {
+          reject(new Error("مفتاح Internet Archive غير صالح أو منتهي. حدّث IA_ACCESS_KEY وIA_SECRET_KEY في Vercel."));
+          return;
+        }
+        reject(new Error(`فشل رفع الملف إلى Internet Archive (${request.status}).`));
+      });
+      request.addEventListener("error", () => reject(new Error("تعذر الاتصال بخدمة Internet Archive.")));
+      request.addEventListener("abort", () => reject(new Error("تم إلغاء رفع الملف.")));
+      request.send(file);
     });
-    if (!uploadResponse.ok) {
-      let detail = "";
-      try {
-        detail = await uploadResponse.text();
-      } catch (_) {
-        detail = "";
-      }
-      if (uploadResponse.status === 403 && /InvalidAccessKeyId/i.test(detail)) {
-        throw new Error("مفتاح Internet Archive غير صالح أو منتهي.");
-      }
-      throw new Error(`فشل رفع الملف إلى Internet Archive (${uploadResponse.status}).`);
-    }
-
-    return publicUrl;
   }
 
   async function loadRemoteData() {
@@ -470,6 +482,7 @@
      ---------------------------------------------------------------------- */
   const ROLES = {
     admin: { label: "مدير النظام", home: "pages/dashboard.html" },
+    site_admin: { label: "مدير الموقع", home: "pages/dashboard.html" },
     manager: { label: "مدير المحتوى", home: "pages/dashboard.html" },
     viewer: { label: "مستخدم مباشر", home: "index.html" },
   };
@@ -1112,7 +1125,7 @@
 
     // الاستماع للأحداث
     if (form) {
-      form.addEventListener("submit", (e) => {
+      form.addEventListener("submit", async (e) => {
         e.preventDefault();
         runSearch();
         // تحديث شريط العناوين دون إعادة تحميل – قواعد SEO-friendly
@@ -1356,7 +1369,7 @@
     }
     renderLockState();
 
-    form.addEventListener("submit", (e) => {
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
       if (isLocked()) return;
 
@@ -1378,7 +1391,19 @@
       }
       if (!valid) return;
 
-      const user = authenticate(username, password);
+      const submit = $("#login-submit");
+      if (submit) submit.disabled = true;
+      let user = null;
+      try {
+        const result = await fetchApi("/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password }),
+        });
+        user = result.user;
+      } catch (error) {
+        console.error("Login request failed", error);
+      }
       if (!user) {
         // محاولة فاشلة → نظام القفل
         const res = recordFailedAttempt(username);
@@ -1392,6 +1417,7 @@
         }
         logAudit("LOGIN_FAILED", username, "DENIED");
         renderLockState();
+        if (submit) submit.disabled = false;
         return;
       }
 
@@ -1469,12 +1495,12 @@
   function initDashboard() {
     const session = getSession();
     // حاجز RBAC (SEC-002): غير مسموح بالدخول دون جلسة
-    if (!session || !["admin", "manager"].includes(session.role)) {
+    if (!session || !["admin", "site_admin", "manager"].includes(session.role)) {
       window.location.href = BASE + "login.html";
       return;
     }
 
-    const isAdmin = session.role === "admin";
+    const isAdmin = ["admin", "site_admin"].includes(session.role);
 
     // عرض بيانات المستخدم
     const uname = $("#dash-user-name");
@@ -1607,7 +1633,7 @@
           openEditor(content);
         } else if (action === "status") {
           // التحقق من الصلاحية (RBAC)
-          if (session.role !== "admin" && session.role !== "manager") {
+          if (!["admin", "site_admin", "manager"].includes(session.role)) {
             showToast("لا تملك صلاحية تعديل الحالة", "error");
             return;
           }
@@ -1658,6 +1684,31 @@
     const editorTitle = $("#panel-editor-title");
     const editorAlert = $("#editor-alert");
     const newContentBtn = $("#btn-new-content");
+    const editorSteps = $$("[data-editor-step]");
+    let activeEditorStep = 1;
+
+    function showEditorStep(step) {
+      activeEditorStep = step;
+      editorSteps.forEach((panel) => {
+        panel.hidden = Number(panel.dataset.editorStep) !== step;
+      });
+    }
+    $$("[data-step-next]").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (Number(button.dataset.stepNext) === 1) {
+          let valid = true;
+          if (!cfTitle.value.trim()) { showFieldError("err-cf-title", cfTitle); valid = false; }
+          if (!cfAuthor.value.trim()) { showFieldError("err-cf-author", cfAuthor); valid = false; }
+          if (!cfCategory.value) { showFieldError("err-cf-category", cfCategory); valid = false; }
+          if (valid) showEditorStep(2);
+        } else {
+          showEditorStep(Math.min(3, activeEditorStep + 1));
+        }
+      });
+    });
+    $$("[data-step-prev]").forEach((button) => {
+      button.addEventListener("click", () => showEditorStep(Math.max(1, activeEditorStep - 1)));
+    });
 
     // تعبئة خيارات التصنيف في النموذج
     if (cfCategory) {
@@ -1691,6 +1742,9 @@
 
     function resetEditor() {
       if (cfForm) cfForm.reset();
+      showEditorStep(1);
+      const progress = $("#upload-progress");
+      if (progress) progress.hidden = true;
       if ($("#cf-id")) $("#cf-id").value = "";
       if (editorTitle) editorTitle.textContent = "إضافة مادة جديدة";
       if (cfSubmit) cfSubmit.textContent = "حفظ المادة";
@@ -1871,6 +1925,12 @@
         const cat = loadCategories().find((x) => x.id === id);
         const ok = await confirmAction("حذف التصنيف", `سيتم حذف تصنيف «${cat.name}». هل تريد المتابعة؟`);
         if (!ok) return;
+        try {
+          await fetchApi(`/categories/${encodeURIComponent(id)}`, { method: "DELETE" });
+        } catch (error) {
+          showToast("تعذر حذف التصنيف من الخادم.", "error");
+          return;
+        }
         saveCategories(loadCategories().filter((x) => x.id !== id));
         // تحديث خيارات النموذج
         if (cfCategory) {
@@ -1887,7 +1947,7 @@
     }
 
     if (catForm) {
-      catForm.addEventListener("submit", (e) => {
+      catForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         const name = newCat.value.trim();
         if (!name) return;
@@ -1896,8 +1956,18 @@
           showToast("يوجد تصنيف بهذا الاسم مسبقاً.", "error");
           return;
         }
-        const id = "cat-" + Date.now().toString(36);
-        cats.push({ id, name, icon: "📁", desc: "تصنيف مضاف عبر لوحة الإدارة" });
+        let created;
+        try {
+          created = await fetchApi("/categories", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, description: "تصنيف مضاف عبر لوحة الإدارة" }),
+          });
+        } catch (error) {
+          showToast("تعذر حفظ التصنيف على الخادم.", "error");
+          return;
+        }
+        cats.push(normalizeCategory(created));
         saveCategories(cats);
         if (cfCategory) {
           cfCategory.innerHTML =
@@ -1927,7 +1997,8 @@
             <td data-label="الدور">
               <label class="visually-hidden" for="role-${escapeHTML(u.id)}">دور المستخدم</label>
               <select id="role-${escapeHTML(u.id)}" class="field" style="width:auto;" data-user-role data-id="${escapeHTML(u.id)}">
-                <option value="admin" ${u.role === "admin" ? "selected" : ""}>Administrator</option>
+                <option value="admin" ${u.role === "admin" ? "selected" : ""}>مدير النظام</option>
+                <option value="site_admin" ${u.role === "site_admin" ? "selected" : ""}>مدير الموقع</option>
                 <option value="manager" ${u.role === "manager" ? "selected" : ""}>Content Manager</option>
                 <option value="viewer" ${u.role === "viewer" ? "selected" : ""}>Viewer</option>
               </select>
@@ -2027,7 +2098,7 @@
     }
 
     if (userForm) {
-      userForm.addEventListener("submit", (e) => {
+      userForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         const name = $("#new-user-name").value.trim();
         const username = $("#new-user-username").value.trim().toLowerCase();
@@ -2050,12 +2121,23 @@
           return;
         }
 
+        let created;
+        try {
+          created = await fetchApi("/auth/users", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password, role: role === "site_admin" ? "admin" : role }),
+          });
+        } catch (error) {
+          showToast("تعذر إنشاء الحساب على الخادم. تحقق من الاتصال أو من أن اسم المستخدم غير مكرر.", "error");
+          return;
+        }
         users.push({
-          id: "u" + Date.now().toString(36),
+          id: String(created.id),
           name,
           username,
           email: username.includes("@") ? username : "",
-          passHash: hashDemo(password),
+          passHash: "",
           role,
           status: "active",
         });
