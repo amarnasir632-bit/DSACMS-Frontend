@@ -615,8 +615,8 @@ table {
   min-width: 0;
   border: 0;
   background: transparent;
-  color: var(--color-info);
-  caret-color: var(--color-info);
+  color: #14253e;
+  caret-color: #14253e;
   padding: var(--space-3) var(--space-4);
   font-size: var(--fs-base);
 }
