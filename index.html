@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#14253e">
+
+  <!-- SEO: العنوان والوصف والكلمات المفتاحية (SEO-002 / SEO-003) -->
+  <title>الشيخ محمد أحمد الهادي الكرار | المكتبة العلمية</title>
+  <meta name="description" content="منصة إدارة وأرشفة المحتوى العلمي والصوتي: استمع، ابحث وتصفّح المواد العلمية المؤرشفة بتصنيفات دقيقة وواجهة عربية كاملة، متاحة على جميع الأجهزة.">
+  <meta name="keywords" content="محتوى علمي, صوتي, أرشفة, نظام إدارة المحتوى, DSACMS, استماع, تصنيفات, بحث">
+
+  <!-- Canonical (SEO-007): استبدل النطاق بالنطاق الفعلي عند النشر -->
+  <link rel="canonical" href="https://dsacms.example/">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="ar_AR">
+  <meta property="og:site_name" content="الشيخ محمد أحمد الهادي الكرار">
+  <meta property="og:title" content="DSACMS | نظام إدارة وأرشفة المحتوى العلمي والصوتي">
+  <meta property="og:description" content="استمع، ابحث وتصفّح المواد العلمية والملفات الصوتية المؤرشفة بواجهة عربية كاملة RTL.">
+  <meta property="og:url" content="https://dsacms.example/">
+  <meta property="og:image" content="https://dsacms.example/assets/images/logo.png">
+
+  <!-- ارتباطات المصادر -->
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link rel="icon" type="image/png" href="assets/images/logo.png">
+
+  <!-- Structured Data: تحديد نوع الموقع مع إجراء البحث (SEO) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "DSACMS",
+    "url": "https://dsacms.example/",
+    "inLanguage": "ar",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "https://dsacms.example/pages/search.html?q={search_term_string}",
+      "query-input": "required name=search_term_string"
+    }
+  }
+  </script>
+</head>
+
+<body data-page="index" data-base="">
+
+  <a class="skip-link" href="#main">تخطَّ إلى المحتوى الرئيسي</a>
+
+  <!-- ======================= الرأس والتنقل (UI-008: ثابت بين الصفحات) ======================= -->
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a class="brand" href="index.html" aria-label="DSACMS – الصفحة الرئيسية">
+        <img src="assets/images/logo.png" alt="شعار نظام DSACMS" height="60" style="object-fit: contain;">
+        <span>الشيخ محمد أحمد الهادي الكرار<small>المكتبة العلمية والصوتية</small></span>
+      </a>
+
+      <!-- زر قائمة الجوال -->
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="فتح أو إغلاق قائمة التنقل">
+        <span class="icon-menu" aria-hidden="true">☰</span>
+        <span class="icon-close" aria-hidden="true">✕</span>
+      </button>
+
+      <nav id="site-nav" class="site-nav" aria-label="القائمة الرئيسية">
+        <ul>
+          <li><a href="index.html" aria-current="page">الرئيسية</a></li>
+          <li><a href="pages/search.html">تصفّح المحتوى</a></li>
+          <li><a href="pages/about.html">حول الشيخ</a></li>
+          <li><a href="pages/login.html">تسجيل الدخول للإدارة</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="site-main">
+
+    <!-- ======================= قسم البطل (Hero) مع البحث ======================= -->
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="container hero-pad">
+        <h1 id="hero-title">مكتبتك العلمية الصوتية، منظمة ومتاحة للجميع</h1>
+        <p>يتيح موقع الشيخ محمد أحمد الهادي الكرار تصفّح وأرشفة المحتوى العلمي مع ملفات صوتية واضحة، بواجهة عربية كاملة وتصميم متجاوب.</p>
+
+        <!-- نموذج البحث الرئيسي (FR-004, SR-001) -->
+        <form class="hero-search" id="hero-search-form" role="search" action="pages/search.html" method="get">
+          <div class="search-bar">
+            <label class="visually-hidden" for="hero-q">ابحث في المحتوى العلمي</label>
+            <input type="search" id="hero-q" name="q" placeholder="ابحث عن مادة، مؤلف، تصنيف…" autocomplete="off" aria-describedby="search-hint">
+            <button type="submit">بحث</button>
+          </div>
+          <p class="search-hint" id="search-hint">جرّب: «أصول الفقه» أو «تفسير سورة» أو اسم مؤلف</p>
+        </form>
+
+        <!-- إحصائيات تُملأ عبر JS -->
+        <ul class="hero-stats" id="hero-stats" aria-label="إحصائيات النظام">
+          <li><strong id="stat-content">–</strong><span>مادة علمية</span></li>
+          <li><strong id="stat-audio">–</strong><span>ملفاً صوتياً</span></li>
+          <li><strong id="stat-articles">–</strong><span>مقالاً مكتوباً</span></li>
+          <li><strong id="stat-books">–</strong><span>كتاب PDF</span></li>
+          <li><strong id="stat-categories">–</strong><span>تصنيفاً</span></li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- ======================= شبكة التصنيفات ======================= -->
+    <section class="container" id="categories" aria-labelledby="categories-title" style="margin-block-start: var(--space-6);">
+      <div class="section-head">
+        <h2 class="section-title" id="categories-title">تصنيفات المحتوى</h2>
+        <a class="btn btn--ghost" href="pages/search.html">استعراض كل المحتوى ←</a>
+      </div>
+      <!-- تُرسم البطاقات عبر JS من بيانات التصنيفات -->
+      <div class="grid grid--categories" id="categories-grid" aria-live="polite"></div>
+    </section>
+
+    <!-- ======================= أحدث المواد الصوتية ======================= -->
+    <section class="container" id="latest" aria-labelledby="latest-title" style="margin-block-start: var(--space-6);">
+      <div class="section-head">
+        <h2 class="section-title" id="latest-title">أحدث المواد الصوتية</h2>
+        <a class="btn btn--ghost" href="pages/search.html">عرض المزيد ←</a>
+      </div>
+      <!-- تُرسم البطاقات مع مشغّل مصغّر عبر JS -->
+      <div class="grid grid--content" id="latest-grid" aria-live="polite"></div>
+    </section>
+
+    <!-- ======================= نبذة عن النظام (FR-002) ======================= -->
+    <section class="container" id="about" aria-labelledby="about-title" style="margin-block-start: var(--space-6);">
+      <div class="card" style="padding: var(--space-5);">
+        <h2 class="section-title" id="about-title">مكتبة الشيخ العلمية</h2>
+        <div class="grid grid--content">
+          <article>
+            <h3 style="margin-block-end: var(--space-2);">🎧 محتوى صوتي أولاً</h3>
+            <p class="section-desc">تشغيل ملفات علمية مباشرة عبر مشغّل مدمج مع أزرار واضحة وسهلة الوصول.</p>
+          </article>
+          <article>
+            <h3 style="margin-block-end: var(--space-2);">🔍 بحث وتصنيف</h3>
+            <p class="section-desc">ابحث بالعربية وتصفّح عبر تصنيفات دقيقة للوصول السريع إلى ما تريد.</p>
+          </article>
+          <article>
+            <h3 style="margin-block-end: var(--space-2);">♿ إتاحة للجميع</h3>
+            <p class="section-desc">واجهة متوافقة مع إرشادات WCAG 2.2 AA مع دعم التنقل بلوحة المفاتيح وقارئات الشاشة.</p>
+          </article>
+          <article>
+            <h3 style="margin-block-end: var(--space-2);">📐 متجاوب وبسيط</h3>
+            <p class="section-desc">يعمل على الهاتف واللوحي وسطح المكتب، ومصمم ليكون سهل الفهم لجميع الفئات التقنية.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ======================= التذييل ======================= -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <h3>عن النظام</h3>
+          <p style="font-size: var(--fs-sm); color: #c4d8d3;">نظام إدارة وأرشفة المحتوى العلمي والصوتي – الإصدار الأول يركز على المحتوى الصوتي مع إتاحة التوسع مستقبلاً.</p>
+        </div>
+        <nav aria-label="روابط التنقل في التذييل">
+          <h3>روابط سريعة</h3>
+          <ul>
+            <li><a href="index.html">الرئيسية</a></li>
+            <li><a href="pages/search.html">تصفّح المحتوى</a></li>
+            <li><a href="pages/login.html">لوحة الإدارة</a></li>
+          </ul>
+        </nav>
+        <nav aria-label="التصنيفات الشائعة في التذييل">
+          <h3>تصنيفات شائعة</h3>
+          <ul id="footer-categories"></ul>
+        </nav>
+        <div>
+          <h3>التواصل</h3>
+          <ul>
+            <li><a href="mailto:info@dsacms.example">info@dsacms.example</a></li>
+            <li>الخرطوم – السودان</li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© <span id="year">2026</span> موقع الشيخ محمد أحمد الهادي الكرار</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="assets/js/main.js" defer></script>
+</body>
+</html>
