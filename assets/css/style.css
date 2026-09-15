@@ -1820,25 +1820,75 @@ input[type="range"]:focus-visible::-moz-range-thumb {
     min-width: 0;
   }
   .table-wrap {
-    max-width: 100%;
-    overflow-x: auto;
-    overscroll-behavior-inline: contain;
-    -webkit-overflow-scrolling: touch;
+    border: 0;
+    background: transparent;
+    overflow: visible;
   }
-  .data-table {
-    min-width: 38rem;
+  .data-table,
+  .data-table tbody {
+    display: block;
+    width: 100%;
   }
-  .data-table th,
+  .data-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .data-table tr {
+    display: block;
+    padding: var(--space-3);
+    margin-block-end: var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+  }
+  .data-table tr:last-child {
+    margin-block-end: 0;
+  }
   .data-table td {
-    padding: var(--space-2);
+    display: grid;
+    grid-template-columns: minmax(6.5rem, 38%) minmax(0, 1fr);
+    gap: var(--space-2);
+    align-items: center;
+    padding: var(--space-2) 0;
+    border-block-end: 1px solid var(--color-border);
+    white-space: normal;
+    overflow-wrap: anywhere;
+    font-size: var(--fs-sm);
+  }
+  .data-table td:last-child {
+    border-block-end: 0;
+  }
+  .data-table td::before {
+    content: attr(data-label);
+    color: var(--color-text-muted);
     font-size: var(--fs-xs);
+    font-weight: 700;
+  }
+  .data-table td.title-cell {
+    display: block;
+    font-size: var(--fs-md);
+  }
+  .data-table td.title-cell::before {
+    display: block;
+    margin-block-end: var(--space-1);
   }
   .data-table .row-actions {
+    display: flex;
     flex-wrap: wrap;
-    min-width: 12rem;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+  .data-table .row-actions::before {
+    flex: 0 0 100%;
   }
   .data-table .row-actions .btn {
-    white-space: nowrap;
+    white-space: normal;
+    flex: 1 1 auto;
   }
   .hero-pad {
     padding-inline: 0;

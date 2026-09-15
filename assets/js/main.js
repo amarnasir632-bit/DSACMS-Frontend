@@ -392,7 +392,16 @@
       body: file,
     });
     if (!uploadResponse.ok) {
-      throw new Error(`Archive upload failed: ${uploadResponse.status}`);
+      let detail = "";
+      try {
+        detail = await uploadResponse.text();
+      } catch (_) {
+        detail = "";
+      }
+      if (uploadResponse.status === 403 && /InvalidAccessKeyId/i.test(detail)) {
+        throw new Error("مفتاح Internet Archive غير صالح أو منتهي.");
+      }
+      throw new Error(`فشل رفع الملف إلى Internet Archive (${uploadResponse.status}).`);
     }
 
     return publicUrl;
@@ -1571,12 +1580,12 @@
           const toggleClass = c.status === "published" ? "btn--outline" : "btn--primary";
           return `
           <tr>
-            <td class="title-cell"><a href="content-detail.html?id=${encodeURIComponent(c.id)}" target="_blank" rel="noopener">${escapeHTML(c.title)}</a></td>
-            <td>${cat ? escapeHTML(cat.name) : "—"}</td>
-            <td>${badge}</td>
-            <td dir="ltr">${c.duration ? formatDuration(c.duration) : "—"}</td>
-            <td>${formatDate(c.pubDate)}</td>
-            <td class="row-actions">
+            <td class="title-cell" data-label="العنوان"><a href="content-detail.html?id=${encodeURIComponent(c.id)}" target="_blank" rel="noopener">${escapeHTML(c.title)}</a></td>
+            <td data-label="التصنيف">${cat ? escapeHTML(cat.name) : "—"}</td>
+            <td data-label="الحالة">${badge}</td>
+            <td data-label="المدة" dir="ltr">${c.duration ? formatDuration(c.duration) : "—"}</td>
+            <td data-label="التاريخ">${formatDate(c.pubDate)}</td>
+            <td class="row-actions" data-label="إجراءات">
               <button type="button" class="btn btn--ghost btn--sm" data-action="edit" data-id="${escapeHTML(c.id)}">تعديل</button>
               <button type="button" class="btn ${toggleClass} btn--sm" data-action="status" data-id="${escapeHTML(c.id)}">${toggleLabel}</button>
               <button type="button" class="btn btn--danger-outline btn--sm" data-action="delete" data-id="${escapeHTML(c.id)}">حذف</button>
@@ -1822,7 +1831,7 @@
           refreshAll();
         } catch (error) {
           console.error("Unable to save material", error);
-          showToast("تعذر حفظ المادة أو رفع الملف. لم يتم اعتماد العملية.", "error");
+          showToast(error.message || "تعذر حفظ المادة أو رفع الملف. لم يتم اعتماد العملية.", "error");
         } finally {
           if (cfSubmit) cfSubmit.disabled = false;
         }
@@ -1843,9 +1852,9 @@
           const count = all.filter((x) => x.category === c.id).length;
           return `
           <tr>
-            <td>${c.icon} ${escapeHTML(c.name)}</td>
-            <td>${count}</td>
-            <td class="row-actions">
+            <td data-label="التصنيف">${c.icon} ${escapeHTML(c.name)}</td>
+            <td data-label="عدد المواد">${count}</td>
+            <td class="row-actions" data-label="إجراءات">
               <button type="button" class="btn btn--danger-outline btn--sm" data-cat-delete="${escapeHTML(c.id)}" ${count ? "disabled" : ""}
                       ${count ? 'title="لا يمكن حذف تصنيف يحتوي على مواد"' : ""}>حذف</button>
             </td>
@@ -1913,9 +1922,9 @@
         .map(
           (u) => `
           <tr>
-            <td>${escapeHTML(u.name)}</td>
-            <td dir="ltr">${escapeHTML(u.username)}</td>
-            <td>
+            <td data-label="الاسم">${escapeHTML(u.name)}</td>
+            <td data-label="اسم المستخدم" dir="ltr">${escapeHTML(u.username)}</td>
+            <td data-label="الدور">
               <label class="visually-hidden" for="role-${escapeHTML(u.id)}">دور المستخدم</label>
               <select id="role-${escapeHTML(u.id)}" class="field" style="width:auto;" data-user-role data-id="${escapeHTML(u.id)}">
                 <option value="admin" ${u.role === "admin" ? "selected" : ""}>Administrator</option>
@@ -1923,12 +1932,12 @@
                 <option value="viewer" ${u.role === "viewer" ? "selected" : ""}>Viewer</option>
               </select>
             </td>
-            <td>
+            <td data-label="الحالة">
               <span class="badge ${u.status === "active" ? "badge--active" : "badge--inactive"}">
                 ${u.status === "active" ? "نشط" : "معطّل"}
               </span>
             </td>
-            <td class="row-actions">
+            <td class="row-actions" data-label="إجراءات">
               <button type="button" class="btn btn--outline btn--sm" data-user-status data-id="${escapeHTML(u.id)}">
                 ${u.status === "active" ? "تعطيل" : "تفعيل"}
               </button>
@@ -2097,11 +2106,11 @@
             .map(
               (l) => `
               <tr>
-                <td>${formatAuditTime(l.ts)}</td>
-                <td>${escapeHTML(l.user)}</td>
-                <td>${ACTION_LABELS[l.action] || escapeHTML(l.action)}</td>
-                <td>${escapeHTML(l.entity)}</td>
-                <td><span class="badge ${l.result === "OK" ? "badge--active" : "badge--danger"}">${escapeHTML(l.result)}</span></td>
+                <td data-label="الزمن">${formatAuditTime(l.ts)}</td>
+                <td data-label="المستخدم">${escapeHTML(l.user)}</td>
+                <td data-label="الإجراء">${ACTION_LABELS[l.action] || escapeHTML(l.action)}</td>
+                <td data-label="الكيان">${escapeHTML(l.entity)}</td>
+                <td data-label="النتيجة"><span class="badge ${l.result === "OK" ? "badge--active" : "badge--danger"}">${escapeHTML(l.result)}</span></td>
               </tr>`
             )
             .join("")
