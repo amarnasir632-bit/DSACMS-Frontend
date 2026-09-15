@@ -22,6 +22,12 @@
   /** قاعدة المسار النسبي: الصفحة الرئيسية "" بينما "pages/" هي "../" */
   const BASE = (document.body && document.body.dataset.base) || "";
 
+  function resolveMediaUrl(value) {
+    const url = String(value || "").trim();
+    if (/^(?:https?:|data:|blob:)/i.test(url)) return url;
+    return BASE + url;
+  }
+
   /** تحديد الصفحة الحالية */
   const PAGE = (document.body && document.body.dataset.page) || "";
 
@@ -645,7 +651,7 @@
       return;
     }
     const id = "mini-" + content.id;
-    const src = BASE + content.audio;
+    const src = resolveMediaUrl(content.audio);
     btn.setAttribute("aria-pressed", "false");
     btn.innerHTML = '<span class="icon" aria-hidden="true">▶</span><span data-label>تشغيل</span>';
 
@@ -926,8 +932,7 @@
     "?id=" +
     encodeURIComponent(id);
 
-  const resolveContentUrl = (path) =>
-    /^https?:\/\//i.test(String(path || "")) ? String(path) : BASE + String(path || "");
+  const resolveContentUrl = resolveMediaUrl;
 
   /** بطاقة مادة علمية قابلة لإعادة الاستخدام */
   function contentCard(c) {
@@ -1154,7 +1159,7 @@
       } else if (content.pdf && pdfReader && pdfFrame) {
         articleBody.innerHTML = "";
         pdfReader.hidden = false;
-        pdfFrame.src = `${BASE}${content.pdf}`;
+        pdfFrame.src = resolveContentUrl(content.pdf);
       }
     }
 
@@ -1163,10 +1168,10 @@
     if (downloadsSection && downloadActions) {
       const downloads = [];
       if (content.audio) {
-        downloads.push(`<a class="btn btn--primary" href="${BASE}${encodeURI(content.audio)}" download>تحميل الملف الصوتي</a>`);
+        downloads.push(`<a class="btn btn--primary" href="${escapeHTML(encodeURI(resolveContentUrl(content.audio)))}" download>تحميل الملف الصوتي</a>`);
       }
       if (content.pdf) {
-        downloads.push(`<a class="btn btn--accent" href="${BASE}${encodeURI(content.pdf)}" download>تحميل الكتاب PDF</a>`);
+        downloads.push(`<a class="btn btn--accent" href="${escapeHTML(encodeURI(resolveContentUrl(content.pdf)))}" download>تحميل الكتاب PDF</a>`);
       }
       downloadsSection.hidden = downloads.length === 0;
       downloadActions.innerHTML = downloads.join("");
