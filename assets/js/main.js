@@ -1718,6 +1718,52 @@
       return true;
     }
 
+    let durationLookupId = 0;
+    function loadAudioDuration(url) {
+      const hint = $("#cf-duration-hint");
+      if (!cfAudio || !cfDuration || !url || !isDirectUrl(url) || (cfType && cfType.value !== "audio")) {
+        return;
+      }
+      const lookupId = ++durationLookupId;
+      hint.textContent = "جارٍ قراءة مدة الملف الصوتي من الرابط…";
+      const audio = document.createElement("audio");
+      audio.preload = "metadata";
+      audio.addEventListener("loadedmetadata", () => {
+        if (lookupId !== durationLookupId || cfAudio.value.trim() !== url) return;
+        if (Number.isFinite(audio.duration) && audio.duration > 0) {
+          cfDuration.value = Math.round(audio.duration);
+          hint.textContent = "تم حساب المدة تلقائيًا من الرابط. يمكنك تعديلها يدويًا.";
+        } else {
+          hint.textContent = "تعذر قراءة المدة؛ أدخلها يدويًا بالثواني.";
+        }
+        audio.removeAttribute("src");
+        audio.load();
+      });
+      audio.addEventListener("error", () => {
+        if (lookupId !== durationLookupId || cfAudio.value.trim() !== url) return;
+        hint.textContent = "تعذر قراءة مدة الرابط. تأكد أنه ملف صوت مباشر وعام، أو أدخل المدة يدويًا.";
+        audio.removeAttribute("src");
+        audio.load();
+      });
+      audio.src = url;
+    }
+
+    if (cfAudio) {
+      cfAudio.addEventListener("change", () => {
+        const url = cfAudio.value.trim();
+        if (validateAudioUrl(url)) loadAudioDuration(url);
+      });
+      cfAudio.addEventListener("blur", () => {
+        const url = cfAudio.value.trim();
+        if (validateAudioUrl(url)) loadAudioDuration(url);
+      });
+    }
+    if (cfType) {
+      cfType.addEventListener("change", () => {
+        if (cfAudio.value.trim()) loadAudioDuration(cfAudio.value.trim());
+      });
+    }
+
     // حفظ المادة
     if (cfForm) {
       cfForm.addEventListener("submit", async (e) => {
