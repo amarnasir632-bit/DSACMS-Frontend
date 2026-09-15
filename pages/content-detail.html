@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#14253e">
+
+  <!-- SEO: تُحدَّث العناوين والوصف ديناميكياً عبر JS حسب المادة المفتوحة (SEO-001) -->
+  <title>تفاصيل المادة العلمية | DSACMS</title>
+  <meta name="description" content="صفحة المادة العلمية في أرشيف DSACMS مع البيانات الوصفية ومشغّل الصوت المدمج.">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <link rel="canonical" href="https://dsacms.example/pages/content-detail.html">
+
+  <!-- Open Graph (مناسب لمشاركة المواد – FR-025) -->
+  <meta property="og:type" content="article">
+  <meta property="og:locale" content="ar_AR">
+  <meta property="og:title" content="تفاصيل المادة العلمية | DSACMS">
+  <meta property="og:description" content="صفحة مادة علمية مع مشغّل صوتي مدمج وبيانات وصفية كاملة.">
+  <meta property="og:url" content="https://dsacms.example/pages/content-detail.html">
+  <meta property="og:image" content="https://dsacms.example/assets/images/logo.png">
+
+  <link rel="stylesheet" href="../assets/css/style.css">
+  <link rel="icon" type="image/png" href="../assets/images/logo.png">
+</head>
+
+<body data-page="detail" data-base="../">
+
+  <a class="skip-link" href="#main">تخطَّ إلى تفاصيل المادة</a>
+
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a class="brand" href="../index.html" aria-label="DSACMS – الصفحة الرئيسية">
+        <img src="../assets/images/logo.png" alt="شعار نظام DSACMS" height="60" style="object-fit: contain;">
+        <span>الشيخ محمد أحمد الهادي الكرار<small>المكتبة العلمية والصوتية</small></span>
+      </a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="فتح أو إغلاق قائمة التنقل">
+        <span class="icon-menu" aria-hidden="true">☰</span>
+        <span class="icon-close" aria-hidden="true">✕</span>
+      </button>
+      <nav id="site-nav" class="site-nav" aria-label="القائمة الرئيسية">
+        <ul>
+          <li><a href="../index.html">الرئيسية</a></li>
+          <li><a href="search.html">تصفّح المحتوى</a></li>
+          <li><a href="about.html">حول الشيخ</a></li>
+          <li><a href="login.html">تسجيل الدخول للإدارة</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="site-main">
+    <div class="container">
+
+      <!-- مسار التنقل (SEO: Internal Linking / Breadcrumb) -->
+      <nav class="breadcrumbs" aria-label="مسار التنقل">
+        <a href="../index.html">الرئيسية</a>
+        <span class="sep" aria-hidden="true">/</span>
+        <a href="search.html">المحتوى</a>
+        <span class="sep" aria-hidden="true">/</span>
+        <span id="breadcrumb-category">التصنيف</span>
+        <span class="sep" aria-hidden="true">/</span>
+        <span id="breadcrumb-current">المادة</span>
+      </nav>
+
+      <!-- رسالة عند غياب المادة أو عدم وجودها (BR-002) -->
+      <div class="alert alert--error" id="not-found" role="alert" hidden>
+        لم يتم العثور على المادة المطلوبة. <a href="search.html">العودة إلى البحث</a>
+      </div>
+
+      <article id="detail-wrap" style="display: contents;">
+
+        <!-- العنوان والبيانات الوصفية الأساسية -->
+        <header id="article-header">
+          <h1 class="article-title" id="article-title">…</h1>
+          <ul class="meta-list" id="meta-list"></ul>
+        </header>
+
+        <div class="detail-layout">
+          <div>
+
+            <!-- مشغّل الصوت المخصص (FR-008 / FR-009 / UI-005) -->
+            <section id="player-section" aria-label="مشغّل الصوت">
+              <!-- يُبنى هيكل المشغّل عبر JS عبر الدالة renderPlayer -->
+            </section>
+
+            <!-- محتوى المقالات والكتب القابلة للقراءة -->
+            <section id="reading-section" class="reading-section" hidden aria-label="قراءة المادة">
+              <h2 id="reading-title"></h2>
+              <div id="article-body" class="article-body"></div>
+              <div id="pdf-reader" class="pdf-reader" hidden>
+                <iframe id="pdf-frame" title="قارئ الكتاب بصيغة PDF"></iframe>
+              </div>
+            </section>
+
+            <!-- روابط التنزيل -->
+            <section id="downloads-section" class="downloads-section" hidden aria-label="تنزيل ملفات المادة">
+              <h2>ملفات المادة</h2>
+              <div id="download-actions"></div>
+            </section>
+
+            <!-- نص الوصف -->
+            <div class="prose" id="article-prose">
+              <h3>نبذة عن المادة</h3>
+              <p id="article-description"></p>
+              <div class="keywords" id="article-keywords" aria-label="الكلمات المفتاحية"></div>
+            </div>
+
+            <!-- مشاركة بروابط مباشرة (FR-024 / FR-025) -->
+            <div class="share-row" id="share-row">
+              <span style="font-weight:700; align-self:center;">مشاركة المادة:</span>
+              <button class="btn btn--outline btn--sm" id="share-copy" type="button">نسخ الرابط المباشر</button>
+              <a class="btn btn--outline btn--sm" id="share-twitter" href="#" target="_blank" rel="noopener">مشاركة عبر X</a>
+              <a class="btn btn--outline btn--sm" id="share-whatsapp" href="#" target="_blank" rel="noopener">مشاركة عبر واتساب</a>
+            </div>
+          </div>
+
+          <!-- الشريط الجانبي: بيانات وصفية ومواد ذات صلة -->
+          <aside class="sidebar">
+            <div class="aside-card">
+              <h2>بيانات المادة (FR-007)</h2>
+              <table class="meta-table" id="meta-table">
+                <tbody></tbody>
+              </table>
+            </div>
+
+            <div class="aside-card">
+              <h2>مواد ذات صلة</h2>
+              <div id="related-list"></div>
+            </div>
+          </aside>
+        </div>
+      </article>
+
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <h3>عن النظام</h3>
+          <p style="font-size: var(--fs-sm); color: #c4d8d3;">نظام إدارة وأرشفة المحتوى العلمي والصوتي – الإصدار الأول يركز على المحتوى الصوتي مع إتاحة التوسع مستقبلاً.</p>
+        </div>
+        <nav aria-label="روابط سريعة">
+          <h3>روابط سريعة</h3>
+          <ul>
+            <li><a href="../index.html">الرئيسية</a></li>
+            <li><a href="search.html">تصفّح المحتوى</a></li>
+            <li><a href="login.html">لوحة الإدارة</a></li>
+          </ul>
+        </nav>
+        <nav aria-label="تصنيفات شائعة">
+          <h3>تصنيفات شائعة</h3>
+          <ul id="footer-categories"></ul>
+        </nav>
+        <div>
+          <h3>التواصل</h3>
+          <ul>
+            <li><a href="mailto:info@dsacms.example">info@dsacms.example</a></li>
+            <li>الخرطوم – السودان</li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© <span id="year">2026</span> موقع الشيخ محمد أحمد الهادي الكرار</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="../assets/js/main.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" role="img" aria-labelledby="title desc">
+  <title id="title">صورة الشيخ محمد أحمد الهادي الكرار</title>
+  <desc id="desc">صورة مؤقتة تستبدل بصورة الشيخ عند توفرها</desc>
+  <rect width="640" height="640" rx="32" fill="#14253e"/>
+  <circle cx="320" cy="230" r="105" fill="#d9b36c"/>
+  <path d="M128 560c24-126 98-190 192-190s168 64 192 190" fill="#d9b36c"/>
+  <text x="320" y="615" text-anchor="middle" fill="#fff" font-family="sans-serif" font-size="25">صورة الشيخ</text>
+</svg>
