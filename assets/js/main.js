@@ -28,6 +28,18 @@
     return BASE + url;
   }
 
+  function resolveDownloadUrl(value) {
+    const resolved = resolveMediaUrl(value);
+    if (!/^https?:\/\//i.test(resolved)) return resolved;
+    try {
+      const url = new URL(resolved);
+      url.searchParams.set("download", "1");
+      return url.toString();
+    } catch (_) {
+      return resolved;
+    }
+  }
+
   /** تحديد الصفحة الحالية */
   const PAGE = (document.body && document.body.dataset.page) || "";
 
@@ -962,7 +974,7 @@
         <div class="item-actions">
           <a class="btn btn--outline btn--sm" href="${detailHref(c.id)}">تفاصيل المادة</a>
           ${downloadPath
-            ? `<a class="btn btn--accent btn--sm card-download" href="${escapeHTML(encodeURI(resolveContentUrl(downloadPath)))}" download>${downloadLabel}</a>`
+            ? `<a class="btn btn--accent btn--sm card-download" href="${escapeHTML(encodeURI(resolveDownloadUrl(downloadPath)))}" download>${downloadLabel}</a>`
             : ""}
         </div>
       </div>
@@ -1168,10 +1180,10 @@
     if (downloadsSection && downloadActions) {
       const downloads = [];
       if (content.audio) {
-        downloads.push(`<a class="btn btn--primary" href="${escapeHTML(encodeURI(resolveContentUrl(content.audio)))}" download>تحميل الملف الصوتي</a>`);
+        downloads.push(`<a class="btn btn--primary" href="${escapeHTML(encodeURI(resolveDownloadUrl(content.audio)))}" download>تحميل الملف الصوتي</a>`);
       }
       if (content.pdf) {
-        downloads.push(`<a class="btn btn--accent" href="${escapeHTML(encodeURI(resolveContentUrl(content.pdf)))}" download>تحميل الكتاب PDF</a>`);
+        downloads.push(`<a class="btn btn--accent" href="${escapeHTML(encodeURI(resolveDownloadUrl(content.pdf)))}" download>تحميل الكتاب PDF</a>`);
       }
       downloadsSection.hidden = downloads.length === 0;
       downloadActions.innerHTML = downloads.join("");
