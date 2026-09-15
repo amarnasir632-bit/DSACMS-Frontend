@@ -99,6 +99,7 @@
   };
   let apiCategories = [];
   let apiContents = [];
+  let apiUsers = [];
   /** مفاتيح التخزين الدائم المحلي */
   const STORE = {
     contents: "dsacms_contents",
@@ -424,6 +425,19 @@
     if (results[0].status === "fulfilled") {
       apiCategories = results[0].value.map(normalizeCategory);
     }
+
+    async function loadRemoteUsers() {
+      const users = await fetchApi("/auth/users");
+      if (Array.isArray(users)) {
+        apiUsers = users.map((user) => ({
+          ...user,
+          id: String(user.id),
+          status: user.status || "active",
+          passHash: "",
+        }));
+        saveUsers(apiUsers);
+      }
+    }
     if (results[1].status === "fulfilled") {
       apiContents = results[1].value.map(normalizeMaterial);
     }
@@ -433,6 +447,7 @@
   }
 
   function loadUsers() {
+    if (apiUsers.length) return apiUsers;
     const stored = store.read(STORE.users, null);
     if (!Array.isArray(stored)) {
       saveUsers(DEFAULT_USERS);
@@ -449,6 +464,7 @@
     return merged;
   }
   function saveUsers(list) {
+    apiUsers = Array.isArray(list) ? list : [];
     store.write(STORE.users, list);
   }
 
@@ -1413,12 +1429,20 @@
     });
   }
 
-  function initDashboard() {
+  async function initDashboard() {
     const session = getSession();
     // حاجز RBAC (SEC-002): غير مسموح بالدخول دون جلسة
     if (!session || !["admin", "site_admin", "manager"].includes(session.role)) {
       window.location.href = BASE + "login.html";
       return;
+    }
+    if (["admin", "site_admin"].includes(session.role)) {
+      try {
+        await loadRemoteUsers();
+      } catch (error) {
+        console.error("Unable to load users from the server", error);
+        showToast("تعذر تحميل قائمة المستخدمين من الخادم.", "error");
+      }
     }
 
     const isAdmin = ["admin", "site_admin"].includes(session.role);
