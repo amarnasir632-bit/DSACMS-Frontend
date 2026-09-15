@@ -407,11 +407,8 @@
   async function uploadToArchive(file) {
     const extension = file.name.includes(".") ? file.name.split(".").pop().toLowerCase() : "bin";
     const key = `audio/${Date.now()}-${crypto.randomUUID()}.${extension}`;
-    const { uploadUrl, publicUrl } = await fetchApi("/uploads/sign", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ key, contentType: file.type || "application/octet-stream" }),
-    });
+    const contentType = file.type || "application/octet-stream";
+    const uploadUrl = `${API_CONFIG.baseUrl}/uploads?key=${encodeURIComponent(key)}&contentType=${encodeURIComponent(contentType)}`;
 
     const progress = $("#upload-progress");
     const progressBar = $("#upload-progress-bar");
@@ -421,8 +418,7 @@
     return new Promise((resolve, reject) => {
       const request = new XMLHttpRequest();
       request.open("PUT", uploadUrl);
-      request.setRequestHeader("Content-Type", file.type || "application/octet-stream");
-      request.setRequestHeader("x-amz-auto-make-bucket", "1");
+      request.setRequestHeader("Content-Type", contentType);
       request.upload.addEventListener("progress", (event) => {
         if (!event.lengthComputable) return;
         const percent = Math.round((event.loaded / event.total) * 100);
@@ -432,7 +428,9 @@
       });
       request.addEventListener("load", () => {
         if (request.status >= 200 && request.status < 300) {
-          resolve(publicUrl);
+          let response = {};
+          try { response = JSON.parse(request.responseText || "{}"); } catch (_) {}
+          resolve(response.publicUrl);
           return;
         }
         if (request.status === 403) {
