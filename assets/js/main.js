@@ -410,6 +410,7 @@
       const request = new XMLHttpRequest();
       request.open("PUT", uploadUrl);
       request.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+      request.setRequestHeader("x-archive-auto-make-bucket", "1");
       request.upload.addEventListener("progress", (event) => {
         if (!event.lengthComputable) return;
         const percent = Math.round((event.loaded / event.total) * 100);
