@@ -83,7 +83,7 @@
      1) مصدر البيانات (REST API)
      ---------------------------------------------------------------------- */
   const API_CONFIG = {
-    baseUrl: (window.DSACMS_API_BASE || "http://localhost:3000/api").replace(/\/$/, ""),
+    baseUrl: (window.DSACMS_API_BASE || "https://dsacms-backend.vercel.app/api").replace(/\/$/, ""),
   };
   let apiCategories = [];
   let apiContents = [];
