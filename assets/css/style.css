@@ -1785,6 +1785,7 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   .dash-panel,
   .dash-panel-head,
   .dash-layout,
+  #dash-content,
   .grid,
   .form-group,
   .list-toolbar {
@@ -1806,6 +1807,10 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   .dash-panel-head,
   .list-toolbar {
     align-items: stretch;
+  }
+  .grid--content,
+  .grid--users {
+    grid-template-columns: minmax(0, 1fr);
   }
   .list-toolbar > * {
     width: 100%;
