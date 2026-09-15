@@ -377,6 +377,27 @@
     return response.json();
   }
 
+  async function uploadToArchive(file) {
+    const extension = file.name.includes(".") ? file.name.split(".").pop().toLowerCase() : "bin";
+    const key = `audio/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+    const { uploadUrl, publicUrl } = await fetchApi("/uploads/sign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key, contentType: file.type || "application/octet-stream" }),
+    });
+
+    const uploadResponse = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+      body: file,
+    });
+    if (!uploadResponse.ok) {
+      throw new Error(`Archive upload failed: ${uploadResponse.status}`);
+    }
+
+    return publicUrl;
+  }
+
   async function loadRemoteData() {
     const [categories, materials] = await Promise.all([
       fetchApi("/categories"),
@@ -1724,14 +1745,18 @@
 
     // حفظ المادة
     if (cfForm) {
-      cfForm.addEventListener("submit", (e) => {
+      cfForm.addEventListener("submit", async (e) => {
         e.preventDefault();
+        if (cfSubmit) cfSubmit.disabled = true;
         let ok = true;
         if (!cfTitle.value.trim()) { showFieldError("err-cf-title", cfTitle); ok = false; } else hideFieldError("err-cf-title", cfTitle);
         if (!cfAuthor.value.trim()) { showFieldError("err-cf-author", cfAuthor); ok = false; } else hideFieldError("err-cf-author", cfAuthor);
         if (!cfCategory.value) { showFieldError("err-cf-category", cfCategory); ok = false; } else hideFieldError("err-cf-category", cfCategory);
         if (cfAudio && !validateAudioFile(cfAudio.files[0])) ok = false;
-        if (!ok) return;
+        if (!ok) {
+          if (cfSubmit) cfSubmit.disabled = false;
+          return;
+        }
 
         const idField = $("#cf-id");
         const id = idField && idField.value ? idField.value : slugify(cfTitle.value);
@@ -1761,35 +1786,46 @@
             : (existing && existing.body) || [],
         };
 
-        // التعامل مع الملف الصوتي المرفوع في الحالة التجريبية
         const file = cfAudio && cfAudio.files[0];
-        if (file) {
-          // في الوضع الفعلي تُرفع إلى Object Storage (AF-003/005).
-          // هنا نخزّن الإشارة فقط – يظل الأرشفة نصافياً سليماً.
-          item.audio = (existing && existing.audio) || null;
-          item.audioFileName = file.name;
-          item.audioSize = file.size;
-          item.audioReady = true;
-        }
+        try {
+          if (file) {
+            showToast("جارٍ رفع الملف إلى Internet Archive…", "info");
+            item.audio = await uploadToArchive(file);
+          }
 
-        let list = loadContents();
-        const idx = existing ? list.findIndex((c) => c.id === existing.id) : -1;
-
-        if (idx >= 0) {
-          // تحديث مادة موجودة (تحافظ على id وصوتها السابق إن لم يُرفع جديد)
-          list[idx] = { ...list[idx], ...item };
-          logAudit("UPDATE_CONTENT", item.title, "OK");
-          showToast("تم تحديث المادة بنجاح.");
-        } else {
-          // مادة جديدة
-          list = [...list, item];
-          logAudit("CREATE_CONTENT", item.title, "OK");
-          showToast("تم إضافة المادة بنجاح.");
+          const saved = await fetchApi("/materials", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: item.title,
+              description: item.description,
+              author: item.author,
+              categoryId: item.category,
+              audioUrl: item.audio,
+              documentUrl: item.pdf || null,
+              contentType: item.type,
+              body: item.body,
+              keywords: item.keywords,
+              durationSeconds: item.duration,
+              status: item.status,
+            }),
+          });
+          const normalized = normalizeMaterial(saved.material);
+          apiContents = [
+            normalized,
+            ...apiContents.filter((content) => content.id !== normalized.id),
+          ];
+          logAudit(existing ? "UPDATE_CONTENT" : "CREATE_CONTENT", item.title, "OK");
+          showToast(existing ? "تم تحديث المادة وحفظها على الخادم." : "تم رفع المادة وحفظها بنجاح.");
+          resetEditor();
+          switchTab("content");
+          refreshAll();
+        } catch (error) {
+          console.error("Unable to save material", error);
+          showToast("تعذر حفظ المادة أو رفع الملف. لم يتم اعتماد العملية.", "error");
+        } finally {
+          if (cfSubmit) cfSubmit.disabled = false;
         }
-        saveContents(list);
-        resetEditor();
-        switchTab("content");
-        refreshAll();
       });
     }
 
