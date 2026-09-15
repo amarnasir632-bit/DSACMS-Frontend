@@ -1415,11 +1415,25 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   inset-inline-end: var(--space-2);
   inset-block-start: 50%;
   transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
   background: transparent;
   border: 0;
   color: var(--color-text-muted);
-  padding: var(--space-1);
+  padding: 0;
+  font-size: 1.2rem;
   border-radius: var(--radius-sm);
+}
+.password-toggle:hover,
+.password-toggle:focus-visible {
+  background: var(--color-surface-muted);
+  color: var(--color-primary);
+}
+.password-toggle:focus-visible {
+  outline: 3px solid rgba(21, 101, 160, 0.25);
+  outline-offset: 1px;
 }
 .checkbox-row {
   display: flex;

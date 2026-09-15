@@ -1275,18 +1275,13 @@
 
     // إذا كان المستخدم مسجلاً بالفعل، إعادة توجيه للوحة
     const session = getSession();
-    const successBox = $("#login-success");
-    const successText = $("#login-success-text");
-    if (session && successBox) {
-      successBox.hidden = false;
-      successText.textContent = `مرحباً ${session.name}، أنت مسجل الدخول بالفعل.`;
+    if (session) {
+      window.location.href = BASE + "dashboard.html";
       return;
     }
 
     const userInput = $("#login-username");
     const passInput = $("#login-password");
-    const errorBox = $("#login-error");
-    const errorText = $("#login-error-text");
     const attemptsHint = $("#attempts-hint");
     const toggleBtn = $("#password-toggle");
 
@@ -1342,9 +1337,9 @@
         console.error("Login request failed", error);
       }
       if (!user) {
-        if (errorBox && errorText) {
-          errorBox.hidden = false;
-          errorText.textContent = "بيانات الدخول غير صحيحة. تحقق من اسم المستخدم أو كلمة المرور وحاول مرة أخرى.";
+        if (attemptsHint) {
+          attemptsHint.hidden = false;
+          attemptsHint.textContent = "بيانات الدخول غير صحيحة. تحقق من اسم المستخدم أو كلمة المرور وحاول مرة أخرى.";
         }
         logAudit("LOGIN_FAILED", username, "DENIED");
         if (submit) submit.disabled = false;
@@ -1354,10 +1349,6 @@
       // نجاح الدخول → جلسة آمنة + سجل
       setSession(user);
       logAudit("LOGIN", user.username, "OK");
-      if (successBox && successText) {
-        successBox.hidden = false;
-        successText.textContent = "تم تسجيل الدخول بنجاح، جارٍ النقل إلى اللوحة…";
-      }
       setTimeout(() => {
         const home = (ROLES[user.role] && ROLES[user.role].home) || "pages/dashboard.html";
         window.location.href = BASE + home;
