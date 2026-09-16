@@ -909,6 +909,40 @@
      5) التهيئة المشتركة لكل الصفحات (هيدر/فوتر/جلسة)
      ====================================================================== */
   function initShared() {
+    // أزرار تنقّل ثابتة تساعد على الوصول إلى بداية الصفحة ونهايتها.
+    const scrollControls = document.createElement("div");
+    scrollControls.className = "scroll-controls";
+    scrollControls.setAttribute("aria-label", "أزرار التنقل داخل الصفحة");
+    scrollControls.innerHTML = `
+      <button type="button" class="scroll-control" data-scroll-target="top" aria-label="الانتقال إلى أعلى الصفحة">
+        <span aria-hidden="true">↑</span>
+        <span>للأعلى</span>
+      </button>
+      <button type="button" class="scroll-control" data-scroll-target="bottom" aria-label="الانتقال إلى أسفل الصفحة">
+        <span aria-hidden="true">↓</span>
+        <span>للأسفل</span>
+      </button>
+    `;
+    document.body.appendChild(scrollControls);
+
+    const updateScrollControls = () => {
+      const atTop = window.scrollY <= 8;
+      const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 8;
+      const topButton = $('[data-scroll-target="top"]', scrollControls);
+      const bottomButton = $('[data-scroll-target="bottom"]', scrollControls);
+      if (topButton) topButton.disabled = atTop;
+      if (bottomButton) bottomButton.disabled = atBottom;
+    };
+    $('[data-scroll-target="top"]', scrollControls)?.addEventListener("click", () => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+    $('[data-scroll-target="bottom"]', scrollControls)?.addEventListener("click", () => {
+      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
+    });
+    window.addEventListener("scroll", updateScrollControls, { passive: true });
+    window.addEventListener("resize", updateScrollControls);
+    updateScrollControls();
+
     // زر قائمة الجوال
     const toggle = $(".nav-toggle");
     const nav = $("#site-nav");
