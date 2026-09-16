@@ -512,7 +512,10 @@
   async function fetchApi(path, options) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
-    const requestOptions = { ...(options || {}), signal: controller.signal };
+    const session = store.read(STORE.session, null);
+    const headers = new Headers((options && options.headers) || {});
+    if (session?.token) headers.set("Authorization", `Bearer ${session.token}`);
+    const requestOptions = { ...(options || {}), headers, signal: controller.signal };
     let response;
     try {
       response = await fetch(`${API_CONFIG.baseUrl}${path}`, requestOptions);
@@ -635,6 +638,7 @@
     admin: { label: "مدير النظام", home: "pages/dashboard.html" },
     site_admin: { label: "مدير الموقع", home: "pages/dashboard.html" },
     manager: { label: "مدير المحتوى", home: "pages/dashboard.html" },
+    SHEIKH: { label: "الشيخ", home: "pages/dashboard.html" },
     viewer: { label: "مستخدم مباشر", home: "index.html" },
   };
 
@@ -647,6 +651,7 @@
       name: user.name,
       role: user.role,
       loginAt: new Date().toISOString(),
+      token: user.token || null,
     });
   }
   function clearSession() {
@@ -1695,6 +1700,60 @@
     }
   }
 
+  function renderPublicQuestions(items) {
+    const list = $("#public-questions-list");
+    if (!list) return;
+    list.innerHTML = items.length
+      ? items.map((item) => `
+        <article class="qa-item">
+          <h3>سؤال ${escapeHTML(item.asker_name || "فاعل خير")}</h3>
+          <p class="qa-question">${escapeHTML(item.question_text)}</p>
+          <div class="qa-answer"><strong>الإجابة:</strong><br>${escapeHTML(item.answer_text)}</div>
+          <small>تاريخ الإجابة: ${formatDate(item.answered_at)}</small>
+        </article>`).join("")
+      : '<p class="alert alert--info">لا توجد أسئلة مجاب عنها حتى الآن.</p>';
+  }
+
+  async function initQuestions() {
+    const form = $("#question-form");
+    const list = $("#public-questions-list");
+    try {
+      const items = await fetchApi("/questions");
+      renderPublicQuestions(Array.isArray(items) ? items : []);
+    } catch (error) {
+      console.error("Unable to load public questions", error);
+      if (list) list.innerHTML = '<p class="alert alert--error">تعذر تحميل الأسئلة حالياً.</p>';
+    }
+    if (!form) return;
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const submit = $("#question-submit");
+      const status = $("#question-form-status");
+      const question = $("#question-text").value.trim();
+      if (!question) return;
+      submit.disabled = true;
+      status.textContent = "جارٍ إرسال السؤال…";
+      try {
+        await fetchApi("/questions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            asker_name: $("#question-asker-name").value.trim(),
+            question_text: question,
+            website_url: $("#website-url").value,
+          }),
+        });
+        form.reset();
+        status.textContent = "تم استلام سؤالك للمراجعة، وستظهر الإجابة بعد نشرها.";
+      } catch (error) {
+        console.error("Unable to submit question", error);
+        status.textContent = "تعذر إرسال السؤال. حاول لاحقاً.";
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  }
+
   /* ======================================================================
      9) صفحة تسجيل الدخول (login.html) – FR-021 / SEC-001 / SEC-004/006/011
      ====================================================================== */
@@ -1761,7 +1820,7 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username, password }),
         });
-        user = result.user;
+        user = { ...result.user, token: result.token };
       } catch (error) {
         console.error("Login request failed", error);
       }
@@ -1842,10 +1901,75 @@
     });
   }
 
+  async function initSheikhQuestions() {
+    const pendingList = $("#pending-questions-list");
+    const answeredList = $("#answered-questions-list");
+    const render = (items, target, answered) => {
+      if (!target) return;
+      target.innerHTML = items.length ? items.map((item) => `
+        <article class="qa-item qa-admin-item">
+          <h3>${escapeHTML(item.asker_name || "فاعل خير")}</h3>
+          <p class="qa-question">${escapeHTML(item.question_text)}</p>
+          <label for="answer-${escapeHTML(item.id)}">${answered ? "الإجابة" : "اكتب الإجابة"}</label>
+          <textarea class="field" id="answer-${escapeHTML(item.id)}">${escapeHTML(item.answer_text || "")}</textarea>
+          <div class="form-group" style="display:flex;gap:var(--space-2);flex-wrap:wrap;margin-block-start:var(--space-3);">
+            <button type="button" class="btn btn--primary btn--sm" data-question-action="${answered ? "edit" : "answer"}" data-question-id="${escapeHTML(item.id)}">${answered ? "حفظ التعديل" : "نشر الإجابة"}</button>
+            ${answered ? "" : `<button type="button" class="btn btn--outline btn--sm" data-question-action="reject" data-question-id="${escapeHTML(item.id)}">رفض / تجاهل</button>`}
+          </div>
+        </article>`).join("") : '<p class="alert alert--info">لا توجد أسئلة في هذا القسم.</p>';
+    };
+    const load = async () => {
+      try {
+        const [pending, answered] = await Promise.all([
+          fetchApi("/questions/sheikh/pending"),
+          fetchApi("/questions/sheikh/answered"),
+        ]);
+        render(pending, pendingList, false);
+        render(answered, answeredList, true);
+      } catch (error) {
+        console.error("Unable to load Sheikh questions", error);
+        if (pendingList) pendingList.innerHTML = '<p class="alert alert--error">تعذر تحميل الأسئلة.</p>';
+      }
+    };
+    document.querySelectorAll("[data-question-tab]").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const answered = tab.dataset.questionTab === "answered";
+        if (pendingList) pendingList.hidden = answered;
+        if (answeredList) answeredList.hidden = !answered;
+      });
+    });
+    document.addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-question-action]");
+      if (!button) return;
+      const id = button.dataset.questionId;
+      const textarea = $(`#answer-${CSS.escape(id)}`);
+      try {
+        button.disabled = true;
+        if (button.dataset.questionAction === "reject") {
+          await fetchApi(`/questions/sheikh/${encodeURIComponent(id)}/reject`, { method: "PATCH" });
+        } else {
+          await fetchApi(`/questions/sheikh/${encodeURIComponent(id)}/${button.dataset.questionAction === "edit" ? "edit" : "answer"}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ answer_text: textarea.value }),
+          });
+        }
+        showToast("تم حفظ التغيير.");
+        await load();
+      } catch (error) {
+        console.error("Unable to update question", error);
+        showToast("تعذر حفظ التغيير.", "error");
+      } finally {
+        button.disabled = false;
+      }
+    });
+    await load();
+  }
+
   async function initDashboard() {
     const session = getSession();
     // حاجز RBAC (SEC-002): غير مسموح بالدخول دون جلسة
-    if (!session || !["admin", "site_admin", "manager"].includes(session.role)) {
+    if (!session || !["admin", "site_admin", "manager", "SHEIKH"].includes(session.role)) {
       window.location.href = BASE + "login.html";
       return;
     }
@@ -1859,6 +1983,7 @@
     }
 
     const isAdmin = ["admin", "site_admin"].includes(session.role);
+    const isSheikh = session.role === "SHEIKH";
 
     // عرض بيانات المستخدم
     const uname = $("#dash-user-name");
@@ -1876,6 +2001,14 @@
       const pAudit = $("#panel-audit");
       if (pUsers) pUsers.remove();
       if (pAudit) pAudit.remove();
+    }
+    if (!isSheikh) {
+      $$("[data-sheikh-only]").forEach((el) => { el.hidden = true; });
+      $("#panel-questions")?.remove();
+    } else {
+      $$("[data-tab]:not([data-tab='overview']):not([data-tab='questions'])").forEach((el) => { el.closest("li")?.remove(); });
+      $$(".dash-panel:not(#panel-overview):not(#panel-questions)").forEach((el) => el.remove());
+      initSheikhQuestions();
     }
 
     /* ---- التنقل بين الألواح (Tabs) ---- */
@@ -2443,6 +2576,7 @@
                 <option value="admin" ${u.role === "admin" ? "selected" : ""}>مدير النظام</option>
                 <option value="site_admin" ${u.role === "site_admin" ? "selected" : ""}>مدير الموقع</option>
                 <option value="manager" ${u.role === "manager" ? "selected" : ""}>Content Manager</option>
+                <option value="SHEIKH" ${u.role === "SHEIKH" ? "selected" : ""}>الشيخ</option>
                 <option value="viewer" ${u.role === "viewer" ? "selected" : ""}>Viewer</option>
               </select>
             </td>
@@ -2692,6 +2826,9 @@
         case "dashboard":
           initDashboard();
           break;
+          case "questions":
+            await initQuestions();
+            break;
         default:
           break;
       }

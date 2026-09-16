@@ -31,6 +31,7 @@
         <ul>
           <li><a href="../index.html">الرئيسية</a></li>
           <li><a href="search.html">المحتوى</a></li>
+          <li><a href="questions.html">الأسئلة والفتاوى</a></li>
           <li><a href="search.html">العودة للموقع</a></li>
         </ul>
       </nav>
@@ -63,6 +64,7 @@
             <li><button type="button" data-tab="categories">🗂 التصنيفات</button></li>
             <li><button type="button" data-tab="users" data-admin-only>👥 المستخدمون</button></li>
             <li><button type="button" data-tab="audit" data-admin-only>🧾 سجل العمليات</button></li>
+            <li><button type="button" data-tab="questions" data-sheikh-only>🕌 الأسئلة والفتاوى</button></li>
           </ul>
         </nav>
 
@@ -76,6 +78,18 @@
             <div class="stat-grid" id="stat-grid">
               <!-- تُملأ بالبطاقات عبر JS -->
             </div>
+          </section>
+
+          <section class="dash-panel" id="panel-questions" aria-hidden="true" aria-labelledby="panel-questions-title">
+            <div class="dash-panel-head">
+              <h2 id="panel-questions-title">الأسئلة والفتاوى</h2>
+            </div>
+            <div class="qa-admin-tabs">
+              <button type="button" class="btn btn--primary btn--sm" data-question-tab="pending">معلقة</button>
+              <button type="button" class="btn btn--outline btn--sm" data-question-tab="answered">الأرشيف</button>
+            </div>
+            <div id="pending-questions-list" class="qa-list"></div>
+            <div id="answered-questions-list" class="qa-list" hidden></div>
           </section>
 
           <!-- ===== إدارة المحتوى ===== -->
@@ -412,6 +426,6 @@
   </footer>
 
   <!-- التذييل -->
-  <script src="../assets/js/main.js?v=20260916-13" defer></script>
+  <script src="../assets/js/main.js?v=20260916-14" defer></script>
 </body>
 </html>
