@@ -91,6 +91,24 @@
     };
   }
 
+  async function copyTextToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    const helper = document.createElement("textarea");
+    helper.value = text;
+    helper.setAttribute("readonly", "");
+    helper.style.position = "fixed";
+    helper.style.opacity = "0";
+    document.body.appendChild(helper);
+    helper.select();
+    const copied = document.execCommand("copy");
+    helper.remove();
+    if (!copied) throw new Error("Clipboard copy was rejected");
+  }
+
   /* ----------------------------------------------------------------------
      1) مصدر البيانات (REST API)
      ---------------------------------------------------------------------- */
@@ -469,8 +487,10 @@
       apiContents = results[1].value.map(normalizeMaterial);
     }
     if (results.every((result) => result.status === "rejected")) {
-      throw results[0].reason;
+      console.warn("DSACMS API unavailable; continuing with locally available data.");
+      return false;
     }
+    return true;
   }
 
   async function loadRemoteUsers() {
@@ -1264,6 +1284,27 @@
         articleBody.innerHTML = "";
         pdfReader.hidden = false;
         pdfFrame.src = resolveContentUrl(content.pdf);
+      }
+
+      const copyButton = $("#copy-article-content");
+      if (copyButton) {
+        copyButton.addEventListener("click", async () => {
+          const text = [
+            content.title,
+            `المؤلف: ${content.author}`,
+            content.description,
+            ...(content.body || []),
+          ]
+            .filter(Boolean)
+            .join("\n\n");
+          try {
+            await copyTextToClipboard(text);
+            showToast("تم نسخ محتوى المادة بالكامل.");
+          } catch (error) {
+            console.error("Unable to copy article content", error);
+            showToast("تعذر نسخ المحتوى. حاول مرة أخرى.", "error");
+          }
+        });
       }
     }
 

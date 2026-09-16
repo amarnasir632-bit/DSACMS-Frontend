@@ -1325,6 +1325,10 @@ input[type="range"]:focus-visible::-moz-range-thumb {
 .reading-control-btn--reset {
   font-size: var(--fs-sm);
 }
+.reading-control-btn--copy {
+  padding-inline: var(--space-4);
+  color: var(--color-primary);
+}
 .reading-select {
   font-size: var(--fs-sm);
 }
