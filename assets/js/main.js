@@ -165,6 +165,12 @@
     store.write(STORE.readingPreferences, all);
   }
 
+  function removeReadingPreference(id) {
+    const all = loadReadingPreferences();
+    delete all[id];
+    store.write(STORE.readingPreferences, all);
+  }
+
   /** التصنيفات الافتراضية (FR-015) */
   const DEFAULT_CATEGORIES = /*
     { id: "fiqh", name: "الفقه", icon: "🕌", desc: "الأحكام الفقهية وتطبيقاتها" },
@@ -1260,7 +1266,8 @@
             const previous = [...READING_FONT_SIZES].reverse().find((size) => size < readingSettings.fontSize);
             if (previous) readingSettings.fontSize = previous;
           } else if (action === "reset") {
-            readingSettings = adminSettings;
+            readingSettings = normalizeReadingSettings(adminSettings);
+            removeReadingPreference(content.id);
           }
           saveReadingPreference(content.id, readingSettings);
           applyReadingSettings();
