@@ -1356,6 +1356,91 @@
       <tr><th scope="row">الكلمات المفتاحية</th><td>${(content.keywords || []).join("، ")}</td></tr>
     `;
 
+    const metadataShareButton = $("#share-metadata-status");
+    if (metadataShareButton) {
+      const metadataRows = [
+        ["العنوان", content.title],
+        ["المؤلف", content.author],
+        ["التصنيف", cat ? cat.name : "عام"],
+        ["تاريخ النشر", formatDate(content.pubDate)],
+        ["المدة", content.duration ? formatDuration(content.duration) : "—"],
+        ["الحالة", "منشور"],
+        ["الكلمات المفتاحية", (content.keywords || []).join("، ") || "—"],
+      ];
+
+      const createMetadataImage = () => {
+        const canvas = document.createElement("canvas");
+        const scale = Math.min(window.devicePixelRatio || 1, 2);
+        const width = 1200;
+        const rowHeight = 86;
+        const headerHeight = 150;
+        const padding = 56;
+        canvas.width = width * scale;
+        canvas.height = (headerHeight + metadataRows.length * rowHeight + padding) * scale;
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Canvas is not supported");
+        context.scale(scale, scale);
+        context.direction = "rtl";
+        context.fillStyle = "#f9f6f2";
+        context.fillRect(0, 0, width, canvas.height / scale);
+        context.fillStyle = "#14253e";
+        context.fillRect(0, 0, width, headerHeight);
+        context.fillStyle = "#ffffff";
+        context.font = "700 38px Tajawal, Arial, sans-serif";
+        context.textAlign = "right";
+        context.fillText("بيانات المادة العلمية", width - padding, 62);
+        context.font = "500 24px Tajawal, Arial, sans-serif";
+        context.fillText("أرشيف DSACMS", width - padding, 106);
+
+        metadataRows.forEach(([label, value], index) => {
+          const y = headerHeight + index * rowHeight;
+          context.fillStyle = index % 2 ? "#ffffff" : "#f0f2f5";
+          context.fillRect(padding / 2, y, width - padding, rowHeight);
+          context.fillStyle = "#14253e";
+          context.font = "700 25px Tajawal, Arial, sans-serif";
+          context.textAlign = "right";
+          context.fillText(label, width - padding * 1.5, y + 53);
+          context.fillStyle = "#334155";
+          context.font = "500 25px Tajawal, Arial, sans-serif";
+          context.fillText(String(value), width - 330, y + 53, 650);
+        });
+        return new Promise((resolve, reject) => {
+          canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Unable to create image"))), "image/png");
+        });
+      };
+
+      metadataShareButton.addEventListener("click", async () => {
+        metadataShareButton.disabled = true;
+        try {
+          const blob = await createMetadataImage();
+          const file = new File([blob], "بيانات-المادة.png", { type: "image/png" });
+          const shareData = {
+            title: content.title,
+            text: "بيانات المادة العلمية من أرشيف DSACMS",
+            files: [file],
+          };
+          if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
+            await navigator.share(shareData);
+            showToast("تم فتح خيارات المشاركة.");
+          } else {
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = file.name;
+            link.click();
+            URL.revokeObjectURL(link.href);
+            showToast("تم تنزيل صورة البيانات. يمكنك مشاركتها كحالة.", "info");
+          }
+        } catch (error) {
+          if (error.name !== "AbortError") {
+            console.error("Unable to share metadata image", error);
+            showToast("تعذر تجهيز صورة البيانات للمشاركة.", "error");
+          }
+        } finally {
+          metadataShareButton.disabled = false;
+        }
+      });
+    }
+
     // المشغّل الصوتي (FR-008)
     const playerSection = $("#player-section");
     if (content.audio) {

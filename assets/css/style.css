@@ -1413,6 +1413,12 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   font-size: var(--fs-sm);
   text-align: start;
 }
+.metadata-share-btn {
+  width: 100%;
+  margin-block-start: var(--space-4);
+  min-height: 3rem;
+  font-size: var(--fs-md);
+}
 .meta-table th {
   color: var(--color-text-muted);
   font-weight: 600;
