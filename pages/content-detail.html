@@ -128,7 +128,7 @@
               <button class="btn btn--primary content-copy-fallback" type="button" data-copy-content aria-label="نسخ كل محتوى المادة">نسخ كل المحتوى</button>
               <button class="btn btn--outline btn--sm" id="share-copy" type="button">نسخ الرابط المباشر</button>
               <a class="btn btn--outline btn--sm" id="share-twitter" href="#" target="_blank" rel="noopener">مشاركة عبر X</a>
-              <a class="btn btn--outline btn--sm" id="share-whatsapp" href="#" target="_blank" rel="noopener">مشاركة عبر واتساب</a>
+              <button class="btn btn--outline btn--sm" id="share-whatsapp" type="button">مشاركة عبر واتساب</button>
             </div>
           </div>
 
@@ -151,6 +151,31 @@
 
     </div>
   </main>
+
+  <div class="modal-backdrop" id="whatsapp-share-modal" hidden>
+    <section class="modal whatsapp-share-modal" role="dialog" aria-modal="true" aria-labelledby="whatsapp-share-title" tabindex="-1">
+      <h3 id="whatsapp-share-title">مشاركة المادة عبر واتساب</h3>
+      <p>اختر المعلومات التي تريد تضمينها في الرسالة، وسيبقى رابط الموقع موجوداً دائماً.</p>
+      <div class="share-options">
+        <label class="share-option">
+          <input type="checkbox" id="share-include-body" checked>
+          <span>تضمين نص المادة</span>
+        </label>
+        <label class="share-option">
+          <input type="checkbox" id="share-include-audio" checked>
+          <span>تضمين صوت المادة</span>
+        </label>
+        <label class="share-option">
+          <input type="checkbox" id="share-include-description" checked>
+          <span>تضمين وصف المادة</span>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn--outline" id="whatsapp-share-cancel">إلغاء</button>
+        <button type="button" class="btn btn--primary" id="whatsapp-share-confirm">فتح واتساب</button>
+      </div>
+    </section>
+  </div>
 
   <footer class="site-footer">
     <div class="container">
@@ -185,6 +210,6 @@
     </div>
   </footer>
 
-  <script src="../assets/js/main.js?v=20260916-3" defer></script>
+  <script src="../assets/js/main.js?v=20260916-4" defer></script>
 </body>
 </html>

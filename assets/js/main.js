@@ -1385,13 +1385,50 @@
       : '<p class="dash-empty">لا توجد مواد أخرى في هذا التصنيف.</p>';
 
     // أزرار المشاركة (FR-024 / FR-025)
-    const shareUrl = window.location.href;
+    const shareUrl = window.location.href.split("#")[0];
+    const homeUrl = new URL(BASE + "index.html", window.location.href).href;
     const shareCopy = $("#share-copy");
     const shareX = $("#share-twitter");
     const shareWA = $("#share-whatsapp");
     const text = encodeURIComponent(`${content.title} — من أرشيف DSACMS`);
     if (shareX) shareX.href = `https://twitter.com/intent/tweet?text=${text}&url=${encodeURIComponent(shareUrl)}`;
-    if (shareWA) shareWA.href = `https://wa.me/?text=${text}%20${encodeURIComponent(shareUrl)}`;
+    if (shareWA) {
+      const shareModal = $("#whatsapp-share-modal");
+      const shareModalPanel = $(".whatsapp-share-modal", shareModal);
+      const shareCancel = $("#whatsapp-share-cancel");
+      const shareConfirm = $("#whatsapp-share-confirm");
+      const openShareModal = () => {
+        if (!shareModal) return;
+        shareModal.hidden = false;
+        shareModalPanel?.focus();
+      };
+      const closeShareModal = () => {
+        if (shareModal) shareModal.hidden = true;
+        shareWA.focus();
+      };
+      shareWA.addEventListener("click", openShareModal);
+      shareCancel?.addEventListener("click", closeShareModal);
+      shareModal?.addEventListener("click", (event) => {
+        if (event.target === shareModal) closeShareModal();
+      });
+      shareConfirm?.addEventListener("click", () => {
+        const parts = [`${content.title}`, `رابط الموقع: ${homeUrl}`];
+        if ($("#share-include-description")?.checked && content.description) {
+          parts.splice(1, 0, `الوصف: ${content.description}`);
+        }
+        if ($("#share-include-body")?.checked && content.body?.length) {
+          parts.splice(parts.length - 1, 0, `نص المادة:\n${content.body.join("\n\n")}`);
+        }
+        if ($("#share-include-audio")?.checked && content.audio) {
+          parts.splice(parts.length - 1, 0, `صوت المادة: ${resolveContentUrl(content.audio)}`);
+        }
+        window.open(`https://wa.me/?text=${encodeURIComponent(parts.join("\n\n"))}`, "_blank", "noopener");
+        closeShareModal();
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && shareModal && !shareModal.hidden) closeShareModal();
+      });
+    }
 
     if (shareCopy) {
       shareCopy.addEventListener("click", async () => {

@@ -1850,6 +1850,35 @@ input[type="range"]:focus-visible::-moz-range-thumb {
 .modal:focus {
   outline: none;
 }
+.whatsapp-share-modal {
+  max-width: 30rem;
+}
+.share-options {
+  display: grid;
+  gap: var(--space-2);
+  margin-block-end: var(--space-5);
+}
+.share-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 3.25rem;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 700;
+}
+.share-option:has(input:checked) {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+.share-option input {
+  width: 1.35rem;
+  height: 1.35rem;
+  accent-color: var(--color-primary);
+  flex: 0 0 auto;
+}
 
 /* Toast (إشعارات قصيرة) */
 .toast-region {
