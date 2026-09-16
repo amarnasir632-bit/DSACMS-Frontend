@@ -89,7 +89,6 @@
                 <h2 id="reading-title"></h2>
                 <div class="reading-controls" aria-label="خيارات سهولة القراءة">
                   <span class="reading-controls__label">سهولة القراءة</span>
-                  <button type="button" class="reading-control-btn reading-control-btn--copy" id="copy-article-content" aria-label="نسخ محتوى المادة بالكامل">نسخ المحتوى</button>
                   <button type="button" class="reading-control-btn" data-reading-action="decrease" aria-label="تصغير الخط">أ−</button>
                   <button type="button" class="reading-control-btn reading-control-btn--strong" data-reading-action="increase" aria-label="تكبير الخط">أ+</button>
                   <label class="reading-select-label" for="reading-line-height">تباعد السطور</label>
@@ -120,6 +119,12 @@
               <h3>نبذة عن المادة</h3>
               <p id="article-description"></p>
               <div class="keywords" id="article-keywords" aria-label="الكلمات المفتاحية"></div>
+              <div class="content-copy-action">
+                <button type="button" class="btn btn--primary content-copy-btn" id="copy-article-content" aria-label="نسخ محتوى المادة بالكامل">
+                  نسخ كل المحتوى
+                </button>
+                <span class="content-copy-hint">ينسخ العنوان والوصف والنص المكتوب بضغطة واحدة</span>
+              </div>
             </div>
 
             <!-- مشاركة بروابط مباشرة (FR-024 / FR-025) -->

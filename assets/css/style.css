@@ -1380,6 +1380,24 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   font-size: var(--fs-xs);
   font-weight: 600;
 }
+.content-copy-action {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  margin-block-start: var(--space-4);
+  padding-block-start: var(--space-4);
+  border-block-start: 1px solid var(--color-border);
+}
+.content-copy-btn {
+  min-height: 3.25rem;
+  padding-inline: var(--space-5);
+  font-size: var(--fs-md);
+}
+.content-copy-hint {
+  color: var(--color-text-muted);
+  font-size: var(--fs-sm);
+}
 .share-row {
   display: flex;
   gap: var(--space-2);
@@ -1971,14 +1989,18 @@ input[type="range"]:focus-visible::-moz-range-thumb {
     position: static;
   }
   .dash-nav ul {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1);
-    overflow-x: auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+    padding: var(--space-3);
   }
   .dash-nav button {
-    width: auto;
-    white-space: nowrap;
+    width: 100%;
+    min-height: 3rem;
+    padding: var(--space-3);
+    white-space: normal;
+    text-align: center;
+    justify-content: center;
   }
   .dash-panel,
   .dash-panel-head,
@@ -2038,6 +2060,19 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   .dash-panel-head,
   .list-toolbar {
     align-items: stretch;
+  }
+  .dash-panel {
+    padding-block-end: var(--space-2);
+  }
+  .dash-panel-head h2 {
+    font-size: var(--fs-lg);
+  }
+  .dash-nav .dash-user {
+    padding: var(--space-3);
+    text-align: center;
+  }
+  .dash-nav ul {
+    grid-template-columns: 1fr;
   }
   .grid--content,
   .grid--users {
@@ -2120,6 +2155,15 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   .data-table .row-actions .btn {
     white-space: normal;
     flex: 1 1 auto;
+    min-height: 2.75rem;
+  }
+  .content-copy-action {
+    align-items: stretch;
+  }
+  .content-copy-btn,
+  .content-copy-hint {
+    width: 100%;
+    text-align: center;
   }
   .hero-pad {
     padding-inline: 0;

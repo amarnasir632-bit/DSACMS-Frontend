@@ -1286,26 +1286,27 @@
         pdfFrame.src = resolveContentUrl(content.pdf);
       }
 
-      const copyButton = $("#copy-article-content");
-      if (copyButton) {
-        copyButton.addEventListener("click", async () => {
-          const text = [
-            content.title,
-            `المؤلف: ${content.author}`,
-            content.description,
-            ...(content.body || []),
-          ]
-            .filter(Boolean)
-            .join("\n\n");
-          try {
-            await copyTextToClipboard(text);
-            showToast("تم نسخ محتوى المادة بالكامل.");
-          } catch (error) {
-            console.error("Unable to copy article content", error);
-            showToast("تعذر نسخ المحتوى. حاول مرة أخرى.", "error");
-          }
-        });
-      }
+    }
+
+    const copyButton = $("#copy-article-content");
+    if (copyButton) {
+      copyButton.addEventListener("click", async () => {
+        const text = [
+          content.title,
+          `المؤلف: ${content.author}`,
+          content.description,
+          ...(content.body || []),
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+        try {
+          await copyTextToClipboard(text);
+          showToast("تم نسخ محتوى المادة بالكامل.");
+        } catch (error) {
+          console.error("Unable to copy article content", error);
+          showToast("تعذر نسخ المحتوى. حاول مرة أخرى.", "error");
+        }
+      });
     }
 
     const downloadsSection = $("#downloads-section");
