@@ -85,7 +85,23 @@
 
             <!-- محتوى المقالات والكتب القابلة للقراءة -->
             <section id="reading-section" class="reading-section" hidden aria-label="قراءة المادة">
-              <h2 id="reading-title"></h2>
+              <div class="reading-heading">
+                <h2 id="reading-title"></h2>
+                <div class="reading-controls" aria-label="خيارات سهولة القراءة">
+                  <span class="reading-controls__label">سهولة القراءة</span>
+                  <button type="button" class="reading-control-btn" data-reading-action="decrease" aria-label="تصغير الخط">أ−</button>
+                  <button type="button" class="reading-control-btn reading-control-btn--strong" data-reading-action="increase" aria-label="تكبير الخط">أ+</button>
+                  <label class="reading-select-label" for="reading-line-height">تباعد السطور</label>
+                  <select id="reading-line-height" class="reading-select" aria-label="اختيار المسافة بين السطور">
+                    <option value="1.7">قريب</option>
+                    <option value="2">مريح</option>
+                    <option value="2.4">واسع</option>
+                    <option value="2.8">واسع جداً</option>
+                    <option value="3.2">الأوسع</option>
+                  </select>
+                  <button type="button" class="reading-control-btn reading-control-btn--reset" data-reading-action="reset">الوضع الافتراضي</button>
+                </div>
+              </div>
               <div id="article-body" class="article-body"></div>
               <div id="pdf-reader" class="pdf-reader" hidden>
                 <iframe id="pdf-frame" title="قارئ الكتاب بصيغة PDF"></iframe>
@@ -167,6 +183,6 @@
     </div>
   </footer>
 
-  <script src="../assets/js/main.js?v=20260915-5" defer></script>
+  <script src="../assets/js/main.js?v=20260916-1" defer></script>
 </body>
 </html>

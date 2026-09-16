@@ -246,6 +246,33 @@
                 <p class="hint">يمكن إضافة نص للمقال مع الملف الصوتي في الصفحة نفسها؛ افصل الفقرات بأسطر فارغة.</p>
               </div>
 
+              <fieldset class="reading-settings">
+                <legend>تنسيق نص المادة للقارئ</legend>
+                <p class="hint">هذه قيم البداية التي يراها المستخدم. يستطيع القارئ تعديلها بسهولة من صفحة المادة.</p>
+                <div class="grid grid--content">
+                  <div class="form-group">
+                    <label for="cf-font-size">حجم الخط الافتراضي</label>
+                    <select id="cf-font-size" class="field">
+                      <option value="1">صغير</option>
+                      <option value="1.125" selected>مريح</option>
+                      <option value="1.25">كبير</option>
+                      <option value="1.5">كبير جداً</option>
+                      <option value="1.75">الأكبر</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="cf-line-height">المسافة بين السطور</label>
+                    <select id="cf-line-height" class="field">
+                      <option value="1.7">قريبة</option>
+                      <option value="2" selected>مريحة</option>
+                      <option value="2.4">واسعة</option>
+                      <option value="2.8">واسعة جداً</option>
+                      <option value="3.2">الأوسع</option>
+                    </select>
+                  </div>
+                </div>
+              </fieldset>
+
               <div class="form-group" style="display:flex;gap:var(--space-2);flex-wrap:wrap;">
                 <button type="button" class="btn btn--outline" data-step-prev="3">السابق</button>
                 <button type="submit" class="btn btn--primary" id="cf-submit">حفظ المادة</button>
@@ -385,6 +412,6 @@
   </footer>
 
   <!-- التذييل -->
-  <script src="../assets/js/main.js?v=20260915-5" defer></script>
+  <script src="../assets/js/main.js?v=20260916-1" defer></script>
 </body>
 </html>
