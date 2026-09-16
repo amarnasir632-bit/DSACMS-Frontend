@@ -1361,6 +1361,8 @@ input[type="range"]:focus-visible::-moz-range-thumb {
 }
 .reading-section--article {
   max-width: 54rem;
+  min-width: 0;
+  overflow: hidden;
   margin-inline: auto;
   padding: clamp(1rem, 3vw, 2.25rem);
   border-color: #e2d8c8;
@@ -1441,6 +1443,8 @@ input[type="range"]:focus-visible::-moz-range-thumb {
 }
 .article-body {
   max-width: 48rem;
+  min-width: 0;
+  max-inline-size: 100%;
   margin-inline: auto;
   color: #26364a;
   direction: rtl;
@@ -1454,7 +1458,8 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   font-feature-settings: "ccmp", "calt", "liga", "kern", "mark", "mkmk";
   text-rendering: optimizeLegibility;
   unicode-bidi: plaintext;
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
+  word-break: normal;
   text-wrap: pretty;
   transition: font-size var(--transition), line-height var(--transition);
 }

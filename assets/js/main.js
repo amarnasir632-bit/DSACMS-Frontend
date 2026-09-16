@@ -1384,7 +1384,11 @@
       }
       applyReadingSettings();
       if (content.body && content.body.length) {
-        articleBody.innerHTML = (content.body || [content.description])
+        const paragraphs = content.body
+          .flatMap((paragraph) => String(paragraph).split(/\r?\n+/))
+          .map((paragraph) => paragraph.trim())
+          .filter(Boolean);
+        articleBody.innerHTML = paragraphs
           .map((paragraph) => `<p>${escapeHTML(paragraph)}</p>`)
           .join("");
       }
