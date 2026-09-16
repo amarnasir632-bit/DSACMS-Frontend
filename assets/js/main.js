@@ -1476,44 +1476,6 @@
         }
       });
 
-      $("#metadata-share-direct")?.addEventListener("click", async () => {
-        const shareButton = $("#metadata-share-direct");
-        shareButton.disabled = true;
-        try {
-          const file = await getMetadataImage();
-          const shareData = {
-            title: content.title,
-            text: `${content.title}\n\nرابط الموقع: ${homeUrl}`,
-            files: [file],
-          };
-          if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
-            await navigator.share(shareData);
-            closeMetadataModal();
-            showToast("تم فتح خيارات المشاركة.");
-            return;
-          }
-
-          const whatsappText = `${content.title}\n\nرابط الموقع: ${homeUrl}`;
-          window.open(`https://wa.me/?text=${encodeURIComponent(whatsappText)}`, "_blank", "noopener");
-          const url = URL.createObjectURL(file);
-          const link = document.createElement("a");
-          link.href = url;
-          link.download = file.name;
-          document.body.appendChild(link);
-          link.click();
-          link.remove();
-          URL.revokeObjectURL(url);
-          closeMetadataModal();
-          showToast("تم فتح واتساب وحفظ الصورة لإرفاقها.", "info");
-        } catch (error) {
-          if (error.name !== "AbortError") {
-            console.error("Unable to share metadata image", error);
-            showToast("تعذرت المشاركة المباشرة. استخدم حفظ في الهاتف.", "error");
-          }
-        } finally {
-          shareButton.disabled = false;
-        }
-      });
     }
 
     // المشغّل الصوتي (FR-008)
