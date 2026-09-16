@@ -1368,7 +1368,7 @@
         ["الكلمات المفتاحية", (content.keywords || []).join("، ") || "—"],
       ];
 
-      const createMetadataImage = (orientation) => {
+      const createMetadataImage = async (orientation) => {
         const canvas = document.createElement("canvas");
         const scale = Math.min(window.devicePixelRatio || 1, 2);
         const isPortrait = orientation === "portrait";
@@ -1381,12 +1381,32 @@
         canvas.height = height * scale;
         const context = canvas.getContext("2d");
         if (!context) throw new Error("Canvas is not supported");
+        if (document.fonts?.ready) await document.fonts.ready;
+        await document.fonts?.load(`700 ${isPortrait ? 48 : 52}px Tajawal`);
+        await document.fonts?.load(`500 ${isPortrait ? 30 : 32}px Tajawal`);
         context.scale(scale, scale);
         context.direction = "rtl";
         context.fillStyle = "#f9f6f2";
         context.fillRect(0, 0, width, canvas.height / scale);
         context.fillStyle = "#14253e";
         context.fillRect(0, 0, width, headerHeight);
+        const logo = new Image();
+        logo.src = `${BASE}assets/images/logo.png`;
+        await new Promise((resolve, reject) => {
+          logo.onload = resolve;
+          logo.onerror = () => reject(new Error("Unable to load site logo"));
+        });
+        const logoSize = isPortrait ? 150 : 130;
+        const logoScale = Math.min(logoSize / logo.naturalWidth, logoSize / logo.naturalHeight);
+        const logoWidth = logo.naturalWidth * logoScale;
+        const logoHeight = logo.naturalHeight * logoScale;
+        context.drawImage(
+          logo,
+          padding,
+          (headerHeight - logoHeight) / 2,
+          logoWidth,
+          logoHeight
+        );
         context.fillStyle = "#ffffff";
         context.font = `700 ${isPortrait ? 48 : 52}px Tajawal, Arial, sans-serif`;
         context.textAlign = "right";
@@ -1463,7 +1483,7 @@
           const file = await getMetadataImage();
           const shareData = {
             title: content.title,
-            text: "بيانات المادة العلمية من أرشيف DSACMS",
+            text: `${content.title}\n\nرابط الموقع: ${homeUrl}`,
             files: [file],
           };
           if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
