@@ -424,7 +424,20 @@
     };
   }
 
+  function normalizeContentType(value, { audio, pdf, body } = {}) {
+    const type = String(value || "").trim().toLowerCase();
+    if (["book", "pdf", "ebook", "كتاب"].includes(type)) return "book";
+    if (["article", "text", "written", "نص", "مقال"].includes(type)) return "article";
+    if (["audio", "sound", "صوت", "مادة صوتية"].includes(type)) return "audio";
+    if (pdf) return "book";
+    if (body?.length) return "article";
+    return audio ? "audio" : "article";
+  }
+
   function normalizeMaterial(row) {
+    const audio = row.audio_url || row.audioUrl || null;
+    const pdf = row.document_url || row.documentUrl || null;
+    const body = Array.isArray(row.body) ? row.body : [];
     return {
       id: String(row.id),
       title: row.title,
@@ -433,13 +446,13 @@
       category: row.category_id ? String(row.category_id) : "",
       categoryName: row.category_name || "عام",
       keywords: Array.isArray(row.keywords) ? row.keywords : [],
-      body: Array.isArray(row.body) ? row.body : [],
+      body,
       readingSettings: normalizeReadingSettings(row.reading_settings || row.readingSettings),
       pubDate: row.created_at,
       duration: Number(row.duration_seconds) || 0,
-      audio: row.audio_url || null,
-      pdf: row.document_url || null,
-      type: row.content_type || "audio",
+      audio,
+      pdf,
+      type: normalizeContentType(row.content_type || row.contentType || row.type, { audio, pdf, body }),
       status: row.status || "published",
     };
   }
@@ -1271,7 +1284,7 @@
     const articleBody = $("#article-body");
     const pdfReader = $("#pdf-reader");
     const pdfFrame = $("#pdf-frame");
-    if (readingSection && (content.type === "article" || content.type === "book" || (content.body && content.body.length))) {
+    if (readingSection && (content.type === "article" || content.type === "book" || content.body?.length || content.pdf)) {
       readingSection.hidden = false;
       $("#reading-title").textContent = content.type === "book" ? "قراءة الكتاب" : "نص المادة";
       const adminSettings = normalizeReadingSettings(
@@ -1321,8 +1334,8 @@
         articleBody.innerHTML = (content.body || [content.description])
           .map((paragraph) => `<p>${escapeHTML(paragraph)}</p>`)
           .join("");
-      } else if (content.pdf && pdfReader && pdfFrame) {
-        articleBody.innerHTML = "";
+      }
+      if (content.pdf && pdfReader && pdfFrame) {
         pdfReader.hidden = false;
         pdfFrame.src = resolveContentUrl(content.pdf);
       }
@@ -1383,6 +1396,7 @@
     tbl.innerHTML = `
       <tr><th scope="row">العنوان</th><td>${escapeHTML(content.title)}</td></tr>
       <tr><th scope="row">المؤلف</th><td>${escapeHTML(content.author)}</td></tr>
+      <tr><th scope="row">نوع المادة</th><td>${content.type === "book" ? "كتاب PDF" : content.type === "article" ? "مقال مكتوب" : "مادة صوتية"}</td></tr>
       <tr><th scope="row">التصنيف</th><td>${cat ? escapeHTML(cat.name) : "عام"}</td></tr>
       <tr><th scope="row">تاريخ النشر</th><td>${formatDate(content.pubDate)}</td></tr>
       <tr><th scope="row">المدة</th><td dir="ltr">${content.duration ? formatDuration(content.duration) : "—"}</td></tr>
@@ -1395,6 +1409,7 @@
       const metadataRows = [
         ["العنوان", content.title],
         ["المؤلف", content.author],
+        ["نوع المادة", content.type === "book" ? "كتاب PDF" : content.type === "article" ? "مقال مكتوب" : "مادة صوتية"],
         ["التصنيف", cat ? cat.name : "عام"],
         ["تاريخ النشر", formatDate(content.pubDate)],
         ["المدة", content.duration ? formatDuration(content.duration) : "—"],
@@ -1410,7 +1425,7 @@
         const height = isPortrait ? 1920 : 1080;
         const padding = isPortrait ? 72 : 96;
         const headerHeight = isPortrait ? 260 : 210;
-        const rowHeight = isPortrait ? 190 : 112;
+        const rowHeight = isPortrait ? 190 : 100;
         canvas.width = width * scale;
         canvas.height = height * scale;
         const context = canvas.getContext("2d");
@@ -1515,12 +1530,11 @@
     // المشغّل الصوتي (FR-008)
     const playerSection = $("#player-section");
     if (content.audio) {
+      playerSection.hidden = false;
       renderFullPlayer(playerSection, { id: content.id, title: content.title, src: content.audio });
     } else {
-      playerSection.innerHTML = `
-        <div class="alert alert--info" role="status">
-          لا يتوفر ملف صوتي مرتبط بهذه المادة حالياً.
-        </div>`;
+      playerSection.hidden = true;
+      playerSection.innerHTML = "";
     }
 
     // مواد ذات صلة (نفس التصنيف)
