@@ -34,6 +34,58 @@
     return `${API_CONFIG.baseUrl}/download?url=${encodeURIComponent(resolved)}`;
   }
 
+  function triggerBlobDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function downloadWithProgress(button, status) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("GET", button.dataset.downloadUrl, true);
+      xhr.responseType = "blob";
+      button.disabled = true;
+      status.hidden = false;
+      status.textContent = "جارٍ تجهيز التحميل…";
+      xhr.addEventListener("progress", (event) => {
+        if (event.lengthComputable && event.total > 0) {
+          const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
+          status.textContent = `جاري التحميل: ${percent}%`;
+          status.style.setProperty("--download-progress", `${percent}%`);
+        } else {
+          status.textContent = "جاري التحميل… حجم الملف غير متاح من الخادم";
+          status.style.removeProperty("--download-progress");
+        }
+      });
+      xhr.addEventListener("load", () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          triggerBlobDownload(xhr.response, button.dataset.downloadName || "dsacms-download");
+          status.textContent = "اكتمل التحميل.";
+          status.style.setProperty("--download-progress", "100%");
+          resolve();
+        } else {
+          reject(new Error(`Download failed: ${xhr.status}`));
+        }
+      });
+      xhr.addEventListener("error", () => reject(new Error("Download connection failed")));
+      xhr.addEventListener("abort", () => reject(new Error("Download aborted")));
+      xhr.send();
+    }).catch((error) => {
+      console.error("Unable to download file", error);
+      status.textContent = "تعذر التحميل. حاول مرة أخرى.";
+      status.style.removeProperty("--download-progress");
+      throw error;
+    }).finally(() => {
+      button.disabled = false;
+    });
+  }
+
   /** تحديد الصفحة الحالية */
   const PAGE = (document.body && document.body.dataset.page) || "";
 
@@ -1368,13 +1420,31 @@
     if (downloadsSection && downloadActions) {
       const downloads = [];
       if (content.audio) {
-        downloads.push(`<a class="btn btn--primary" href="${escapeHTML(resolveDownloadUrl(content.audio))}" download>تحميل الملف الصوتي</a>`);
+        downloads.push(`
+          <div class="download-item">
+            <button type="button" class="btn btn--primary download-trigger"
+              data-download-url="${escapeHTML(resolveDownloadUrl(content.audio))}"
+              data-download-name="${escapeHTML(content.title)}.mp3">تحميل الملف الصوتي</button>
+            <div class="download-progress" id="download-progress-audio" role="status" aria-live="polite" hidden></div>
+          </div>`);
       }
       if (content.pdf) {
-        downloads.push(`<a class="btn btn--accent" href="${escapeHTML(resolveDownloadUrl(content.pdf))}" download>تحميل الكتاب PDF</a>`);
+        downloads.push(`
+          <div class="download-item">
+            <button type="button" class="btn btn--accent download-trigger"
+              data-download-url="${escapeHTML(resolveDownloadUrl(content.pdf))}"
+              data-download-name="${escapeHTML(content.title)}.pdf">تحميل الكتاب PDF</button>
+            <div class="download-progress" id="download-progress-pdf" role="status" aria-live="polite" hidden></div>
+          </div>`);
       }
       downloadsSection.hidden = downloads.length === 0;
       downloadActions.innerHTML = downloads.join("");
+      downloadActions.querySelectorAll(".download-trigger").forEach((button) => {
+        const status = button.parentElement.querySelector(".download-progress");
+        button.addEventListener("click", () => {
+          downloadWithProgress(button, status).catch(() => {});
+        });
+      });
     }
 
     const metaList = $("#meta-list");
