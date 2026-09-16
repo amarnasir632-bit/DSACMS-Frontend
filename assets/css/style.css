@@ -1329,6 +1329,10 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   padding-inline: var(--space-4);
   color: var(--color-primary);
 }
+.content-copy-fallback {
+  min-height: 2.75rem;
+  font-weight: 800;
+}
 .reading-select {
   font-size: var(--fs-sm);
 }

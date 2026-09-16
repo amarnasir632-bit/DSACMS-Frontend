@@ -1295,8 +1295,8 @@
 
     }
 
-    const copyButton = $("#copy-article-content");
-    if (copyButton) {
+    const copyButtons = $$("[data-copy-content]");
+    copyButtons.forEach((copyButton) => {
       copyButton.addEventListener("click", async () => {
         const text = [
           content.title,
@@ -1314,7 +1314,7 @@
           showToast("تعذر نسخ المحتوى. حاول مرة أخرى.", "error");
         }
       });
-    }
+    });
 
     const downloadsSection = $("#downloads-section");
     const downloadActions = $("#download-actions");

@@ -99,7 +99,7 @@
                     <option value="2.8">واسع جداً</option>
                     <option value="3.2">الأوسع</option>
                   </select>
-                  <button type="button" class="reading-control-btn reading-control-btn--copy" id="copy-article-content" aria-label="نسخ كل محتوى المادة">نسخ كل المحتوى</button>
+                  <button type="button" class="reading-control-btn reading-control-btn--copy" data-copy-content aria-label="نسخ كل محتوى المادة">نسخ كل المحتوى</button>
                   <button type="button" class="reading-control-btn reading-control-btn--reset" data-reading-action="reset">الوضع الافتراضي</button>
                 </div>
               </div>
@@ -125,6 +125,7 @@
             <!-- مشاركة بروابط مباشرة (FR-024 / FR-025) -->
             <div class="share-row" id="share-row">
               <span style="font-weight:700; align-self:center;">مشاركة المادة:</span>
+              <button class="btn btn--primary content-copy-fallback" type="button" data-copy-content aria-label="نسخ كل محتوى المادة">نسخ كل المحتوى</button>
               <button class="btn btn--outline btn--sm" id="share-copy" type="button">نسخ الرابط المباشر</button>
               <a class="btn btn--outline btn--sm" id="share-twitter" href="#" target="_blank" rel="noopener">مشاركة عبر X</a>
               <a class="btn btn--outline btn--sm" id="share-whatsapp" href="#" target="_blank" rel="noopener">مشاركة عبر واتساب</a>
@@ -184,6 +185,6 @@
     </div>
   </footer>
 
-  <script src="../assets/js/main.js?v=20260916-2" defer></script>
+  <script src="../assets/js/main.js?v=20260916-3" defer></script>
 </body>
 </html>
