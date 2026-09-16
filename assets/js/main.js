@@ -2349,4 +2349,523 @@
 
     if (cfAudio) {
       const normalizeAudioInput = () => {
-        const normalized = normalizeGoogleDriveUrl(cfAu
+        const normalized = normalizeGoogleDriveUrl(cfAudio.value);
+        if (normalized && normalized !== cfAudio.value.trim()) {
+          cfAudio.value = normalized;
+          showToast("تم تحويل رابط Google Drive إلى رابط تنزيل مباشر.", "info");
+        }
+      };
+      cfAudio.addEventListener("change", () => {
+        normalizeAudioInput();
+        const url = cfAudio.value.trim();
+        if (validateAudioUrl(url)) loadAudioDuration(url);
+      });
+      cfAudio.addEventListener("blur", () => {
+        normalizeAudioInput();
+        const url = cfAudio.value.trim();
+        if (validateAudioUrl(url)) loadAudioDuration(url);
+      });
+    }
+    if (cfPdf) {
+      cfPdf.addEventListener("blur", () => {
+        const normalized = normalizeGoogleDriveUrl(cfPdf.value);
+        if (normalized && normalized !== cfPdf.value.trim()) {
+          cfPdf.value = normalized;
+          showToast("تم تحويل رابط Google Drive إلى رابط تنزيل مباشر.", "info");
+        }
+      });
+    }
+    if (cfType) {
+      cfType.addEventListener("change", () => {
+        if (cfAudio.value.trim()) loadAudioDuration(cfAudio.value.trim());
+      });
+    }
+
+    // حفظ المادة
+    if (cfForm) {
+      cfForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (cfSubmit) cfSubmit.disabled = true;
+        let ok = true;
+        if (!cfTitle.value.trim()) { showFieldError("err-cf-title", cfTitle); ok = false; } else hideFieldError("err-cf-title", cfTitle);
+        if (!cfAuthor.value.trim()) { showFieldError("err-cf-author", cfAuthor); ok = false; } else hideFieldError("err-cf-author", cfAuthor);
+        if (!cfCategory.value) { showFieldError("err-cf-category", cfCategory); ok = false; } else hideFieldError("err-cf-category", cfCategory);
+        if (cfAudio) cfAudio.value = normalizeGoogleDriveUrl(cfAudio.value);
+        if (cfPdf) cfPdf.value = normalizeGoogleDriveUrl(cfPdf.value);
+        if (cfAudio && !validateAudioUrl(cfAudio.value)) ok = false;
+        if (cfPdf && cfPdf.value.trim() && !isDirectUrl(cfPdf.value)) {
+          showToast("رابط PDF غير صالح. استخدم رابطًا مباشرًا يبدأ بـ https:// أو http://.", "error");
+          ok = false;
+        }
+        if (!ok) {
+          if (cfSubmit) cfSubmit.disabled = false;
+          return;
+        }
+
+        const idField = $("#cf-id");
+        const id = idField && idField.value ? idField.value : slugify(cfTitle.value);
+        const existing = (idField && idField.value)
+          ? loadContents().find((c) => c.id === id)
+          : loadContents().find((c) => c.title === cfTitle.value.trim());
+
+        // بناء كائن المادة
+        const item = {
+          id: (existing && existing.id) || id,
+          slug: (existing && existing.slug) || id,
+          title: cfTitle.value.trim(),
+          author: cfAuthor.value.trim(),
+          category: cfCategory.value,
+          status: cfStatus ? cfStatus.value : "published",
+          description: cfDesc ? cfDesc.value.trim() : "",
+          keywords: cfKeywords
+            ? cfKeywords.value.split(/[،,]/).map((k) => k.trim()).filter(Boolean)
+            : [],
+          pubDate: cfDate && cfDate.value ? cfDate.value : new Date().toISOString().slice(0, 10),
+          duration: cfDuration ? Number(cfDuration.value) || 0 : 0,
+          audio: cfAudio ? cfAudio.value.trim() : (existing && existing.audio) || null,
+          type: cfType ? cfType.value : (existing && existing.type) || "audio",
+          pdf: cfPdf ? cfPdf.value.trim() : (existing && existing.pdf) || "",
+          body: cfBody
+            ? cfBody.value.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean)
+            : (existing && existing.body) || [],
+          readingSettings: normalizeReadingSettings({
+            fontSize: cfFontSize ? Number(cfFontSize.value) : DEFAULT_READING_SETTINGS.fontSize,
+            lineHeight: cfLineHeight ? Number(cfLineHeight.value) : DEFAULT_READING_SETTINGS.lineHeight,
+          }),
+        };
+        saveContentSettings(item.id, item.readingSettings);
+
+        try {
+          const saved = await fetchApi(existing ? `/materials/${encodeURIComponent(existing.id)}` : "/materials", {
+            method: existing ? "PUT" : "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: item.title,
+              description: item.description,
+              author: item.author,
+              categoryId: item.category,
+              audioUrl: item.audio,
+              documentUrl: item.pdf || null,
+              contentType: item.type,
+              body: item.body,
+              readingSettings: item.readingSettings,
+              keywords: item.keywords,
+              durationSeconds: item.duration,
+              status: item.status,
+            }),
+          });
+          const normalized = normalizeMaterial(saved.material);
+          apiContents = [
+            normalized,
+            ...apiContents.filter((content) => content.id !== normalized.id),
+          ];
+          logAudit(existing ? "UPDATE_CONTENT" : "CREATE_CONTENT", item.title, "OK");
+          showToast(existing ? "تم تحديث المادة وحفظها على الخادم." : "تم رفع المادة وحفظها بنجاح.");
+          resetEditor();
+          switchTab("content");
+          refreshAll();
+        } catch (error) {
+          console.error("Unable to save material", error);
+          showToast(error.message || "تعذر حفظ المادة أو رفع الملف. لم يتم اعتماد العملية.", "error");
+        } finally {
+          if (cfSubmit) cfSubmit.disabled = false;
+        }
+      });
+    }
+
+    /* ---- إدارة التصنيفات (FR-015) ---- */
+    const catForm = $("#category-form");
+    const newCat = $("#new-category");
+    const catTbody = $("#categories-tbody");
+
+    function renderCategoryTable() {
+      if (!catTbody) return;
+      const cats = loadCategories();
+      const all = loadContents();
+      catTbody.innerHTML = cats
+        .map((c) => {
+          const count = all.filter((x) => x.category === c.id).length;
+          return `
+          <tr>
+            <td data-label="التصنيف">${c.icon} ${escapeHTML(c.name)}</td>
+            <td data-label="عدد المواد">${count}</td>
+            <td class="row-actions" data-label="إجراءات">
+              <button type="button" class="btn btn--danger-outline btn--sm" data-cat-delete="${escapeHTML(c.id)}" ${count ? "disabled" : ""}
+                      ${count ? 'title="لا يمكن حذف تصنيف يحتوي على مواد"' : ""}>حذف</button>
+            </td>
+          </tr>`;
+        })
+        .join("");
+    }
+
+    if (catTbody) {
+      catTbody.addEventListener("click", async (e) => {
+        const btn = e.target.closest("[data-cat-delete]");
+        if (!btn || btn.disabled) return;
+        const id = btn.dataset.catDelete;
+        const cat = loadCategories().find((x) => x.id === id);
+        const ok = await confirmAction("حذف التصنيف", `سيتم حذف تصنيف «${cat.name}». هل تريد المتابعة؟`);
+        if (!ok) return;
+        try {
+          await fetchApi(`/categories/${encodeURIComponent(id)}`, { method: "DELETE" });
+        } catch (error) {
+          showToast("تعذر حذف التصنيف من الخادم.", "error");
+          return;
+        }
+        saveCategories(loadCategories().filter((x) => x.id !== id));
+        // تحديث خيارات النموذج
+        if (cfCategory) {
+          cfCategory.innerHTML =
+            '<option value="">— اختر التصنيف —</option>' +
+            loadCategories()
+              .map((x) => `<option value="${escapeHTML(x.id)}">${escapeHTML(x.name)}</option>`)
+              .join("");
+        }
+        logAudit("DELETE_CATEGORY", cat.name, "OK");
+        showToast("تم حذف التصنيف.");
+        refreshAll();
+      });
+    }
+
+    if (catForm) {
+      catForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const name = newCat.value.trim();
+        if (!name) return;
+        const cats = loadCategories();
+        if (cats.some((c) => c.name === name)) {
+          showToast("يوجد تصنيف بهذا الاسم مسبقاً.", "error");
+          return;
+        }
+        let created;
+        try {
+          created = await fetchApi("/categories", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, description: "تصنيف مضاف عبر لوحة الإدارة" }),
+          });
+        } catch (error) {
+          showToast("تعذر حفظ التصنيف على الخادم.", "error");
+          return;
+        }
+        cats.push(normalizeCategory(created));
+        saveCategories(cats);
+        if (cfCategory) {
+          cfCategory.innerHTML =
+            '<option value="">— اختر التصنيف —</option>' +
+            cats.map((x) => `<option value="${escapeHTML(x.id)}">${escapeHTML(x.name)}</option>`).join("");
+        }
+        newCat.value = "";
+        logAudit("CREATE_CATEGORY", name, "OK");
+        showToast("تم إضافة التصنيف.");
+        refreshAll();
+      });
+    }
+
+    /* ---- إدارة المستخدمين (FR-016 – Admin فقط) ---- */
+    const userForm = $("#user-form");
+    const usersTbody = $("#users-tbody");
+
+    function renderUserTable() {
+      if (!usersTbody) return;
+      const users = loadUsers();
+      usersTbody.innerHTML = users
+        .map(
+          (u) => `
+          <tr>
+            <td data-label="الاسم">${escapeHTML(u.name)}</td>
+            <td data-label="اسم المستخدم" dir="ltr">${escapeHTML(u.username)}</td>
+            <td data-label="الدور">
+              <label class="visually-hidden" for="role-${escapeHTML(u.id)}">دور المستخدم</label>
+              <select id="role-${escapeHTML(u.id)}" class="field" style="width:auto;" data-user-role data-id="${escapeHTML(u.id)}">
+                <option value="admin" ${u.role === "admin" ? "selected" : ""}>مدير النظام</option>
+                <option value="site_admin" ${u.role === "site_admin" ? "selected" : ""}>مدير الموقع</option>
+                <option value="manager" ${u.role === "manager" ? "selected" : ""}>Content Manager</option>
+                <option value="SHEIKH" ${u.role === "SHEIKH" ? "selected" : ""}>الشيخ</option>
+                <option value="viewer" ${u.role === "viewer" ? "selected" : ""}>Viewer</option>
+              </select>
+            </td>
+            <td data-label="الحالة">
+              <span class="badge ${u.status === "active" ? "badge--active" : "badge--inactive"}">
+                ${u.status === "active" ? "نشط" : "معطّل"}
+              </span>
+            </td>
+            <td class="row-actions" data-label="إجراءات">
+              <button type="button" class="btn btn--outline btn--sm" data-user-status data-id="${escapeHTML(u.id)}">
+                ${u.status === "active" ? "تعطيل" : "تفعيل"}
+              </button>
+              <button type="button" class="btn btn--outline btn--sm" data-user-reset data-id="${escapeHTML(u.id)}">استعادة كلمة السر</button>
+              <button type="button" class="btn btn--danger-outline btn--sm" data-user-delete data-id="${escapeHTML(u.id)}">حذف</button>
+            </td>
+          </tr>`
+        )
+        .join("");
+    }
+
+    if (usersTbody) {
+      usersTbody.addEventListener("change", async (e) => {
+        const sel = e.target.closest("[data-user-role]");
+        if (!sel) return;
+        const users = loadUsers();
+        const u = users.find((x) => x.id === sel.dataset.id);
+        if (u) {
+          // لا يجوز إسقاط صلاحية مدير النظام الحالي لنفسه (حماية)
+          if (u.id === session.id || u.username === session.username) {
+            sel.value = u.role;
+            showToast("لا يمكن تغيير دورك الحالي أثناء الجلسة.", "error");
+            return;
+          }
+          const nextRole = sel.value === "site_admin" ? "admin" : sel.value;
+          try {
+            const updated = await fetchApi(`/auth/users/${encodeURIComponent(u.id)}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ role: nextRole }),
+            });
+            u.role = updated.role;
+          } catch (error) {
+            sel.value = u.role;
+            showToast(error.message || "تعذر تحديث صلاحية المستخدم على الخادم.", "error");
+            return;
+          }
+          saveUsers(users);
+          logAudit("UPDATE_USER_ROLE", u.username, "OK");
+          showToast(`تم تغيير دورِ المستخدم ${u.name} إلى ${ROLES[u.role].label}.`);
+          renderUserTable();
+        }
+      });
+
+      usersTbody.addEventListener("click", async (e) => {
+        const st = e.target.closest("[data-user-status]");
+        const reset = e.target.closest("[data-user-reset]");
+        const del = e.target.closest("[data-user-delete]");
+        const users = loadUsers();
+
+        if (st) {
+          const u = users.find((x) => x.id === st.dataset.id);
+          if (!u) return;
+          if (u.username === session.username) {
+            showToast("لا يمكنك تعطيل حسابك الحالي.", "error");
+            return;
+          }
+          const ok = await confirmAction(
+            u.status === "active" ? "تعطيل المستخدم" : "تفعيل المستخدم",
+            `تأكيد ${u.status === "active" ? "تعطيل" : "تفعيل"} حساب «${u.name}».`
+          );
+          if (!ok) return;
+          u.status = u.status === "active" ? "inactive" : "active";
+          saveUsers(users);
+          logAudit("UPDATE_USER_STATUS", u.username, "OK");
+          showToast("تم تحديث حالة المستخدم.");
+          renderUserTable();
+        }
+        if (reset) {
+          const u = users.find((x) => x.id === reset.dataset.id);
+          if (!u) return;
+          const temporaryPassword = window.prompt(`أدخل كلمة مرور جديدة للحساب «${u.name}».`);
+          if (temporaryPassword === null) return;
+          const policyError = passwordPolicyError(temporaryPassword);
+          if (policyError) {
+            showToast(policyError, "error");
+            return;
+          }
+          try {
+            await fetchApi(`/auth/users/${encodeURIComponent(u.id)}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ password: temporaryPassword }),
+            });
+          } catch (error) {
+            showToast(error.message || "تعذر تحديث كلمة المرور على الخادم.", "error");
+            return;
+          }
+          u.passHash = "";
+          saveUsers(users);
+          logAudit("RESET_USER_PASSWORD", u.username, "OK");
+          showToast(`تمت استعادة كلمة مرور حساب ${u.name}.`);
+        }
+        if (del) {
+          const u = users.find((x) => x.id === del.dataset.id);
+          if (!u) return;
+          if (!/^\d+$/.test(String(u.id))) {
+            showToast("هذه نسخة قديمة من الحساب. أعد تحميل قائمة المستخدمين من الخادم ثم حاول مرة أخرى.", "error");
+            try {
+              await loadRemoteUsers();
+              renderUserTable();
+            } catch (error) {
+              console.error("Unable to refresh users before deletion", error);
+            }
+            return;
+          }
+          if (u.username === session.username) {
+            showToast("لا يمكنك حذف حسابك الحالي.", "error");
+            return;
+          }
+          const ok = await confirmAction("حذف المستخدم", `سيتم حذف حساب «${u.name}» (${u.username}). هل أنت متأكد؟`);
+          if (!ok) return;
+          try {
+            await fetchApi(`/auth/users/${encodeURIComponent(u.id)}`, { method: "DELETE" });
+          } catch (error) {
+            showToast(error.message || "تعذر حذف المستخدم من الخادم.", "error");
+            return;
+          }
+          saveUsers(users.filter((x) => x.id !== u.id));
+          logAudit("DELETE_USER", u.username, "OK");
+          showToast("تم حذف المستخدم.");
+          renderUserTable();
+        }
+      });
+    }
+
+    if (userForm) {
+      userForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const name = $("#new-user-name").value.trim();
+        const username = $("#new-user-username").value.trim().toLowerCase();
+        const password = $("#new-user-password").value;
+        const role = $("#new-user-role").value;
+
+        if (!name || !username || !password) {
+          showToast("جميع الحقول مطلوبة لإنشاء مستخدم.", "error");
+          return;
+        }
+        // سياسة كلمة المرور (SEC-005)
+        const pwErr = passwordPolicyError(password);
+        if (pwErr) {
+          showToast(pwErr, "error");
+          return;
+        }
+        const users = loadUsers();
+        if (users.some((u) => u.username === username)) {
+          showToast("اسم المستخدم مستخدم مسبقاً.", "error");
+          return;
+        }
+
+        let created;
+        try {
+          created = await fetchApi("/auth/users", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password, role: role === "site_admin" ? "admin" : role }),
+          });
+        } catch (error) {
+          showToast("تعذر إنشاء الحساب على الخادم. تحقق من الاتصال أو من أن اسم المستخدم غير مكرر.", "error");
+          return;
+        }
+        users.push({
+          id: String(created.id),
+          name,
+          username,
+          email: username.includes("@") ? username : "",
+          passHash: "",
+          role,
+          status: "active",
+        });
+        saveUsers(users);
+        logAudit("CREATE_USER", username, "OK");
+        userForm.reset();
+        showToast("تم إنشاء المستخدم بنجاح.");
+        renderUserTable();
+        renderStats();
+      });
+    }
+
+    /* ---- سجل العمليات (FR-019 انتظام، Admin فقط) ---- */
+    const auditTbody = $("#audit-tbody");
+    const auditFilter = $("#audit-filter");
+    const auditEmpty = $("#audit-empty");
+
+    const ACTION_LABELS = {
+      LOGIN: "تسجيل دخول",
+      LOGOUT: "تسجيل خروج",
+      LOGIN_FAILED: "محاولة دخول فاشلة",
+      CREATE_CONTENT: "إضافة مادة",
+      UPDATE_CONTENT: "تعديل مادة",
+      DELETE_CONTENT: "حذف مادة",
+      ARCHIVE_CONTENT: "أرشفة مادة",
+      PUBLISH_CONTENT: "نشر مادة",
+      CREATE_CATEGORY: "إضافة تصنيف",
+      DELETE_CATEGORY: "حذف تصنيف",
+      CREATE_USER: "إنشاء مستخدم",
+      UPDATE_USER_ROLE: "تعديل دور",
+      UPDATE_USER_STATUS: "تغيير حالة مستخدم",
+      DELETE_USER: "حذف مستخدم",
+      LOCKED: "قفل حساب",
+    };
+
+    function renderAuditTable() {
+      if (!auditTbody) return;
+      let logs = loadAudit();
+      const q = auditFilter ? auditFilter.value.trim().toLowerCase() : "";
+      if (q) {
+        logs = logs.filter((l) =>
+          (l.user + " " + l.action + " " + l.entity).toLowerCase().includes(q)
+        );
+      }
+      if (auditEmpty) auditEmpty.hidden = logs.length > 0;
+      auditTbody.innerHTML = logs.length
+        ? logs
+            .map(
+              (l) => `
+              <tr>
+                <td data-label="الزمن">${formatAuditTime(l.ts)}</td>
+                <td data-label="المستخدم">${escapeHTML(l.user)}</td>
+                <td data-label="الإجراء">${ACTION_LABELS[l.action] || escapeHTML(l.action)}</td>
+                <td data-label="الكيان">${escapeHTML(l.entity)}</td>
+                <td data-label="النتيجة"><span class="badge ${l.result === "OK" ? "badge--active" : "badge--danger"}">${escapeHTML(l.result)}</span></td>
+              </tr>`
+            )
+            .join("")
+        : "";
+    }
+    if (auditFilter) auditFilter.addEventListener("input", debounce(renderAuditTable, 200));
+
+    // إحصائيات
+    renderStats();
+    // جداول
+    refreshAll();
+  }
+
+  /* ----------------------------------------------------------------------
+     11) نقطة الانطلاق حسب الصفحة
+     ---------------------------------------------------------------------- */
+  document.addEventListener("DOMContentLoaded", async () => {
+    try {
+      const pagesUsingContent = ["index", "search", "detail", "dashboard"];
+      if (pagesUsingContent.includes(PAGE)) {
+        await loadRemoteData();
+      }
+      initShared();
+
+      switch (PAGE) {
+        case "index":
+          initHome();
+          break;
+        case "search":
+          initSearch();
+          break;
+        case "detail":
+          initDetail();
+          break;
+        case "login":
+          initLogin();
+          break;
+        case "dashboard":
+          initDashboard();
+          break;
+          case "questions":
+            await initQuestions();
+            break;
+        default:
+          break;
+      }
+    } catch (error) {
+      console.error("Unable to load DSACMS data", error);
+      const message = "تعذر تحميل البيانات من الخادم. يرجى المحاولة لاحقًا.";
+      ["#categories-grid", "#latest-grid", "#results-grid"].forEach((selector) => {
+        const container = $(selector);
+        if (container) container.innerHTML = `<p class="alert alert--error" role="alert">${message}</p>`;
+      });
+    }
+  });
+})();
