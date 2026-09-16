@@ -1368,15 +1368,16 @@
         ["الكلمات المفتاحية", (content.keywords || []).join("، ") || "—"],
       ];
 
-      const createMetadataImage = () => {
+      const createMetadataImage = (orientation) => {
         const canvas = document.createElement("canvas");
         const scale = Math.min(window.devicePixelRatio || 1, 2);
-        const width = 1200;
+        const width = orientation === "landscape" ? 1600 : 1200;
         const rowHeight = 86;
         const headerHeight = 150;
         const padding = 56;
+        const height = headerHeight + metadataRows.length * rowHeight + padding;
         canvas.width = width * scale;
-        canvas.height = (headerHeight + metadataRows.length * rowHeight + padding) * scale;
+        canvas.height = height * scale;
         const context = canvas.getContext("2d");
         if (!context) throw new Error("Canvas is not supported");
         context.scale(scale, scale);
@@ -1410,33 +1411,70 @@
       };
 
       metadataShareButton.addEventListener("click", async () => {
-        metadataShareButton.disabled = true;
+        const modal = $("#metadata-share-modal");
+        if (!modal) return;
+        modal.hidden = false;
+        $(".metadata-share-modal", modal)?.focus();
+      });
+
+      const metadataModal = $("#metadata-share-modal");
+      const closeMetadataModal = () => {
+        if (metadataModal) metadataModal.hidden = true;
+        metadataShareButton.focus();
+      };
+      $("#metadata-share-cancel")?.addEventListener("click", closeMetadataModal);
+      metadataModal?.addEventListener("click", (event) => {
+        if (event.target === metadataModal) closeMetadataModal();
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && metadataModal && !metadataModal.hidden) closeMetadataModal();
+      });
+
+      const getMetadataImage = async () => {
+        const orientation = $('input[name="metadata-image-orientation"]:checked')?.value || "portrait";
+        const blob = await createMetadataImage(orientation);
+        return new File([blob], `بيانات-المادة-${orientation}.png`, { type: "image/png" });
+      };
+
+      $("#metadata-save-image")?.addEventListener("click", async () => {
         try {
-          const blob = await createMetadataImage();
-          const file = new File([blob], "بيانات-المادة.png", { type: "image/png" });
+          const file = await getMetadataImage();
+          const url = URL.createObjectURL(file);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = file.name;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          URL.revokeObjectURL(url);
+          closeMetadataModal();
+          showToast("تم حفظ صورة البيانات في الهاتف.");
+        } catch (error) {
+          console.error("Unable to save metadata image", error);
+          showToast("تعذر حفظ صورة البيانات.", "error");
+        }
+      });
+
+      $("#metadata-share-direct")?.addEventListener("click", async () => {
+        try {
+          const file = await getMetadataImage();
           const shareData = {
             title: content.title,
             text: "بيانات المادة العلمية من أرشيف DSACMS",
             files: [file],
           };
-          if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
-            await navigator.share(shareData);
-            showToast("تم فتح خيارات المشاركة.");
-          } else {
-            const link = document.createElement("a");
-            link.href = URL.createObjectURL(blob);
-            link.download = file.name;
-            link.click();
-            URL.revokeObjectURL(link.href);
-            showToast("تم تنزيل صورة البيانات. يمكنك مشاركتها كحالة.", "info");
+          if (!navigator.share || (navigator.canShare && !navigator.canShare(shareData))) {
+            showToast("المشاركة المباشرة غير مدعومة؛ استخدم حفظ في الهاتف ثم شارك الصورة عبر واتساب.", "info");
+            return;
           }
+          await navigator.share(shareData);
+          closeMetadataModal();
+          showToast("تم فتح خيارات المشاركة.");
         } catch (error) {
           if (error.name !== "AbortError") {
             console.error("Unable to share metadata image", error);
-            showToast("تعذر تجهيز صورة البيانات للمشاركة.", "error");
+            showToast("تعذرت المشاركة المباشرة. استخدم حفظ في الهاتف.", "error");
           }
-        } finally {
-          metadataShareButton.disabled = false;
         }
       });
     }

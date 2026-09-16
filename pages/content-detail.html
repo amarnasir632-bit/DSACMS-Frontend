@@ -180,6 +180,29 @@
     </section>
   </div>
 
+  <div class="modal-backdrop" id="metadata-share-modal" hidden>
+    <section class="modal metadata-share-modal" role="dialog" aria-modal="true" aria-labelledby="metadata-share-title" tabindex="-1">
+      <h3 id="metadata-share-title">مشاركة بيانات المادة</h3>
+      <p>اختر مقاس الصورة وطريقة المشاركة.</p>
+      <fieldset class="image-orientation-options">
+        <legend>مقاس الصورة</legend>
+        <label class="share-option">
+          <input type="radio" name="metadata-image-orientation" value="portrait" checked>
+          <span>طولي — مناسب للحالة في الهاتف</span>
+        </label>
+        <label class="share-option">
+          <input type="radio" name="metadata-image-orientation" value="landscape">
+          <span>عرضي — مناسب للشاشات والمشاركة العامة</span>
+        </label>
+      </fieldset>
+      <div class="modal-actions metadata-share-actions">
+        <button type="button" class="btn btn--outline" id="metadata-share-cancel">إلغاء</button>
+        <button type="button" class="btn btn--outline" id="metadata-save-image">حفظ في الهاتف</button>
+        <button type="button" class="btn btn--primary" id="metadata-share-direct">مشاركة مباشرة</button>
+      </div>
+    </section>
+  </div>
+
   <footer class="site-footer">
     <div class="container">
       <div class="footer-grid">
@@ -213,6 +236,6 @@
     </div>
   </footer>
 
-  <script src="../assets/js/main.js?v=20260916-5" defer></script>
+  <script src="../assets/js/main.js?v=20260916-6" defer></script>
 </body>
 </html>
