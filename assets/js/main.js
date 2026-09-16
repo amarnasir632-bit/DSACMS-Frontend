@@ -1914,7 +1914,7 @@
           <textarea class="field" id="answer-${escapeHTML(item.id)}">${escapeHTML(item.answer_text || "")}</textarea>
           <div class="form-group" style="display:flex;gap:var(--space-2);flex-wrap:wrap;margin-block-start:var(--space-3);">
             <button type="button" class="btn btn--primary btn--sm" data-question-action="${answered ? "edit" : "answer"}" data-question-id="${escapeHTML(item.id)}">${answered ? "حفظ التعديل" : "نشر الإجابة"}</button>
-            <button type="button" class="btn btn--danger-outline btn--sm" data-question-action="reject" data-question-id="${escapeHTML(item.id)}">${answered ? "حذف نهائي" : "رفض / تجاهل"}</button>
+            <button type="button" class="btn btn--danger-outline btn--sm" data-question-action="${answered ? "delete" : "reject"}" data-question-id="${escapeHTML(item.id)}">${answered ? "حذف نهائي" : "رفض / تجاهل"}</button>
           </div>
         </article>`).join("") : '<p class="alert alert--info">لا توجد أسئلة في هذا القسم.</p>';
     };
@@ -1945,10 +1945,17 @@
       const textarea = $(`#answer-${CSS.escape(id)}`);
       try {
         button.disabled = true;
-        if (button.dataset.questionAction === "reject") {
+        if (button.dataset.questionAction === "delete") {
           const ok = await confirmAction(
             "حذف السؤال",
             "هل أنت متأكد من رغبتك في حذف هذا السؤال نهائياً؟ لا يمكن التراجع عن هذا الإجراء."
+          );
+          if (!ok) return;
+          await fetchApi(`/questions/sheikh/${encodeURIComponent(id)}`, { method: "DELETE" });
+        } else if (button.dataset.questionAction === "reject") {
+          const ok = await confirmAction(
+            "رفض السؤال",
+            "سيتم تحويل السؤال إلى «مرفوض» ولن يظهر للجمهور. هل تريد المتابعة؟"
           );
           if (!ok) return;
           await fetchApi(`/questions/sheikh/${encodeURIComponent(id)}/reject`, { method: "PATCH" });
@@ -2010,9 +2017,8 @@
     if (!isSheikh) {
       $$("[data-sheikh-only]").forEach((el) => { el.hidden = true; });
       $("#panel-questions")?.remove();
-    } else {
-      $$("[data-tab]:not([data-tab='overview']):not([data-tab='questions'])").forEach((el) => { el.closest("li")?.remove(); });
-      $$(".dash-panel:not(#panel-overview):not(#panel-questions)").forEach((el) => el.remove());
+    }
+    if (isSheikh) {
       initSheikhQuestions();
     }
 
