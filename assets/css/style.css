@@ -12,7 +12,7 @@
    - Tajawal  → النصوص العامة للجسم
    ويُبقي الملف المحلي ZAIN احتياطياً عند الحاجة.
    -------------------------------------------------------------------------- */
-@import url("https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;500;600;700&family=Tajawal:wght@400;500;700;800&display=swap");
 
 /* ZAIN – عائلة عربية مرخّصة، ملفات محلية (احتياط لنمط العناوين) */
 @font-face {
@@ -71,6 +71,7 @@
   /* خطوط وأحجام */
   --font-heading: "ZAIN", sans-serif;
   --font-body: "Tajawal", "Segoe UI", Tahoma, Arial, sans-serif;
+  --font-reading: "Noto Naskh Arabic", "Amiri", "Traditional Arabic", serif;
   --fs-xs: 0.8125rem;
   --fs-sm: 0.9375rem;
   --fs-base: 1.0625rem;
@@ -1358,6 +1359,22 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
 }
+.reading-section--article {
+  max-width: 54rem;
+  margin-inline: auto;
+  padding: clamp(1rem, 3vw, 2.25rem);
+  border-color: #e2d8c8;
+  background: #fffdfa;
+  box-shadow: 0 8px 28px rgba(72, 55, 34, 0.08);
+}
+.reading-section--article .reading-heading {
+  padding-block-end: var(--space-4);
+  border-block-end: 2px solid var(--accent-soft);
+}
+.reading-section--article .reading-heading h2 {
+  color: var(--color-primary);
+  font-size: clamp(1.4rem, 3vw, 2rem);
+}
 .reading-section h2,
 .downloads-section h2 {
   font-size: var(--fs-md);
@@ -1423,12 +1440,45 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   font-size: var(--fs-sm);
 }
 .article-body {
+  max-width: 48rem;
+  margin-inline: auto;
+  color: #26364a;
+  direction: rtl;
+  text-align: right;
+  font-family: var(--font-reading);
   font-size: var(--reading-font-size, 1.125rem);
-  line-height: var(--reading-line-height, 2);
+  line-height: var(--reading-line-height, 2.15);
+  font-weight: 500;
+  font-kerning: normal;
+  font-variant-ligatures: common-ligatures contextual;
+  font-feature-settings: "ccmp", "calt", "liga", "kern", "mark", "mkmk";
+  text-rendering: optimizeLegibility;
+  unicode-bidi: plaintext;
+  overflow-wrap: break-word;
+  text-wrap: pretty;
   transition: font-size var(--transition), line-height var(--transition);
 }
 .article-body p {
-  margin-block: 0 var(--space-3);
+  margin-block: 0 1.35em;
+  text-align: right;
+}
+.reading-section--article .article-body {
+  padding-block-start: var(--space-5);
+}
+.reading-section--article .article-body p:first-child::first-letter {
+  color: var(--accent-dark);
+  font-weight: 700;
+}
+@media (max-width: 600px) {
+  .reading-section--article {
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+  }
+  .reading-section--article .article-body {
+    padding-inline: var(--space-2);
+    font-size: max(var(--reading-font-size, 1.125rem), 1.2rem);
+    line-height: max(var(--reading-line-height, 2.15), 2.15);
+  }
 }
 .reading-settings {
   margin-block: var(--space-4);

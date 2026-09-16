@@ -1338,6 +1338,7 @@
     const pdfFrame = $("#pdf-frame");
     if (readingSection && (content.type === "article" || content.type === "book" || content.body?.length || content.pdf)) {
       readingSection.hidden = false;
+      readingSection.classList.toggle("reading-section--article", content.type === "article");
       $("#reading-title").textContent = content.type === "book" ? "قراءة الكتاب" : "نص المادة";
       const adminSettings = normalizeReadingSettings(
         loadContentSettings()[content.id] || content.readingSettings
