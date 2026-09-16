@@ -1371,11 +1371,12 @@
       const createMetadataImage = (orientation) => {
         const canvas = document.createElement("canvas");
         const scale = Math.min(window.devicePixelRatio || 1, 2);
-        const width = orientation === "landscape" ? 1600 : 1200;
-        const rowHeight = 86;
-        const headerHeight = 150;
-        const padding = 56;
-        const height = headerHeight + metadataRows.length * rowHeight + padding;
+        const isPortrait = orientation === "portrait";
+        const width = isPortrait ? 1080 : 1920;
+        const height = isPortrait ? 1920 : 1080;
+        const padding = isPortrait ? 72 : 96;
+        const headerHeight = isPortrait ? 260 : 210;
+        const rowHeight = isPortrait ? 190 : 112;
         canvas.width = width * scale;
         canvas.height = height * scale;
         const context = canvas.getContext("2d");
@@ -1387,23 +1388,23 @@
         context.fillStyle = "#14253e";
         context.fillRect(0, 0, width, headerHeight);
         context.fillStyle = "#ffffff";
-        context.font = "700 38px Tajawal, Arial, sans-serif";
+        context.font = `700 ${isPortrait ? 48 : 52}px Tajawal, Arial, sans-serif`;
         context.textAlign = "right";
-        context.fillText("بيانات المادة العلمية", width - padding, 62);
-        context.font = "500 24px Tajawal, Arial, sans-serif";
-        context.fillText("أرشيف DSACMS", width - padding, 106);
+        context.fillText("بيانات المادة العلمية", width - padding, isPortrait ? 100 : 82);
+        context.font = `500 ${isPortrait ? 30 : 32}px Tajawal, Arial, sans-serif`;
+        context.fillText("أرشيف DSACMS", width - padding, isPortrait ? 170 : 140);
 
         metadataRows.forEach(([label, value], index) => {
           const y = headerHeight + index * rowHeight;
           context.fillStyle = index % 2 ? "#ffffff" : "#f0f2f5";
-          context.fillRect(padding / 2, y, width - padding, rowHeight);
+          context.fillRect(padding / 2, y, width - padding, rowHeight - 2);
           context.fillStyle = "#14253e";
-          context.font = "700 25px Tajawal, Arial, sans-serif";
+          context.font = `700 ${isPortrait ? 32 : 34}px Tajawal, Arial, sans-serif`;
           context.textAlign = "right";
-          context.fillText(label, width - padding * 1.5, y + 53);
+          context.fillText(label, width - padding * 1.5, y + (isPortrait ? 70 : 68));
           context.fillStyle = "#334155";
-          context.font = "500 25px Tajawal, Arial, sans-serif";
-          context.fillText(String(value), width - 330, y + 53, 650);
+          context.font = `500 ${isPortrait ? 30 : 32}px Tajawal, Arial, sans-serif`;
+          context.fillText(String(value), width - (isPortrait ? 90 : 430), y + (isPortrait ? 125 : 68), isPortrait ? 850 : 1300);
         });
         return new Promise((resolve, reject) => {
           canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Unable to create image"))), "image/png");
@@ -1456,6 +1457,8 @@
       });
 
       $("#metadata-share-direct")?.addEventListener("click", async () => {
+        const shareButton = $("#metadata-share-direct");
+        shareButton.disabled = true;
         try {
           const file = await getMetadataImage();
           const shareData = {
@@ -1463,18 +1466,32 @@
             text: "بيانات المادة العلمية من أرشيف DSACMS",
             files: [file],
           };
-          if (!navigator.share || (navigator.canShare && !navigator.canShare(shareData))) {
-            showToast("المشاركة المباشرة غير مدعومة؛ استخدم حفظ في الهاتف ثم شارك الصورة عبر واتساب.", "info");
+          if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
+            await navigator.share(shareData);
+            closeMetadataModal();
+            showToast("تم فتح خيارات المشاركة.");
             return;
           }
-          await navigator.share(shareData);
+
+          const whatsappText = `${content.title}\n\nرابط الموقع: ${homeUrl}`;
+          window.open(`https://wa.me/?text=${encodeURIComponent(whatsappText)}`, "_blank", "noopener");
+          const url = URL.createObjectURL(file);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = file.name;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          URL.revokeObjectURL(url);
           closeMetadataModal();
-          showToast("تم فتح خيارات المشاركة.");
+          showToast("تم فتح واتساب وحفظ الصورة لإرفاقها.", "info");
         } catch (error) {
           if (error.name !== "AbortError") {
             console.error("Unable to share metadata image", error);
             showToast("تعذرت المشاركة المباشرة. استخدم حفظ في الهاتف.", "error");
           }
+        } finally {
+          shareButton.disabled = false;
         }
       });
     }
