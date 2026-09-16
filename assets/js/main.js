@@ -2598,7 +2598,7 @@
     }
 
     if (usersTbody) {
-      usersTbody.addEventListener("change", (e) => {
+      usersTbody.addEventListener("change", async (e) => {
         const sel = e.target.closest("[data-user-role]");
         if (!sel) return;
         const users = loadUsers();
@@ -2610,7 +2610,19 @@
             showToast("لا يمكن تغيير دورك الحالي أثناء الجلسة.", "error");
             return;
           }
-          u.role = sel.value;
+          const nextRole = sel.value === "site_admin" ? "admin" : sel.value;
+          try {
+            const updated = await fetchApi(`/auth/users/${encodeURIComponent(u.id)}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ role: nextRole }),
+            });
+            u.role = updated.role;
+          } catch (error) {
+            sel.value = u.role;
+            showToast(error.message || "تعذر تحديث صلاحية المستخدم على الخادم.", "error");
+            return;
+          }
           saveUsers(users);
           logAudit("UPDATE_USER_ROLE", u.username, "OK");
           showToast(`تم تغيير دورِ المستخدم ${u.name} إلى ${ROLES[u.role].label}.`);
@@ -2652,7 +2664,17 @@
             showToast(policyError, "error");
             return;
           }
-          u.passHash = hashDemo(temporaryPassword);
+          try {
+            await fetchApi(`/auth/users/${encodeURIComponent(u.id)}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ password: temporaryPassword }),
+            });
+          } catch (error) {
+            showToast(error.message || "تعذر تحديث كلمة المرور على الخادم.", "error");
+            return;
+          }
+          u.passHash = "";
           saveUsers(users);
           logAudit("RESET_USER_PASSWORD", u.username, "OK");
           showToast(`تمت استعادة كلمة مرور حساب ${u.name}.`);
