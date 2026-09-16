@@ -107,7 +107,45 @@
     users: "dsacms_users",
     session: "dsacms_session",
     audit: "dsacms_audit",
+    contentSettings: "dsacms_content_reading_settings",
+    readingPreferences: "dsacms_reading_preferences",
   };
+
+  const DEFAULT_READING_SETTINGS = { fontSize: 1.125, lineHeight: 2 };
+  const READING_FONT_SIZES = [1, 1.125, 1.25, 1.5, 1.75];
+  const READING_LINE_HEIGHTS = [1.7, 2, 2.4, 2.8, 3.2];
+
+  function normalizeReadingSettings(settings) {
+    const source = settings || {};
+    const fontSize = Number(source.fontSize);
+    const lineHeight = Number(source.lineHeight);
+    return {
+      fontSize: READING_FONT_SIZES.includes(fontSize) ? fontSize : DEFAULT_READING_SETTINGS.fontSize,
+      lineHeight: READING_LINE_HEIGHTS.includes(lineHeight) ? lineHeight : DEFAULT_READING_SETTINGS.lineHeight,
+    };
+  }
+
+  function loadContentSettings() {
+    const settings = store.read(STORE.contentSettings, {});
+    return settings && typeof settings === "object" ? settings : {};
+  }
+
+  function saveContentSettings(id, settings) {
+    const all = loadContentSettings();
+    all[id] = normalizeReadingSettings(settings);
+    store.write(STORE.contentSettings, all);
+  }
+
+  function loadReadingPreferences() {
+    const settings = store.read(STORE.readingPreferences, {});
+    return settings && typeof settings === "object" ? settings : {};
+  }
+
+  function saveReadingPreference(id, settings) {
+    const all = loadReadingPreferences();
+    all[id] = normalizeReadingSettings(settings);
+    store.write(STORE.readingPreferences, all);
+  }
 
   /** التصنيفات الافتراضية (FR-015) */
   const DEFAULT_CATEGORIES = /*
@@ -372,6 +410,7 @@
       categoryName: row.category_name || "عام",
       keywords: Array.isArray(row.keywords) ? row.keywords : [],
       body: Array.isArray(row.body) ? row.body : [],
+      readingSettings: normalizeReadingSettings(row.reading_settings || row.readingSettings),
       pubDate: row.created_at,
       duration: Number(row.duration_seconds) || 0,
       audio: row.audio_url || null,
@@ -1175,6 +1214,48 @@
     if (readingSection && (content.type === "article" || content.type === "book" || (content.body && content.body.length))) {
       readingSection.hidden = false;
       $("#reading-title").textContent = content.type === "book" ? "قراءة الكتاب" : "نص المادة";
+      const adminSettings = normalizeReadingSettings(
+        loadContentSettings()[content.id] || content.readingSettings
+      );
+      const savedPreference = loadReadingPreferences()[content.id];
+      let readingSettings = savedPreference
+        ? normalizeReadingSettings(savedPreference)
+        : adminSettings;
+      const applyReadingSettings = () => {
+        if (articleBody) {
+          articleBody.style.setProperty("--reading-font-size", `${readingSettings.fontSize}rem`);
+          articleBody.style.setProperty("--reading-line-height", String(readingSettings.lineHeight));
+        }
+        const lineHeightSelect = $("#reading-line-height");
+        if (lineHeightSelect) lineHeightSelect.value = String(readingSettings.lineHeight);
+      };
+      const readingControls = $$(".reading-control-btn", readingSection);
+      readingControls.forEach((button) => {
+        button.addEventListener("click", () => {
+          const action = button.dataset.readingAction;
+          if (action === "increase") {
+            const next = READING_FONT_SIZES.find((size) => size > readingSettings.fontSize);
+            if (next) readingSettings.fontSize = next;
+          } else if (action === "decrease") {
+            const previous = [...READING_FONT_SIZES].reverse().find((size) => size < readingSettings.fontSize);
+            if (previous) readingSettings.fontSize = previous;
+          } else if (action === "reset") {
+            readingSettings = adminSettings;
+          }
+          saveReadingPreference(content.id, readingSettings);
+          applyReadingSettings();
+        });
+      });
+      const lineHeightSelect = $("#reading-line-height");
+      if (lineHeightSelect) {
+        lineHeightSelect.addEventListener("change", () => {
+          readingSettings.lineHeight = Number(lineHeightSelect.value);
+          readingSettings = normalizeReadingSettings(readingSettings);
+          saveReadingPreference(content.id, readingSettings);
+          applyReadingSettings();
+        });
+      }
+      applyReadingSettings();
       if (content.body && content.body.length) {
         articleBody.innerHTML = (content.body || [content.description])
           .map((paragraph) => `<p>${escapeHTML(paragraph)}</p>`)
@@ -1641,6 +1722,8 @@
     const cfType = $("#cf-type");
     const cfPdf = $("#cf-pdf");
     const cfBody = $("#cf-body");
+    const cfFontSize = $("#cf-font-size");
+    const cfLineHeight = $("#cf-line-height");
     const cfSubmit = $("#cf-submit");
     const cfReset = $("#cf-reset");
     const editorTitle = $("#panel-editor-title");
@@ -1699,7 +1782,12 @@
       if (cfAudio) cfAudio.value = content.audio || "";
       if (cfPdf) cfPdf.value = content.pdf || "";
       if (cfBody) cfBody.value = (content.body || []).join("\n\n");
+      const contentSettings = loadContentSettings()[content.id] || content.readingSettings;
+      if (cfFontSize) cfFontSize.value = String(normalizeReadingSettings(contentSettings).fontSize);
+      if (cfLineHeight) cfLineHeight.value = String(normalizeReadingSettings(contentSettings).lineHeight);
       if (editorAlert) editorAlert.hidden = true;
+      if (cfFontSize) cfFontSize.value = String(DEFAULT_READING_SETTINGS.fontSize);
+      if (cfLineHeight) cfLineHeight.value = String(DEFAULT_READING_SETTINGS.lineHeight);
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
@@ -1871,7 +1959,12 @@
           body: cfBody
             ? cfBody.value.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean)
             : (existing && existing.body) || [],
+          readingSettings: normalizeReadingSettings({
+            fontSize: cfFontSize ? Number(cfFontSize.value) : DEFAULT_READING_SETTINGS.fontSize,
+            lineHeight: cfLineHeight ? Number(cfLineHeight.value) : DEFAULT_READING_SETTINGS.lineHeight,
+          }),
         };
+        saveContentSettings(item.id, item.readingSettings);
 
         try {
           const saved = await fetchApi(existing ? `/materials/${encodeURIComponent(existing.id)}` : "/materials", {
@@ -1886,6 +1979,7 @@
               documentUrl: item.pdf || null,
               contentType: item.type,
               body: item.body,
+              readingSettings: item.readingSettings,
               keywords: item.keywords,
               durationSeconds: item.duration,
               status: item.status,
