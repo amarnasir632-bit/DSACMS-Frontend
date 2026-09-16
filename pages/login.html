@@ -20,8 +20,8 @@
   <header class="site-header">
     <div class="container nav-wrap">
       <a class="brand" href="../index.html" aria-label="DSACMS – الصفحة الرئيسية">
-        <img src="../assets/images/الشعار بدون خلفية .png" alt="شعار نظام DSACMS" height="60" style="object-fit: contain;" onerror="this.onerror=null;this.src='../assets/images/logo.png';">
-        <span>DSACMS<small>لوحة الإدارة</small></span>
+        <img src="../assets/images/logo.png" alt="شعار نظام DSACMS" height="60" style="object-fit: contain;">
+        <span>الشيخ محمد أحمد الهادي الكرار<small>لوحة الإدارة</small></span>
       </a>
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="فتح أو إغلاق قائمة التنقل">
         <span class="icon-menu" aria-hidden="true">☰</span>
@@ -31,6 +31,7 @@
         <ul>
           <li><a href="../index.html">الرئيسية</a></li>
           <li><a href="search.html">المحتوى</a></li>
+          <li><a href="questions.html">الأسئلة والفتاوى</a></li>
           <li><a href="login.html" aria-current="page">تسجيل الدخول</a></li>
         </ul>
       </nav>
@@ -46,33 +47,25 @@
         <p>أدخل بيانات الاعتماد للوصول إلى واجهة الإدارة.</p>
       </header>
 
-      <!-- رسالة الخطأ العامة / القفل (SEC-006 / SEC-011) -->
-      <div class="alert alert--error" id="login-error" role="alert" aria-live="assertive" hidden>
-        <span id="login-error-text"></span>
-      </div>
-
-      <!-- رسالة النجاح -->
-      <div class="alert alert--success" id="login-success" role="status" aria-live="polite" hidden>
-        <span id="login-success-text"></span>
-      </div>
-
       <!-- نموذج تسجيل الدخول (FR-021 / SEC-001 / SEC-004) -->
       <form id="login-form" novalidate aria-describedby="password-hint">
         <div class="form-group">
           <label for="login-username">اسم المستخدم أو البريد الإلكتروني <span class="req" aria-label="مطلوب">*</span></label>
           <input type="text" id="login-username" name="username" required
-                 class="field" autocomplete="username" placeholder="admin أو manager" aria-required="true">
+                 class="field" autocomplete="username" placeholder="admin أو البريد الإلكتروني" aria-required="true">
           <p class="field-error-msg" id="err-username">الرجاء إدخال اسم المستخدم أو البريد الإلكتروني.</p>
         </div>
 
         <div class="form-group password-wrap">
           <label for="login-password">كلمة المرور <span class="req" aria-label="مطلوب">*</span></label>
-          <input type="password" id="login-password" name="password" required
-                 class="field" autocomplete="current-password" placeholder="••••••••" aria-required="true"
-                 aria-describedby="password-hint">
-          <button type="button" class="password-toggle" id="password-toggle" aria-label="إظهار كلمة المرور">
-            <span aria-hidden="true">👁</span>
-          </button>
+          <div class="password-control">
+            <input type="password" id="login-password" name="password" required
+                   class="field" autocomplete="current-password" placeholder="••••••••" aria-required="true"
+                   aria-describedby="password-hint">
+            <button type="button" class="password-toggle" id="password-toggle" aria-label="إظهار كلمة المرور">
+              <span aria-hidden="true">👁</span>
+            </button>
+          </div>
           <p class="field-error-msg" id="err-password">الرجاء إدخال كلمة المرور.</p>
         </div>
 
@@ -92,22 +85,8 @@
           </button>
         </div>
 
-        <!-- ملاحظة حول سجل المحاولات الفاشلة (معروض عبر JS) -->
         <p class="hint" id="attempts-hint" style="text-align:center;color:var(--color-danger);font-weight:600;" hidden></p>
       </form>
-
-      <!-- بيانات الاعتماد التجريبية ( Razracking ) -->
-      <aside class="demo-credentials" aria-label="بيانات الاعتماد التجريبية">
-        <strong style="display:block;margin-block-end:var(--space-2);">بيانات الدخول التجريبية (للعرض فقط):</strong>
-        <p style="margin-block-end:var(--space-1);">
-          <strong>مدير النظام (Administrator):</strong><br>
-          اسم المستخدم: <code>admin</code> &mdash; كلمة المرور: <code>Admin1234</code>
-        </p>
-        <p>
-          <strong>مدير المحتوى (Content Manager):</strong><br>
-          اسم المستخدم: <code>manager</code> &mdash; كلمة المرور: <code>Manager1234</code>
-        </p>
-      </aside>
 
       <p style="text-align:center;margin-block-start:var(--space-4);font-size:var(--fs-sm);color:var(--color-text-muted);">
         نسيت كلمة المرور؟ يرجى التواصل مع مسؤول النظام .
@@ -119,12 +98,12 @@
   <footer class="site-footer">
     <div class="container">
       <div class="footer-bottom">
-        <p>© <span id="year">2026</span> جميع الحقوق محفوظة</p>
+        <p>© <span id="year">2026</span> موقع الشيخ محمد أحمد الهادي الكرار</p>
         <p style="direction:ltr;unicode-bidi:embed;font-size:var(--fs-xs);">Built with HTML5 · CSS3 · Vanilla JS</p>
       </div>
     </div>
   </footer>
 
-  <script src="../assets/js/main.js" defer></script>
+  <script src="../assets/js/main.js?v=20260916-14" defer></script>
 </body>
 </html>

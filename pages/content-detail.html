@@ -30,8 +30,8 @@
   <header class="site-header">
     <div class="container nav-wrap">
       <a class="brand" href="../index.html" aria-label="DSACMS – الصفحة الرئيسية">
-        <img src="../assets/images/الشعار بدون خلفية .png" alt="شعار نظام DSACMS" height="60" style="object-fit: contain;" onerror="this.onerror=null;this.src='../assets/images/logo.png';">
-        <span>DSACMS<small>أرشيف المحتوى العلمي والصوتي</small></span>
+        <img src="../assets/images/logo.png" alt="شعار نظام DSACMS" height="60" style="object-fit: contain;">
+        <span>الشيخ محمد أحمد الهادي الكرار<small>المكتبة العلمية والصوتية</small></span>
       </a>
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="فتح أو إغلاق قائمة التنقل">
         <span class="icon-menu" aria-hidden="true">☰</span>
@@ -41,6 +41,8 @@
         <ul>
           <li><a href="../index.html">الرئيسية</a></li>
           <li><a href="search.html">تصفّح المحتوى</a></li>
+          <li><a href="questions.html">الأسئلة والفتاوى</a></li>
+          <li><a href="about.html">حول الشيخ</a></li>
           <li><a href="login.html">تسجيل الدخول للإدارة</a></li>
         </ul>
       </nav>
@@ -82,6 +84,39 @@
               <!-- يُبنى هيكل المشغّل عبر JS عبر الدالة renderPlayer -->
             </section>
 
+            <!-- محتوى المقالات والكتب القابلة للقراءة -->
+            <section id="reading-section" class="reading-section" hidden aria-label="قراءة المادة">
+              <div class="reading-heading">
+                <h2 id="reading-title"></h2>
+                <div class="reading-controls" aria-label="خيارات سهولة القراءة">
+                  <span class="reading-controls__label">سهولة القراءة</span>
+                  <button type="button" class="reading-control-btn" data-reading-action="decrease" aria-label="تصغير الخط">أ−</button>
+                  <button type="button" class="reading-control-btn reading-control-btn--strong" data-reading-action="increase" aria-label="تكبير الخط">أ+</button>
+                  <label class="reading-select-label" for="reading-line-height">تباعد السطور</label>
+                  <select id="reading-line-height" class="reading-select" aria-label="اختيار المسافة بين السطور">
+                    <option value="1.7">قريب</option>
+                    <option value="2">مريح</option>
+                    <option value="2.4">واسع</option>
+                    <option value="2.8">واسع جداً</option>
+                    <option value="3.2">الأوسع</option>
+                  </select>
+                  <button type="button" class="reading-control-btn reading-control-btn--copy" data-copy-content aria-label="نسخ كل محتوى المادة">نسخ كل المحتوى</button>
+                  <button type="button" class="reading-control-btn reading-control-btn--reset" data-reading-action="reset">الوضع الافتراضي</button>
+                </div>
+              </div>
+              <div id="article-body" class="article-body"></div>
+              <div id="pdf-reader" class="pdf-reader" hidden>
+                <iframe id="pdf-frame" title="قارئ الكتاب بصيغة PDF"></iframe>
+              </div>
+            </section>
+
+            <!-- روابط التنزيل -->
+            <section id="downloads-section" class="downloads-section" hidden aria-label="تنزيل ملفات المادة">
+              <h2>ملفات المادة</h2>
+              <div id="download-actions"></div>
+              <p class="download-hint" id="download-hint" hidden></p>
+            </section>
+
             <!-- نص الوصف -->
             <div class="prose" id="article-prose">
               <h3>نبذة عن المادة</h3>
@@ -92,9 +127,10 @@
             <!-- مشاركة بروابط مباشرة (FR-024 / FR-025) -->
             <div class="share-row" id="share-row">
               <span style="font-weight:700; align-self:center;">مشاركة المادة:</span>
+              <button class="btn btn--primary content-copy-fallback" type="button" data-copy-content aria-label="نسخ كل محتوى المادة">نسخ كل المحتوى</button>
               <button class="btn btn--outline btn--sm" id="share-copy" type="button">نسخ الرابط المباشر</button>
               <a class="btn btn--outline btn--sm" id="share-twitter" href="#" target="_blank" rel="noopener">مشاركة عبر X</a>
-              <a class="btn btn--outline btn--sm" id="share-whatsapp" href="#" target="_blank" rel="noopener">مشاركة عبر واتساب</a>
+              <button class="btn btn--outline btn--sm" id="share-whatsapp" type="button">مشاركة عبر واتساب</button>
             </div>
           </div>
 
@@ -105,6 +141,9 @@
               <table class="meta-table" id="meta-table">
                 <tbody></tbody>
               </table>
+              <button type="button" class="btn btn--primary metadata-share-btn" id="share-metadata-status">
+                مشاركة كحالة
+              </button>
             </div>
 
             <div class="aside-card">
@@ -117,6 +156,53 @@
 
     </div>
   </main>
+
+  <div class="modal-backdrop" id="whatsapp-share-modal" hidden>
+    <section class="modal whatsapp-share-modal" role="dialog" aria-modal="true" aria-labelledby="whatsapp-share-title" tabindex="-1">
+      <h3 id="whatsapp-share-title">مشاركة المادة عبر واتساب</h3>
+      <p>اختر المعلومات التي تريد تضمينها في الرسالة، وسيبقى رابط الموقع موجوداً دائماً.</p>
+      <div class="share-options">
+        <label class="share-option">
+          <input type="checkbox" id="share-include-body" checked>
+          <span>تضمين نص المادة</span>
+        </label>
+        <label class="share-option">
+          <input type="checkbox" id="share-include-audio" checked>
+          <span>تضمين صوت المادة</span>
+        </label>
+        <label class="share-option">
+          <input type="checkbox" id="share-include-description" checked>
+          <span>تضمين وصف المادة</span>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn--outline" id="whatsapp-share-cancel">إلغاء</button>
+        <button type="button" class="btn btn--primary" id="whatsapp-share-confirm">فتح واتساب</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="metadata-share-modal" hidden>
+    <section class="modal metadata-share-modal" role="dialog" aria-modal="true" aria-labelledby="metadata-share-title" tabindex="-1">
+      <h3 id="metadata-share-title">مشاركة بيانات المادة</h3>
+      <p>اختر مقاس الصورة وطريقة المشاركة.</p>
+      <fieldset class="image-orientation-options">
+        <legend>مقاس الصورة</legend>
+        <label class="share-option">
+          <input type="radio" name="metadata-image-orientation" value="portrait" checked>
+          <span>طولي — مناسب للحالة في الهاتف</span>
+        </label>
+        <label class="share-option">
+          <input type="radio" name="metadata-image-orientation" value="landscape">
+          <span>عرضي — مناسب للشاشات والمشاركة العامة</span>
+        </label>
+      </fieldset>
+      <div class="modal-actions metadata-share-actions">
+        <button type="button" class="btn btn--outline" id="metadata-share-cancel">إلغاء</button>
+        <button type="button" class="btn btn--outline" id="metadata-save-image">حفظ في الهاتف</button>
+      </div>
+    </section>
+  </div>
 
   <footer class="site-footer">
     <div class="container">
@@ -146,12 +232,11 @@
         </div>
       </div>
       <div class="footer-bottom">
-        <p>© <span id="year">2026</span> DSACMS – جميع الحقوق محفوظة</p>
-        <p style="direction:ltr;unicode-bidi:embed;font-size:var(--fs-xs);">Built with HTML5 · CSS3 · Vanilla JS</p>
+        <p>© <span id="year">2026</span> موقع الشيخ محمد أحمد الهادي الكرار</p>
       </div>
     </div>
   </footer>
 
-  <script src="../assets/js/main.js" defer></script>
+  <script src="../assets/js/main.js?v=20260916-14" defer></script>
 </body>
 </html>

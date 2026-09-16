@@ -20,8 +20,8 @@
   <header class="site-header">
     <div class="container nav-wrap">
       <a class="brand" href="../index.html" aria-label="DSACMS – الصفحة الرئيسية">
-        <img src="../assets/images/الشعار بدون خلفية .png" alt="شعار نظام DSACMS" height="60" style="object-fit: contain;" onerror="this.onerror=null;this.src='../assets/images/logo.png';">
-        <span>DSACMS<small>لوحة إدارة المحتوى</small></span>
+        <img src="../assets/images/logo.png" alt="شعار نظام DSACMS" height="60" style="object-fit: contain;">
+        <span>الشيخ محمد أحمد الهادي الكرار<small>لوحة إدارة المحتوى</small></span>
       </a>
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="فتح أو إغلاق قائمة التنقل">
         <span class="icon-menu" aria-hidden="true">☰</span>
@@ -31,6 +31,7 @@
         <ul>
           <li><a href="../index.html">الرئيسية</a></li>
           <li><a href="search.html">المحتوى</a></li>
+          <li><a href="questions.html">الأسئلة والفتاوى</a></li>
           <li><a href="search.html">العودة للموقع</a></li>
         </ul>
       </nav>
@@ -63,6 +64,7 @@
             <li><button type="button" data-tab="categories">🗂 التصنيفات</button></li>
             <li><button type="button" data-tab="users" data-admin-only>👥 المستخدمون</button></li>
             <li><button type="button" data-tab="audit" data-admin-only>🧾 سجل العمليات</button></li>
+            <li><button type="button" data-tab="questions" data-sheikh-only>🕌 الأسئلة والفتاوى</button></li>
           </ul>
         </nav>
 
@@ -76,6 +78,18 @@
             <div class="stat-grid" id="stat-grid">
               <!-- تُملأ بالبطاقات عبر JS -->
             </div>
+          </section>
+
+          <section class="dash-panel" id="panel-questions" aria-hidden="true" aria-labelledby="panel-questions-title">
+            <div class="dash-panel-head">
+              <h2 id="panel-questions-title">الأسئلة والفتاوى</h2>
+            </div>
+            <div class="qa-admin-tabs">
+              <button type="button" class="btn btn--primary btn--sm" data-question-tab="pending">معلقة</button>
+              <button type="button" class="btn btn--outline btn--sm" data-question-tab="answered">الأرشيف</button>
+            </div>
+            <div id="pending-questions-list" class="qa-list"></div>
+            <div id="answered-questions-list" class="qa-list" hidden></div>
           </section>
 
           <!-- ===== إدارة المحتوى ===== -->
@@ -113,10 +127,43 @@
 
             <div class="alert alert--success" id="editor-alert" role="alert" aria-live="assertive" hidden></div>
 
+            <section class="admin-guide" aria-labelledby="admin-guide-title">
+              <div class="admin-guide__head">
+                <div>
+                  <p class="admin-guide__eyebrow">دليل الروابط المباشرة</p>
+                  <h3 id="admin-guide-title">كيف تحصل على رابط الصوت أو PDF؟</h3>
+                </div>
+                <span class="admin-guide__badge">مهم</span>
+              </div>
+              <p class="admin-guide__intro">استخدم رابطًا عامًا مباشرًا؛ لا تستخدم رابط صفحة المعاينة. افتح القسم المناسب للاطلاع على الخطوات المصورة.</p>
+              <div class="admin-guide__grid">
+                <details class="admin-guide__card" open>
+                  <summary>Internet Archive</summary>
+                  <ol class="admin-guide__steps">
+                    <li><img src="../assets/images/guide/step1.svg" alt="خطوة 1: فتح Internet Archive ورفع الملف" loading="lazy"><span>افتح Internet Archive، ارفع الملف، ثم املأ العنوان والوصف والبيانات المطلوبة.</span></li>
+                    <li><img src="../assets/images/guide/step2.svg" alt="خطوة 2: تعبئة بيانات الملف في Internet Archive" loading="lazy"><span>أكمل بيانات العنصر وانتظر انتهاء الرفع والمعالجة.</span></li>
+                    <li><img src="../assets/images/guide/step3.svg" alt="خطوة 3: فتح خيارات التنزيل في Internet Archive" loading="lazy"><span>افتح صفحة العنصر، مرر إلى <strong>Download Options</strong>، ثم اضغط بزر الماوس الأيمن على صيغة الملف المطلوبة.</span></li>
+                    <li><img src="../assets/images/guide/step4.svg" alt="خطوة 4: نسخ عنوان رابط الملف" loading="lazy"><span>اختر <strong>Copy link address</strong> والصق العنوان في حقل رابط الصوت أو PDF هنا.</span></li>
+                  </ol>
+                </details>
+                <details class="admin-guide__card">
+                  <summary>Google Drive</summary>
+                  <ol class="admin-guide__steps admin-guide__steps--drive">
+                    <li><span>ارفع الملف إلى Google Drive ثم اضغط عليه بزر الماوس الأيمن واختر <strong>Share</strong>.</span></li>
+                    <li><span>غيّر الصلاحية من <strong>Restricted</strong> إلى <strong>Anyone with the link</strong>، واجعل الدور Viewer.</span></li>
+                    <li><span>اضغط <strong>Copy link</strong> والصق الرابط في حقل الصوت أو PDF. سيحوّل النظام تلقائيًا رابط العرض إلى رابط تنزيل مباشر.</span></li>
+                  </ol>
+                  <p class="admin-guide__note">يجب أن يكون الملف عامًا؛ الروابط التي تتطلب تسجيل الدخول لن تعمل للمستخدمين.</p>
+                </details>
+              </div>
+            </section>
+
             <form id="content-form" novalidate>
               <!-- حقل سري معلومة داخلياً -->
               <input type="hidden" id="cf-id" name="id">
 
+              <div class="editor-step is-active" data-editor-step="1">
+                <p class="editor-step__label">الخطوة 1 من 3: المعلومات الأساسية</p>
               <div class="grid grid--content">
                 <div class="form-group">
                   <label for="cf-title">العنوان <span class="req">*</span></label>
@@ -153,7 +200,13 @@
                 <label for="cf-description">الوصف</label>
                 <textarea id="cf-description" name="description" class="field" rows="4" maxlength="1000"></textarea>
               </div>
+              <div class="editor-step__actions">
+                <button type="button" class="btn btn--primary" data-step-next="1">التالي</button>
+              </div>
+              </div>
 
+              <div class="editor-step" data-editor-step="2" hidden>
+                <p class="editor-step__label">الخطوة 2 من 3: نوع الملف والمحتوى</p>
               <div class="grid grid--content">
                 <div class="form-group">
                   <label for="cf-keywords">الكلمات المفتاحية</label>
@@ -168,21 +221,77 @@
 
               <div class="grid grid--content">
                 <div class="form-group">
-                  <label for="cf-duration">المدة (بالثواني)</label>
-                  <input type="number" id="cf-duration" name="duration" class="field" min="0" step="1" aria-describedby="cf-duration-hint">
-                  <p class="hint" id="cf-duration-hint">تُحدَّد تلقائياً من الملف الصوتي عند رفعه.</p>
+                  <label for="cf-type">نوع المادة</label>
+                  <select id="cf-type" name="type" class="field">
+                    <option value="audio">مادة صوتية</option>
+                    <option value="article">مقال مكتوب</option>
+                    <option value="book">كتاب PDF</option>
+                  </select>
                 </div>
                 <div class="form-group">
-                  <label for="cf-audio">الملف الصوتي (AF-001 / AF-002)</label>
-                  <input type="file" id="cf-audio" name="audioFile" class="field" accept=".mp3,.wav,.ogg,.m4a,audio/mpeg,audio/wav,audio/ogg" aria-describedby="cf-audio-hint">
-                  <p class="hint" id="cf-audio-hint">الصيغ المسموحة: MP3، WAV، OGG، M4A — الحد الأقصى: 100MB.</p>
+                  <label for="cf-duration">المدة (بالثواني)</label>
+                  <input type="number" id="cf-duration" name="duration" class="field" min="0" step="1" aria-describedby="cf-duration-hint">
+                  <p class="hint" id="cf-duration-hint" aria-live="polite">ستُحسب تلقائيًا عند إدخال رابط صوت مباشر، ويمكن تعديلها يدويًا عند تعذر القراءة.</p>
+                </div>
+                <div class="form-group">
+                  <label for="cf-audio">رابط الملف الصوتي</label>
+                  <input type="url" id="cf-audio" name="audioUrl" class="field" maxlength="2000" placeholder="https://archive.org/download/.../audio.mp3" inputmode="url" aria-describedby="cf-audio-hint">
+                  <p class="hint" id="cf-audio-hint">الصق رابطًا مباشرًا للملف من Internet Archive أو Google Drive أو أي تخزين عام.</p>
                   <p class="field-error-msg" id="err-cf-audio"></p>
                 </div>
               </div>
 
+              <div class="form-group">
+                <label for="cf-pdf">رابط ملف PDF</label>
+                <input type="url" id="cf-pdf" name="pdf" class="field" maxlength="2000" placeholder="https://archive.org/download/.../book.pdf" inputmode="url">
+                <p class="hint">الصق رابطًا مباشرًا عامًا؛ يُستخدم لعرض الكتاب وإظهار زر التحميل.</p>
+              </div>
+              <div class="editor-step__actions">
+                <button type="button" class="btn btn--outline" data-step-prev="2">السابق</button>
+                <button type="button" class="btn btn--primary" data-step-next="2">التالي</button>
+              </div>
+              </div>
+
+              <div class="editor-step" data-editor-step="3" hidden>
+                <p class="editor-step__label">الخطوة 3 من 3: النص والحفظ</p>
+              <div class="form-group">
+                <label for="cf-body">نص المقال</label>
+                <textarea id="cf-body" name="body" class="field" rows="5" placeholder="ضع كل فقرة في سطر مستقل"></textarea>
+                <p class="hint">يمكن إضافة نص للمقال مع الملف الصوتي في الصفحة نفسها؛ افصل الفقرات بأسطر فارغة.</p>
+              </div>
+
+              <fieldset class="reading-settings">
+                <legend>تنسيق نص المادة للقارئ</legend>
+                <p class="hint">هذه قيم البداية التي يراها المستخدم. يستطيع القارئ تعديلها بسهولة من صفحة المادة.</p>
+                <div class="grid grid--content">
+                  <div class="form-group">
+                    <label for="cf-font-size">حجم الخط الافتراضي</label>
+                    <select id="cf-font-size" class="field">
+                      <option value="1">صغير</option>
+                      <option value="1.125" selected>مريح</option>
+                      <option value="1.25">كبير</option>
+                      <option value="1.5">كبير جداً</option>
+                      <option value="1.75">الأكبر</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label for="cf-line-height">المسافة بين السطور</label>
+                    <select id="cf-line-height" class="field">
+                      <option value="1.7">قريبة</option>
+                      <option value="2" selected>مريحة</option>
+                      <option value="2.4">واسعة</option>
+                      <option value="2.8">واسعة جداً</option>
+                      <option value="3.2">الأوسع</option>
+                    </select>
+                  </div>
+                </div>
+              </fieldset>
+
               <div class="form-group" style="display:flex;gap:var(--space-2);flex-wrap:wrap;">
+                <button type="button" class="btn btn--outline" data-step-prev="3">السابق</button>
                 <button type="submit" class="btn btn--primary" id="cf-submit">حفظ المادة</button>
                 <button type="button" class="btn btn--outline" id="cf-reset">إلغاء / مسح النموذج</button>
+              </div>
               </div>
             </form>
           </section>
@@ -236,7 +345,9 @@
                 <label for="new-user-role">الدور</label>
                 <select id="new-user-role" class="field">
                   <option value="admin">Administrator</option>
+                  <option value="site_admin">مدير الموقع</option>
                   <option value="manager">Content Manager</option>
+                  <option value="SHEIKH">الشيخ</option>
                   <option value="viewer">Viewer</option>
                 </select>
               </div>
@@ -316,6 +427,6 @@
   </footer>
 
   <!-- التذييل -->
-  <script src="../assets/js/main.js" defer></script>
+  <script src="../assets/js/main.js?v=20260916-14" defer></script>
 </body>
 </html>

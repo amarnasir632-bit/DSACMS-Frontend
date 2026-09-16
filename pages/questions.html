@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#14253e">
+  <title>الأسئلة والفتاوى | DSACMS</title>
+  <link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body data-page="questions" data-base="../">
+  <a class="skip-link" href="#main">تخطَّ إلى الأسئلة</a>
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a class="brand" href="../index.html" aria-label="DSACMS – الصفحة الرئيسية">
+        <img src="../assets/images/logo.png" alt="شعار نظام DSACMS" height="60">
+        <span>الشيخ محمد أحمد الهادي الكرار<small>المكتبة العلمية والصوتية</small></span>
+      </a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="فتح أو إغلاق قائمة التنقل">
+        <span class="icon-menu" aria-hidden="true">☰</span><span class="icon-close" aria-hidden="true">✕</span>
+      </button>
+      <nav id="site-nav" class="site-nav" aria-label="القائمة الرئيسية">
+        <ul>
+          <li><a href="../index.html">الرئيسية</a></li>
+          <li><a href="search.html">تصفّح المحتوى</a></li>
+          <li><a href="questions.html" aria-current="page">الأسئلة والفتاوى</a></li>
+          <li><a href="about.html">حول الشيخ</a></li>
+          <li><a href="login.html">تسجيل الدخول للإدارة</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+  <main id="main" class="site-main">
+    <div class="container qa-layout">
+      <header>
+        <h1>الأسئلة والفتاوى</h1>
+        <p class="section-desc">أرسل سؤالك، وتظهر الإجابة للعامة بعد مراجعة الشيخ ونشرها.</p>
+      </header>
+      <section class="card qa-form-card" aria-labelledby="ask-question-title">
+        <h2 id="ask-question-title">أرسل سؤالك</h2>
+        <form id="question-form">
+          <div class="form-group">
+            <label for="question-asker-name">اسم السائل (اختياري)</label>
+            <input id="question-asker-name" class="field" maxlength="255" autocomplete="name">
+          </div>
+          <div class="form-group">
+            <label for="question-text">السؤال <span aria-hidden="true">*</span></label>
+            <textarea id="question-text" class="field" rows="6" maxlength="10000" required></textarea>
+          </div>
+          <div class="qa-honeypot" aria-hidden="true">
+            <label for="website-url">موقعك</label>
+            <input id="website-url" name="website_url" tabindex="-1" autocomplete="off">
+          </div>
+          <button type="submit" class="btn btn--primary" id="question-submit">إرسال السؤال</button>
+          <p class="hint" id="question-form-status" role="status" aria-live="polite"></p>
+        </form>
+      </section>
+      <section aria-labelledby="answered-questions-title">
+        <h2 id="answered-questions-title">الأسئلة المجاب عنها</h2>
+        <div id="public-questions-list" class="qa-list" aria-live="polite"></div>
+      </section>
+    </div>
+  </main>
+  <footer class="site-footer"><div class="container"><p>© 2026 موقع الشيخ محمد أحمد الهادي الكرار</p></div></footer>
+  <script src="../assets/js/main.js?v=20260916-14" defer></script>
+</body>
+</html>

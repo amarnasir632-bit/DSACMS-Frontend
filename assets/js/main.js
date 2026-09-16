@@ -6,7 +6,7 @@
      1) المنظّم العام (IIFE) ومصادر البيانات التجريبية
      2) طبقة التخزين (localStorage) – تحاكي قاعدة البيانات في الإنتاج
      3) التحقق من المدخلات وسياسة كلمات المرور (SEC-005 / SEC-008)
-     4) إدارة الجلسات والأدوار (RBAC) وأقفال المحاولات الفاشلة (SEC-011)
+     4) إدارة الجلسات والأدوار (RBAC)
      5) مشغّل الصوت الموحّد (Audio Player Controller)
      6) تهيئة كل صفحة بحسب data-page
    ========================================================================== */
@@ -21,6 +21,70 @@
 
   /** قاعدة المسار النسبي: الصفحة الرئيسية "" بينما "pages/" هي "../" */
   const BASE = (document.body && document.body.dataset.base) || "";
+
+  function resolveMediaUrl(value) {
+    const url = String(value || "").trim();
+    if (/^(?:https?:|data:|blob:)/i.test(url)) return url;
+    return BASE + url;
+  }
+
+  function resolveDownloadUrl(value) {
+    const resolved = resolveMediaUrl(value);
+    if (!/^https?:\/\//i.test(resolved)) return resolved;
+    return `${API_CONFIG.baseUrl}/download?url=${encodeURIComponent(resolved)}`;
+  }
+
+  function triggerBlobDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function downloadWithProgress(button, status) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("GET", button.dataset.downloadUrl, true);
+      xhr.responseType = "blob";
+      button.disabled = true;
+      status.hidden = false;
+      status.textContent = "جارٍ تجهيز التحميل…";
+      xhr.addEventListener("progress", (event) => {
+        if (event.lengthComputable && event.total > 0) {
+          const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
+          status.textContent = `جاري التحميل: ${percent}%`;
+          status.style.setProperty("--download-progress", `${percent}%`);
+        } else {
+          status.textContent = "جاري التحميل… حجم الملف غير متاح من الخادم";
+          status.style.removeProperty("--download-progress");
+        }
+      });
+      xhr.addEventListener("load", () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          triggerBlobDownload(xhr.response, button.dataset.downloadName || "dsacms-download");
+          status.textContent = "اكتمل التحميل.";
+          status.style.setProperty("--download-progress", "100%");
+          resolve();
+        } else {
+          reject(new Error(`Download failed: ${xhr.status}`));
+        }
+      });
+      xhr.addEventListener("error", () => reject(new Error("Download connection failed")));
+      xhr.addEventListener("abort", () => reject(new Error("Download aborted")));
+      xhr.send();
+    }).catch((error) => {
+      console.error("Unable to download file", error);
+      status.textContent = "تعذر التحميل. حاول مرة أخرى.";
+      status.style.removeProperty("--download-progress");
+      throw error;
+    }).finally(() => {
+      button.disabled = false;
+    });
+  }
 
   /** تحديد الصفحة الحالية */
   const PAGE = (document.body && document.body.dataset.page) || "";
@@ -79,9 +143,33 @@
     };
   }
 
+  async function copyTextToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    const helper = document.createElement("textarea");
+    helper.value = text;
+    helper.setAttribute("readonly", "");
+    helper.style.position = "fixed";
+    helper.style.opacity = "0";
+    document.body.appendChild(helper);
+    helper.select();
+    const copied = document.execCommand("copy");
+    helper.remove();
+    if (!copied) throw new Error("Clipboard copy was rejected");
+  }
+
   /* ----------------------------------------------------------------------
-     1) مصادر البيانات التجريبية (Mock Data – تحاكي قاعدة البيانات)
+     1) مصدر البيانات (REST API)
      ---------------------------------------------------------------------- */
+  const API_CONFIG = {
+    baseUrl: (window.DSACMS_API_BASE || "https://dsacms-backend.vercel.app/api").replace(/\/$/, ""),
+  };
+  let apiCategories = [];
+  let apiContents = [];
+  let apiUsers = [];
   /** مفاتيح التخزين الدائم المحلي */
   const STORE = {
     contents: "dsacms_contents",
@@ -89,11 +177,54 @@
     users: "dsacms_users",
     session: "dsacms_session",
     audit: "dsacms_audit",
-    lockout: "dsacms_lockout",
+    contentSettings: "dsacms_content_reading_settings",
+    readingPreferences: "dsacms_reading_preferences",
   };
 
+  const DEFAULT_READING_SETTINGS = { fontSize: 1.125, lineHeight: 2 };
+  const READING_FONT_SIZES = [1, 1.125, 1.25, 1.5, 1.75];
+  const READING_LINE_HEIGHTS = [1.7, 2, 2.4, 2.8, 3.2];
+
+  function normalizeReadingSettings(settings) {
+    const source = settings || {};
+    const fontSize = Number(source.fontSize);
+    const lineHeight = Number(source.lineHeight);
+    return {
+      fontSize: READING_FONT_SIZES.includes(fontSize) ? fontSize : DEFAULT_READING_SETTINGS.fontSize,
+      lineHeight: READING_LINE_HEIGHTS.includes(lineHeight) ? lineHeight : DEFAULT_READING_SETTINGS.lineHeight,
+    };
+  }
+
+  function loadContentSettings() {
+    const settings = store.read(STORE.contentSettings, {});
+    return settings && typeof settings === "object" ? settings : {};
+  }
+
+  function saveContentSettings(id, settings) {
+    const all = loadContentSettings();
+    all[id] = normalizeReadingSettings(settings);
+    store.write(STORE.contentSettings, all);
+  }
+
+  function loadReadingPreferences() {
+    const settings = store.read(STORE.readingPreferences, {});
+    return settings && typeof settings === "object" ? settings : {};
+  }
+
+  function saveReadingPreference(id, settings) {
+    const all = loadReadingPreferences();
+    all[id] = normalizeReadingSettings(settings);
+    store.write(STORE.readingPreferences, all);
+  }
+
+  function removeReadingPreference(id) {
+    const all = loadReadingPreferences();
+    delete all[id];
+    store.write(STORE.readingPreferences, all);
+  }
+
   /** التصنيفات الافتراضية (FR-015) */
-  const DEFAULT_CATEGORIES = [
+  const DEFAULT_CATEGORIES = /*
     { id: "fiqh", name: "الفقه", icon: "🕌", desc: "الأحكام الفقهية وتطبيقاتها" },
     { id: "tafsir", name: "التفسير", icon: "📖", desc: "تفسير آيات القرآن الكريم" },
     { id: "hadith", name: "الحديث", icon: "🗞️", desc: "شرح أحاديث النبي ﷺ" },
@@ -102,10 +233,10 @@
     { id: "language", name: "اللغة العربية", icon: "✍️", desc: "قواعد اللغة والإملاء والنحو" },
     { id: "literature", name: "الأدب", icon: "📚", desc: "البلاغة والأدب والشعر" },
     { id: "history", name: "التاريخ", icon: "📜", desc: "الدروس والعبر من التاريخ" },
-  ];
+  */ [];
 
   /** المواد العلمية الافتراضية – audio مع مسار نسبي أو null عند الغياب */
-  const DEFAULT_CONTENTS = [
+  const DEFAULT_CONTENTS = /*
     {
       id: "muqaddimat-usul-fiqh",
       title: "مقدمة في علم أصول الفقه",
@@ -239,6 +370,34 @@
       status: "published",
     },
     {
+      id: "maqal-ahmiyyat-talab-al-ilm",
+      type: "article",
+      title: "أهمية طلب العلم في بناء المجتمع",
+      description: "مقال مكتوب يوضح أثر العلم النافع في بناء الفرد والمجتمع، ويقترح خطوات عملية للقراءة والتعلم المستمر.",
+      body: [
+        "العلم النافع أساس نهضة المجتمعات، فهو يوسّع مدارك الإنسان ويعينه على فهم واقعه واتخاذ قرارات رشيدة.",
+        "ولا يقتصر طلب العلم على قاعة الدرس؛ فالقراءة المنتظمة، وسؤال أهل الاختصاص، ومراجعة المصادر الموثوقة عادات تصنع تعلماً راسخاً.",
+        "حين يتحول العلم إلى عمل نافع وأخلاق حسنة، يصبح أثره ممتداً من الفرد إلى أسرته ثم إلى مجتمعه كله."
+      ],
+      author: "د. مريم عبد الله",
+      category: "literature",
+      keywords: ["العلم", "القراءة", "المجتمع"],
+      pubDate: "2026-09-05",
+      status: "published",
+    },
+    {
+      id: "kitab-dalil-dsacms",
+      type: "book",
+      title: "دليل نظام إدارة وأرشفة المحتوى العلمي",
+      description: "كتاب إلكتروني بصيغة PDF يشرح متطلبات نظام DSACMS ومكوّناته وطريقة استخدامه.",
+      author: "فريق DSACMS",
+      category: "history",
+      keywords: ["كتاب", "PDF", "الأرشفة"],
+      pubDate: "2026-09-03",
+      pdf: "docs/Software Requirements Specification – DSACMS.pdf",
+      status: "published",
+    },
+    {
       id: "rahmanaraahyu-alfahmi-matn-al-ajrumiyya",
       title: "الأجرومية: شرح المقدمة (مادة سرية قيد المراجعة)",
       description: "محتوى مسودة بانتظار المراجعة والاعتماد قبل النشر للعموم.",
@@ -250,7 +409,7 @@
       audio: null,
       status: "draft",
     },
-  ];
+  */ [];
 
   /** المستخدمون التجريبيون – كلمات المرور مخزّنة بشكل مجزّأ (SEC-004)
       ملاحظة: هذا تحويل بسيط لهدف العرض فقط؛ الإنتاج يتطلب تجزئة من جانب الخادم. */
@@ -264,8 +423,9 @@
   };
 
   const DEFAULT_USERS = [
-    { id: "u1", name: "مدير النظام", username: "admin", passHash: hashDemo("Admin1234"), role: "admin", status: "active" },
-    { id: "u2", name: "مديرة المحتوى", username: "manager", passHash: hashDemo("Manager1234"), role: "manager", status: "active" },
+    { id: "u1", name: "مدير النظام", username: "admin", email: "admin@dsacms.local", passHash: hashDemo("Admin1234"), role: "admin", status: "active" },
+    { id: "u2", name: "مديرة المحتوى", username: "manager", email: "manager@dsacms.local", passHash: hashDemo("Manager1234"), role: "manager", status: "active" },
+    { id: "u3", name: "مدير الموقع", username: "amarnasir632@gmail.com", email: "amarnasir632@gmail.com", passHash: hashDemo("admin1234"), role: "admin", status: "active" },
   ];
 
   /* ----------------------------------------------------------------------
@@ -289,17 +449,17 @@
   };
 
   function loadCategories() {
-    return store.read(STORE.categories, DEFAULT_CATEGORIES);
+    return apiCategories;
   }
   function saveCategories(list) {
-    store.write(STORE.categories, list);
+    apiCategories = Array.isArray(list) ? list : [];
   }
 
   function loadContents() {
-    return store.read(STORE.contents, DEFAULT_CONTENTS);
+    return apiContents;
   }
   function saveContents(list) {
-    store.write(STORE.contents, list);
+    apiContents = Array.isArray(list) ? list : [];
   }
 
   /** المحتوى العام: المواد المنشورة فقط (BR-002 / FR-027) */
@@ -307,10 +467,138 @@
     return loadContents().filter((c) => c.status === "published");
   }
 
+  function normalizeCategory(row) {
+    return {
+      id: String(row.id),
+      name: row.name,
+      desc: row.description || "",
+      icon: "📚",
+    };
+  }
+
+  function normalizeContentType(value, { audio, pdf, body } = {}) {
+    const type = String(value || "").trim().toLowerCase();
+    if (["book", "pdf", "ebook", "كتاب"].includes(type)) return "book";
+    if (["article", "text", "written", "نص", "مقال"].includes(type)) return "article";
+    if (["audio", "sound", "صوت", "مادة صوتية"].includes(type)) return "audio";
+    if (pdf) return "book";
+    if (body?.length) return "article";
+    return audio ? "audio" : "article";
+  }
+
+  function normalizeMaterial(row) {
+    const audio = row.audio_url || row.audioUrl || null;
+    const pdf = row.document_url || row.documentUrl || null;
+    const body = Array.isArray(row.body) ? row.body : [];
+    return {
+      id: String(row.id),
+      title: row.title,
+      description: row.description || "",
+      author: row.author || "غير محدد",
+      category: row.category_id ? String(row.category_id) : "",
+      categoryName: row.category_name || "عام",
+      keywords: Array.isArray(row.keywords) ? row.keywords : [],
+      body,
+      readingSettings: normalizeReadingSettings(row.reading_settings || row.readingSettings),
+      pubDate: row.created_at,
+      duration: Number(row.duration_seconds) || 0,
+      audio,
+      pdf,
+      type: normalizeContentType(row.content_type || row.contentType || row.type, { audio, pdf, body }),
+      status: row.status || "published",
+    };
+  }
+
+  async function fetchApi(path, options) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const session = store.read(STORE.session, null);
+    const headers = new Headers((options && options.headers) || {});
+    if (session?.token) headers.set("Authorization", `Bearer ${session.token}`);
+    const requestOptions = { ...(options || {}), headers, signal: controller.signal };
+    let response;
+    try {
+      response = await fetch(`${API_CONFIG.baseUrl}${path}`, requestOptions);
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (!response.ok) {
+      let detail = "";
+      try {
+        const payload = await response.json();
+        detail = payload.error ? `: ${payload.error}` : "";
+      } catch (_) {
+        try {
+          const text = await response.text();
+          detail = text ? `: ${text.slice(0, 180)}` : "";
+        } catch (readError) {
+          console.warn("Unable to read API error response", readError);
+        }
+      }
+      const error = new Error(`API request failed: ${response.status}${detail}`);
+      console.error("DSACMS API request failed", {
+        path,
+        method: requestOptions.method || "GET",
+        status: response.status,
+        detail,
+      });
+      throw error;
+    }
+    if (response.status === 204) return null;
+    return response.json();
+  }
+
+  async function loadRemoteData() {
+    const results = await Promise.allSettled([
+      fetchApi("/categories"),
+      fetchApi("/materials"),
+    ]);
+    if (results[0].status === "fulfilled") {
+      apiCategories = results[0].value.map(normalizeCategory);
+    }
+
+    if (results[1].status === "fulfilled") {
+      apiContents = results[1].value.map(normalizeMaterial);
+    }
+    if (results.every((result) => result.status === "rejected")) {
+      console.warn("DSACMS API unavailable; continuing with locally available data.");
+      return false;
+    }
+    return true;
+  }
+
+  async function loadRemoteUsers() {
+    const users = await fetchApi("/auth/users");
+    if (Array.isArray(users)) {
+      apiUsers = users.map((user) => ({
+        ...user,
+        id: String(user.id),
+        status: user.status || "active",
+        passHash: "",
+      }));
+      saveUsers(apiUsers);
+    }
+  }
+
   function loadUsers() {
-    return store.read(STORE.users, DEFAULT_USERS);
+    if (apiUsers.length) return apiUsers;
+    const stored = store.read(STORE.users, null);
+    if (!Array.isArray(stored)) {
+      saveUsers(DEFAULT_USERS);
+      return DEFAULT_USERS.map((user) => ({ ...user }));
+    }
+
+    const merged = [...stored];
+    DEFAULT_USERS.forEach((defaultUser) => {
+      if (!merged.some((user) => user.id === defaultUser.id || user.username.toLowerCase() === defaultUser.username.toLowerCase())) {
+        merged.push({ ...defaultUser });
+      }
+    });
+    if (merged.length !== stored.length) saveUsers(merged);
+    return merged;
   }
   function saveUsers(list) {
+    apiUsers = Array.isArray(list) ? list : [];
     store.write(STORE.users, list);
   }
 
@@ -348,7 +636,9 @@
      ---------------------------------------------------------------------- */
   const ROLES = {
     admin: { label: "مدير النظام", home: "pages/dashboard.html" },
+    site_admin: { label: "مدير الموقع", home: "pages/dashboard.html" },
     manager: { label: "مدير المحتوى", home: "pages/dashboard.html" },
+    SHEIKH: { label: "الشيخ", home: "pages/dashboard.html" },
     viewer: { label: "مستخدم مباشر", home: "index.html" },
   };
 
@@ -361,6 +651,7 @@
       name: user.name,
       role: user.role,
       loginAt: new Date().toISOString(),
+      token: user.token || null,
     });
   }
   function clearSession() {
@@ -382,60 +673,14 @@
     return null;
   }
 
-  /* سياسة إغلاق الحساب بعد محاولات فاشلة (SEC-011): 5 محاولات في 30 دقيقة
-     → تجميد الحساب لمدة 3 أيام */
-  const LOCK_WINDOW_MS = 30 * 60 * 1000;   // 30 دقيقة
-  const LOCK_MAX_ATTEMPTS = 5;             // 5 محاولات
-  const LOCK_DURATION_MS = 3 * 24 * 60 * 60 * 1000; // 3 أيام
-
-  function loadLock() {
-    return store.read(STORE.lockout, { attempts: [], lockedUntil: 0 });
-  }
-  function saveLock(lock) {
-    store.write(STORE.lockout, lock);
-  }
-
-  /** هل الحساب مُجمّد حالياً؟ */
-  function isLocked() {
-    const lock = loadLock();
-    return Date.now() < lock.lockedUntil;
-  }
-  function lockedRemainingText() {
-    const lock = loadLock();
-    const ms = lock.lockedUntil - Date.now();
-    if (ms <= 0) return "";
-    const hours = Math.floor(ms / 3600000);
-    const mins = Math.floor((ms % 3600000) / 60000);
-    if (hours > 0) return `${hours} ساعة و ${mins} دقيقة`;
-    return `${Math.max(1, mins)} دقيقة`;
-  }
-
-  /** تسجيل محاولة فاشلة – يعيد حالة القفل الجديدة */
-  function recordFailedAttempt(username) {
-    const lock = loadLock();
-    const now = Date.now();
-    lock.attempts.push({ at: now, username });
-    lock.attempts = lock.attempts.filter((a) => now - a.at < LOCK_WINDOW_MS);
-
-    if (lock.attempts.length >= LOCK_MAX_ATTEMPTS) {
-      lock.lockedUntil = now + LOCK_DURATION_MS; // تجميد تلقائي لمدة 3 أيام
-      lock.attempts = [];
-      saveLock(lock);
-      logAudit("LOGIN_FAILED", `قفل الحساب بعد ${LOCK_MAX_ATTEMPTS} محاولات فاشلة (${username})`, "LOCKED");
-      return { locked: true };
-    }
-    saveLock(lock);
-    return {
-      locked: false,
-      remaining: LOCK_MAX_ATTEMPTS - lock.attempts.length,
-    };
-  }
-
   /** التحقق من بيانات الدخول مقابل المستخدمين النشطين */
   function authenticate(username, password) {
     const users = loadUsers();
     const user = users.find(
-      (u) => u.username.toLowerCase() === String(username).trim().toLowerCase()
+      (u) =>
+        [u.username, u.email].filter(Boolean).some(
+          (identifier) => identifier.toLowerCase() === String(username).trim().toLowerCase()
+        )
     );
     if (user && user.status === "active" && user.passHash === hashDemo(password)) {
       return user;
@@ -564,7 +809,7 @@
       return;
     }
     const id = "mini-" + content.id;
-    const src = BASE + content.audio;
+    const src = resolveMediaUrl(content.audio);
     btn.setAttribute("aria-pressed", "false");
     btn.innerHTML = '<span class="icon" aria-hidden="true">▶</span><span data-label>تشغيل</span>';
 
@@ -644,7 +889,7 @@
     const durEl = get('[data-role="duration"]');
     const muteBtn = get('[data-role="mute"]');
     const volEl = get('[data-role="volume"]');
-    const src = BASE + config.src;
+    const src = resolveContentUrl(config.src);
 
     AudioPlayer.register(id, {
       onPlay() {
@@ -734,6 +979,40 @@
      5) التهيئة المشتركة لكل الصفحات (هيدر/فوتر/جلسة)
      ====================================================================== */
   function initShared() {
+    // أزرار تنقّل ثابتة تساعد على الوصول إلى بداية الصفحة ونهايتها.
+    const scrollControls = document.createElement("div");
+    scrollControls.className = "scroll-controls";
+    scrollControls.setAttribute("aria-label", "أزرار التنقل داخل الصفحة");
+    scrollControls.innerHTML = `
+      <button type="button" class="scroll-control" data-scroll-target="top" aria-label="الانتقال إلى أعلى الصفحة">
+        <span aria-hidden="true">↑</span>
+        <span>للأعلى</span>
+      </button>
+      <button type="button" class="scroll-control" data-scroll-target="bottom" aria-label="الانتقال إلى أسفل الصفحة">
+        <span aria-hidden="true">↓</span>
+        <span>للأسفل</span>
+      </button>
+    `;
+    document.body.appendChild(scrollControls);
+
+    const updateScrollControls = () => {
+      const atTop = window.scrollY <= 8;
+      const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 8;
+      const topButton = $('[data-scroll-target="top"]', scrollControls);
+      const bottomButton = $('[data-scroll-target="bottom"]', scrollControls);
+      if (topButton) topButton.disabled = atTop;
+      if (bottomButton) bottomButton.disabled = atBottom;
+    };
+    $('[data-scroll-target="top"]', scrollControls)?.addEventListener("click", () => {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+    $('[data-scroll-target="bottom"]', scrollControls)?.addEventListener("click", () => {
+      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
+    });
+    window.addEventListener("scroll", updateScrollControls, { passive: true });
+    window.addEventListener("resize", updateScrollControls);
+    updateScrollControls();
+
     // زر قائمة الجوال
     const toggle = $(".nav-toggle");
     const nav = $("#site-nav");
@@ -801,9 +1080,13 @@
     const pub = publicContents();
     const statContent = $("#stat-content");
     const statAudio = $("#stat-audio");
+    const statArticles = $("#stat-articles");
+    const statBooks = $("#stat-books");
     const statCats = $("#stat-categories");
     if (statContent) statContent.textContent = String(pub.length);
     if (statAudio) statAudio.textContent = String(pub.filter((c) => c.audio).length);
+    if (statArticles) statArticles.textContent = String(pub.filter((c) => c.type === "article").length);
+    if (statBooks) statBooks.textContent = String(pub.filter((c) => c.type === "book").length);
     if (statCats) statCats.textContent = String(loadCategories().length);
 
     // شبكة التصنيفات
@@ -841,22 +1124,24 @@
     "?id=" +
     encodeURIComponent(id);
 
+  const resolveContentUrl = resolveMediaUrl;
+
   /** بطاقة مادة علمية قابلة لإعادة الاستخدام */
   function contentCard(c) {
     const cat = loadCategories().find((x) => x.id === c.category);
     const duration = c.duration ? formatDuration(c.duration) : "—";
     const hasAudio = !!c.audio;
+    const type = c.type || (hasAudio ? "audio" : "article");
+    const typeLabel = type === "book" ? "كتاب PDF" : type === "article" ? "مقال مكتوب" : "مادة صوتية";
+    const downloadPath = c.audio || c.pdf || "";
+    const downloadLabel = c.audio ? "تحميل الصوت" : c.pdf ? "تحميل PDF" : "";
     return `
     <article class="card item-card">
       <div class="item-media">
-        <button type="button" class="mini-player"
-                data-mini data-content-id="${escapeHTML(c.id)}"
-                ${hasAudio ? "" : 'aria-disabled="true" title="لا يوجد ملف صوتي"'}>
-          ${hasAudio
-            ? '<span class="icon" aria-hidden="true">▶</span><span data-label>تشغيل</span>'
-            : '<span class="icon" aria-hidden="true">⛔</span><span data-label>بدون صوت</span>'}
-        </button>
-        <span class="duration" dir="ltr">${duration}</span>
+        ${hasAudio
+          ? `<audio class="native-audio" controls preload="none" src="${escapeHTML(resolveContentUrl(c.audio))}" aria-label="تشغيل ${escapeHTML(c.title)}"></audio>`
+          : ""}
+        <span class="duration">${typeLabel}${hasAudio ? ` · ${duration}` : ""}</span>
       </div>
       <div class="item-body">
         <h3><a href="${detailHref(c.id)}">${escapeHTML(c.title)}</a></h3>
@@ -868,6 +1153,9 @@
         <p class="item-excerpt">${escapeHTML(c.description)}</p>
         <div class="item-actions">
           <a class="btn btn--outline btn--sm" href="${detailHref(c.id)}">تفاصيل المادة</a>
+          ${downloadPath
+            ? `<a class="btn btn--accent btn--sm card-download" href="${escapeHTML(resolveDownloadUrl(downloadPath))}" download>${downloadLabel}</a>`
+            : ""}
         </div>
       </div>
     </article>`;
@@ -949,7 +1237,9 @@
       if (category) items = items.filter((c) => c.category === category);
 
       // تصفية وسيط المحتوى
-      if (media === "audio") items = items.filter((c) => c.audio);
+      if (media === "audio") items = items.filter((c) => (c.type || (c.audio ? "audio" : "")) === "audio");
+      else if (media === "article") items = items.filter((c) => c.type === "article");
+      else if (media === "book") items = items.filter((c) => c.type === "book");
       else if (media === "no-audio") items = items.filter((c) => !c.audio);
 
       // الفرز
@@ -975,7 +1265,7 @@
 
     // الاستماع للأحداث
     if (form) {
-      form.addEventListener("submit", (e) => {
+      form.addEventListener("submit", async (e) => {
         e.preventDefault();
         runSearch();
         // تحديث شريط العناوين دون إعادة تحميل – قواعد SEO-friendly
@@ -1015,7 +1305,7 @@
     // جلب المعرّف من الرابط (SEO-001: رابط مستقل لكل مادة)
     const params = new URLSearchParams(window.location.search);
     const id = params.get("id") || "";
-    const content = publicContents().find((c) => c.id === id || c.slug === id);
+    const content = loadContents().find((c) => c.id === id || c.slug === id);
 
     if (!content) {
       notFound.hidden = false;
@@ -1047,6 +1337,126 @@
     $("#article-title").textContent = content.title;
     $("#article-description").textContent = content.description;
 
+    const readingSection = $("#reading-section");
+    const articleBody = $("#article-body");
+    const pdfReader = $("#pdf-reader");
+    const pdfFrame = $("#pdf-frame");
+    if (readingSection && (content.type === "article" || content.type === "book" || content.body?.length || content.pdf)) {
+      readingSection.hidden = false;
+      readingSection.classList.toggle("reading-section--article", content.type === "article");
+      $("#reading-title").textContent = content.type === "book" ? "قراءة الكتاب" : "نص المادة";
+      const adminSettings = normalizeReadingSettings(
+        loadContentSettings()[content.id] || content.readingSettings
+      );
+      const savedPreference = loadReadingPreferences()[content.id];
+      let readingSettings = savedPreference
+        ? normalizeReadingSettings(savedPreference)
+        : adminSettings;
+      const applyReadingSettings = () => {
+        if (articleBody) {
+          articleBody.style.setProperty("--reading-font-size", `${readingSettings.fontSize}rem`);
+          articleBody.style.setProperty("--reading-line-height", String(readingSettings.lineHeight));
+        }
+        const lineHeightSelect = $("#reading-line-height");
+        if (lineHeightSelect) lineHeightSelect.value = String(readingSettings.lineHeight);
+      };
+      const readingControls = $$(".reading-control-btn", readingSection);
+      readingControls.forEach((button) => {
+        button.addEventListener("click", () => {
+          const action = button.dataset.readingAction;
+          if (action === "increase") {
+            const next = READING_FONT_SIZES.find((size) => size > readingSettings.fontSize);
+            if (next) readingSettings.fontSize = next;
+          } else if (action === "decrease") {
+            const previous = [...READING_FONT_SIZES].reverse().find((size) => size < readingSettings.fontSize);
+            if (previous) readingSettings.fontSize = previous;
+          } else if (action === "reset") {
+            readingSettings = normalizeReadingSettings(adminSettings);
+            removeReadingPreference(content.id);
+          }
+          saveReadingPreference(content.id, readingSettings);
+          applyReadingSettings();
+        });
+      });
+      const lineHeightSelect = $("#reading-line-height");
+      if (lineHeightSelect) {
+        lineHeightSelect.addEventListener("change", () => {
+          readingSettings.lineHeight = Number(lineHeightSelect.value);
+          readingSettings = normalizeReadingSettings(readingSettings);
+          saveReadingPreference(content.id, readingSettings);
+          applyReadingSettings();
+        });
+      }
+      applyReadingSettings();
+      if (content.body && content.body.length) {
+        const paragraphs = content.body
+          .flatMap((paragraph) => String(paragraph).split(/\r?\n+/))
+          .map((paragraph) => paragraph.trim())
+          .filter(Boolean);
+        articleBody.innerHTML = paragraphs
+          .map((paragraph) => `<p>${escapeHTML(paragraph)}</p>`)
+          .join("");
+      }
+      if (content.pdf && pdfReader && pdfFrame) {
+        pdfReader.hidden = false;
+        pdfFrame.src = resolveContentUrl(content.pdf);
+      }
+
+    }
+
+    const copyButtons = $$("[data-copy-content]");
+    copyButtons.forEach((copyButton) => {
+      copyButton.addEventListener("click", async () => {
+        const text = [
+          content.title,
+          `المؤلف: ${content.author}`,
+          content.description,
+          ...(content.body || []),
+        ]
+          .filter(Boolean)
+          .join("\n\n");
+        try {
+          await copyTextToClipboard(text);
+          showToast("تم نسخ محتوى المادة بالكامل.");
+        } catch (error) {
+          console.error("Unable to copy article content", error);
+          showToast("تعذر نسخ المحتوى. حاول مرة أخرى.", "error");
+        }
+      });
+    });
+
+    const downloadsSection = $("#downloads-section");
+    const downloadActions = $("#download-actions");
+    if (downloadsSection && downloadActions) {
+      const downloads = [];
+      if (content.audio) {
+        downloads.push(`
+          <div class="download-item">
+            <button type="button" class="btn btn--primary download-trigger"
+              data-download-url="${escapeHTML(resolveDownloadUrl(content.audio))}"
+              data-download-name="${escapeHTML(content.title)}.mp3">تحميل الملف الصوتي</button>
+            <div class="download-progress" id="download-progress-audio" role="status" aria-live="polite" hidden></div>
+          </div>`);
+      }
+      if (content.pdf) {
+        downloads.push(`
+          <div class="download-item">
+            <button type="button" class="btn btn--accent download-trigger"
+              data-download-url="${escapeHTML(resolveDownloadUrl(content.pdf))}"
+              data-download-name="${escapeHTML(content.title)}.pdf">تحميل الكتاب PDF</button>
+            <div class="download-progress" id="download-progress-pdf" role="status" aria-live="polite" hidden></div>
+          </div>`);
+      }
+      downloadsSection.hidden = downloads.length === 0;
+      downloadActions.innerHTML = downloads.join("");
+      downloadActions.querySelectorAll(".download-trigger").forEach((button) => {
+        const status = button.parentElement.querySelector(".download-progress");
+        button.addEventListener("click", () => {
+          downloadWithProgress(button, status).catch(() => {});
+        });
+      });
+    }
+
     const metaList = $("#meta-list");
     metaList.innerHTML = `
       <li class="meta-chip">✍️ ${escapeHTML(content.author)}</li>
@@ -1066,6 +1476,7 @@
     tbl.innerHTML = `
       <tr><th scope="row">العنوان</th><td>${escapeHTML(content.title)}</td></tr>
       <tr><th scope="row">المؤلف</th><td>${escapeHTML(content.author)}</td></tr>
+      <tr><th scope="row">نوع المادة</th><td>${content.type === "book" ? "كتاب PDF" : content.type === "article" ? "مقال مكتوب" : "مادة صوتية"}</td></tr>
       <tr><th scope="row">التصنيف</th><td>${cat ? escapeHTML(cat.name) : "عام"}</td></tr>
       <tr><th scope="row">تاريخ النشر</th><td>${formatDate(content.pubDate)}</td></tr>
       <tr><th scope="row">المدة</th><td dir="ltr">${content.duration ? formatDuration(content.duration) : "—"}</td></tr>
@@ -1073,15 +1484,137 @@
       <tr><th scope="row">الكلمات المفتاحية</th><td>${(content.keywords || []).join("، ")}</td></tr>
     `;
 
+    const metadataShareButton = $("#share-metadata-status");
+    if (metadataShareButton) {
+      const metadataRows = [
+        ["العنوان", content.title],
+        ["المؤلف", content.author],
+        ["نوع المادة", content.type === "book" ? "كتاب PDF" : content.type === "article" ? "مقال مكتوب" : "مادة صوتية"],
+        ["التصنيف", cat ? cat.name : "عام"],
+        ["تاريخ النشر", formatDate(content.pubDate)],
+        ["المدة", content.duration ? formatDuration(content.duration) : "—"],
+        ["الحالة", "منشور"],
+        ["الكلمات المفتاحية", (content.keywords || []).join("، ") || "—"],
+      ];
+
+      const createMetadataImage = async (orientation) => {
+        const canvas = document.createElement("canvas");
+        const scale = Math.min(window.devicePixelRatio || 1, 2);
+        const isPortrait = orientation === "portrait";
+        const width = isPortrait ? 1080 : 1920;
+        const height = isPortrait ? 1920 : 1080;
+        const padding = isPortrait ? 72 : 96;
+        const headerHeight = isPortrait ? 260 : 210;
+        const rowHeight = isPortrait ? 190 : 100;
+        canvas.width = width * scale;
+        canvas.height = height * scale;
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Canvas is not supported");
+        if (document.fonts?.ready) await document.fonts.ready;
+        await document.fonts?.load(`700 ${isPortrait ? 48 : 52}px Tajawal`);
+        await document.fonts?.load(`500 ${isPortrait ? 30 : 32}px Tajawal`);
+        context.scale(scale, scale);
+        context.direction = "rtl";
+        context.fillStyle = "#f9f6f2";
+        context.fillRect(0, 0, width, canvas.height / scale);
+        context.fillStyle = "#14253e";
+        context.fillRect(0, 0, width, headerHeight);
+        const logo = new Image();
+        logo.src = `${BASE}assets/images/logo.png`;
+        await new Promise((resolve, reject) => {
+          logo.onload = resolve;
+          logo.onerror = () => reject(new Error("Unable to load site logo"));
+        });
+        const logoSize = isPortrait ? 150 : 130;
+        const logoScale = Math.min(logoSize / logo.naturalWidth, logoSize / logo.naturalHeight);
+        const logoWidth = logo.naturalWidth * logoScale;
+        const logoHeight = logo.naturalHeight * logoScale;
+        context.drawImage(
+          logo,
+          padding,
+          (headerHeight - logoHeight) / 2,
+          logoWidth,
+          logoHeight
+        );
+        context.fillStyle = "#ffffff";
+        context.font = `700 ${isPortrait ? 48 : 52}px Tajawal, Arial, sans-serif`;
+        context.textAlign = "right";
+        context.fillText("بيانات المادة العلمية", width - padding, isPortrait ? 100 : 82);
+        context.font = `500 ${isPortrait ? 30 : 32}px Tajawal, Arial, sans-serif`;
+        context.fillText("أرشيف DSACMS", width - padding, isPortrait ? 170 : 140);
+
+        metadataRows.forEach(([label, value], index) => {
+          const y = headerHeight + index * rowHeight;
+          context.fillStyle = index % 2 ? "#ffffff" : "#f0f2f5";
+          context.fillRect(padding / 2, y, width - padding, rowHeight - 2);
+          context.fillStyle = "#14253e";
+          context.font = `700 ${isPortrait ? 32 : 34}px Tajawal, Arial, sans-serif`;
+          context.textAlign = "right";
+          context.fillText(label, width - padding * 1.5, y + (isPortrait ? 70 : 68));
+          context.fillStyle = "#334155";
+          context.font = `500 ${isPortrait ? 30 : 32}px Tajawal, Arial, sans-serif`;
+          context.fillText(String(value), width - (isPortrait ? 90 : 430), y + (isPortrait ? 125 : 68), isPortrait ? 850 : 1300);
+        });
+        return new Promise((resolve, reject) => {
+          canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("Unable to create image"))), "image/png");
+        });
+      };
+
+      metadataShareButton.addEventListener("click", async () => {
+        const modal = $("#metadata-share-modal");
+        if (!modal) return;
+        modal.hidden = false;
+        $(".metadata-share-modal", modal)?.focus();
+      });
+
+      const metadataModal = $("#metadata-share-modal");
+      const closeMetadataModal = () => {
+        if (metadataModal) metadataModal.hidden = true;
+        metadataShareButton.focus();
+      };
+      $("#metadata-share-cancel")?.addEventListener("click", closeMetadataModal);
+      metadataModal?.addEventListener("click", (event) => {
+        if (event.target === metadataModal) closeMetadataModal();
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && metadataModal && !metadataModal.hidden) closeMetadataModal();
+      });
+
+      const getMetadataImage = async () => {
+        const orientation = $('input[name="metadata-image-orientation"]:checked')?.value || "portrait";
+        const blob = await createMetadataImage(orientation);
+        return new File([blob], `بيانات-المادة-${orientation}.png`, { type: "image/png" });
+      };
+
+      $("#metadata-save-image")?.addEventListener("click", async () => {
+        try {
+          const file = await getMetadataImage();
+          const url = URL.createObjectURL(file);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = file.name;
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          URL.revokeObjectURL(url);
+          closeMetadataModal();
+          showToast("تم حفظ صورة البيانات في الهاتف.");
+        } catch (error) {
+          console.error("Unable to save metadata image", error);
+          showToast("تعذر حفظ صورة البيانات.", "error");
+        }
+      });
+
+    }
+
     // المشغّل الصوتي (FR-008)
     const playerSection = $("#player-section");
     if (content.audio) {
+      playerSection.hidden = false;
       renderFullPlayer(playerSection, { id: content.id, title: content.title, src: content.audio });
     } else {
-      playerSection.innerHTML = `
-        <div class="alert alert--info" role="status">
-          لا يتوفر ملف صوتي مرتبط بهذه المادة حالياً.
-        </div>`;
+      playerSection.hidden = true;
+      playerSection.innerHTML = "";
     }
 
     // مواد ذات صلة (نفس التصنيف)
@@ -1102,13 +1635,50 @@
       : '<p class="dash-empty">لا توجد مواد أخرى في هذا التصنيف.</p>';
 
     // أزرار المشاركة (FR-024 / FR-025)
-    const shareUrl = window.location.href;
+    const shareUrl = window.location.href.split("#")[0];
+    const homeUrl = new URL(BASE + "index.html", window.location.href).href;
     const shareCopy = $("#share-copy");
     const shareX = $("#share-twitter");
     const shareWA = $("#share-whatsapp");
     const text = encodeURIComponent(`${content.title} — من أرشيف DSACMS`);
     if (shareX) shareX.href = `https://twitter.com/intent/tweet?text=${text}&url=${encodeURIComponent(shareUrl)}`;
-    if (shareWA) shareWA.href = `https://wa.me/?text=${text}%20${encodeURIComponent(shareUrl)}`;
+    if (shareWA) {
+      const shareModal = $("#whatsapp-share-modal");
+      const shareModalPanel = $(".whatsapp-share-modal", shareModal);
+      const shareCancel = $("#whatsapp-share-cancel");
+      const shareConfirm = $("#whatsapp-share-confirm");
+      const openShareModal = () => {
+        if (!shareModal) return;
+        shareModal.hidden = false;
+        shareModalPanel?.focus();
+      };
+      const closeShareModal = () => {
+        if (shareModal) shareModal.hidden = true;
+        shareWA.focus();
+      };
+      shareWA.addEventListener("click", openShareModal);
+      shareCancel?.addEventListener("click", closeShareModal);
+      shareModal?.addEventListener("click", (event) => {
+        if (event.target === shareModal) closeShareModal();
+      });
+      shareConfirm?.addEventListener("click", () => {
+        const parts = [`${content.title}`, `رابط الموقع: ${homeUrl}`];
+        if ($("#share-include-description")?.checked && content.description) {
+          parts.splice(1, 0, `الوصف: ${content.description}`);
+        }
+        if ($("#share-include-body")?.checked && content.body?.length) {
+          parts.splice(parts.length - 1, 0, `نص المادة:\n${content.body.join("\n\n")}`);
+        }
+        if ($("#share-include-audio")?.checked && content.audio) {
+          parts.splice(parts.length - 1, 0, `صوت المادة: ${resolveContentUrl(content.audio)}`);
+        }
+        window.open(`https://wa.me/?text=${encodeURIComponent(parts.join("\n\n"))}`, "_blank", "noopener");
+        closeShareModal();
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && shareModal && !shareModal.hidden) closeShareModal();
+      });
+    }
 
     if (shareCopy) {
       shareCopy.addEventListener("click", async () => {
@@ -1130,6 +1700,60 @@
     }
   }
 
+  function renderPublicQuestions(items) {
+    const list = $("#public-questions-list");
+    if (!list) return;
+    list.innerHTML = items.length
+      ? items.map((item) => `
+        <article class="qa-item">
+          <h3>سؤال ${escapeHTML(item.asker_name || "فاعل خير")}</h3>
+          <p class="qa-question">${escapeHTML(item.question_text)}</p>
+          <div class="qa-answer"><strong>الإجابة:</strong><br>${escapeHTML(item.answer_text)}</div>
+          <small>تاريخ الإجابة: ${formatDate(item.answered_at)}</small>
+        </article>`).join("")
+      : '<p class="alert alert--info">لا توجد أسئلة مجاب عنها حتى الآن.</p>';
+  }
+
+  async function initQuestions() {
+    const form = $("#question-form");
+    const list = $("#public-questions-list");
+    try {
+      const items = await fetchApi("/questions");
+      renderPublicQuestions(Array.isArray(items) ? items : []);
+    } catch (error) {
+      console.error("Unable to load public questions", error);
+      if (list) list.innerHTML = '<p class="alert alert--error">تعذر تحميل الأسئلة حالياً.</p>';
+    }
+    if (!form) return;
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const submit = $("#question-submit");
+      const status = $("#question-form-status");
+      const question = $("#question-text").value.trim();
+      if (!question) return;
+      submit.disabled = true;
+      status.textContent = "جارٍ إرسال السؤال…";
+      try {
+        await fetchApi("/questions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            asker_name: $("#question-asker-name").value.trim(),
+            question_text: question,
+            website_url: $("#website-url").value,
+          }),
+        });
+        form.reset();
+        status.textContent = "تم استلام سؤالك للمراجعة، وستظهر الإجابة بعد نشرها.";
+      } catch (error) {
+        console.error("Unable to submit question", error);
+        status.textContent = "تعذر إرسال السؤال. حاول لاحقاً.";
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  }
+
   /* ======================================================================
      9) صفحة تسجيل الدخول (login.html) – FR-021 / SEC-001 / SEC-004/006/011
      ====================================================================== */
@@ -1139,18 +1763,13 @@
 
     // إذا كان المستخدم مسجلاً بالفعل، إعادة توجيه للوحة
     const session = getSession();
-    const successBox = $("#login-success");
-    const successText = $("#login-success-text");
-    if (session && successBox) {
-      successBox.hidden = false;
-      successText.textContent = `مرحباً ${session.name}، أنت مسجل الدخول بالفعل.`;
+    if (session) {
+      window.location.href = BASE + "dashboard.html";
       return;
     }
 
     const userInput = $("#login-username");
     const passInput = $("#login-password");
-    const errorBox = $("#login-error");
-    const errorText = $("#login-error-text");
     const attemptsHint = $("#attempts-hint");
     const toggleBtn = $("#password-toggle");
 
@@ -1164,33 +1783,16 @@
       });
     }
 
-    // قفل الحساب (SEC-011)
+    // تم إيقاف تجميد الحساب؛ تبقى رسالة الخطأ والتحقق من بيانات الدخول فقط.
     function renderLockState() {
-      if (isLocked()) {
-        const rem = lockedRemainingText();
-        if (errorBox && errorText) {
-          errorBox.hidden = false;
-          errorText.textContent = `تم تجميد الحساب بسبب أكثر من 5 محاولات فاشلة. إعادة المحاولة بعد ${rem}.`;
-        }
-        ["login-username", "login-password", "login-submit"].forEach((id) => {
-          const el = $('#' + id);
-          if (el) el.disabled = true;
-        });
-        return;
-      }
-      // عرض عدد المحاولات المتبقية
-      const lock = loadLock();
-      if (lock.attempts.length > 0 && attemptsHint) {
-        attemptsHint.hidden = false;
-        attemptsHint.textContent = `محاولات خاطئة قريبة: ${lock.attempts.length} من ${LOCK_MAX_ATTEMPTS} – سيتم تجميد الحساب إذا تكررت المحاولات.`;
-      }
+      if (attemptsHint) attemptsHint.hidden = true;
+      const submit = $("#login-submit");
+      if (submit) submit.disabled = false;
     }
     renderLockState();
 
-    form.addEventListener("submit", (e) => {
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      if (isLocked()) return;
-
       const username = userInput.value.trim();
       const password = passInput.value;
       let valid = true;
@@ -1209,30 +1811,32 @@
       }
       if (!valid) return;
 
-      const user = authenticate(username, password);
+      const submit = $("#login-submit");
+      if (submit) submit.disabled = true;
+      let user = null;
+      try {
+        const result = await fetchApi("/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password }),
+        });
+        user = { ...result.user, token: result.token };
+      } catch (error) {
+        console.error("Login request failed", error);
+      }
       if (!user) {
-        // محاولة فاشلة → نظام القفل
-        const res = recordFailedAttempt(username);
-        if (errorBox && errorText) {
-          errorBox.hidden = false;
-          if (res.locked) {
-            errorText.textContent = "تم تجميد الحساب لمدة 3 أيام بسبب المحاولات المتكررة.";
-          } else {
-            errorText.textContent = `بيانات الدخول غير صحيحة. المحاولات المتبقية: ${res.remaining}.`;
-          }
+        if (attemptsHint) {
+          attemptsHint.hidden = false;
+          attemptsHint.textContent = "بيانات الدخول غير صحيحة. تحقق من اسم المستخدم أو كلمة المرور وحاول مرة أخرى.";
         }
         logAudit("LOGIN_FAILED", username, "DENIED");
-        renderLockState();
+        if (submit) submit.disabled = false;
         return;
       }
 
       // نجاح الدخول → جلسة آمنة + سجل
       setSession(user);
       logAudit("LOGIN", user.username, "OK");
-      if (successBox && successText) {
-        successBox.hidden = false;
-        successText.textContent = "تم تسجيل الدخول بنجاح، جارٍ النقل إلى اللوحة…";
-      }
       setTimeout(() => {
         const home = (ROLES[user.role] && ROLES[user.role].home) || "pages/dashboard.html";
         window.location.href = BASE + home;
@@ -1297,15 +1901,89 @@
     });
   }
 
-  function initDashboard() {
+  async function initSheikhQuestions() {
+    const pendingList = $("#pending-questions-list");
+    const answeredList = $("#answered-questions-list");
+    const render = (items, target, answered) => {
+      if (!target) return;
+      target.innerHTML = items.length ? items.map((item) => `
+        <article class="qa-item qa-admin-item">
+          <h3>${escapeHTML(item.asker_name || "فاعل خير")}</h3>
+          <p class="qa-question">${escapeHTML(item.question_text)}</p>
+          <label for="answer-${escapeHTML(item.id)}">${answered ? "الإجابة" : "اكتب الإجابة"}</label>
+          <textarea class="field" id="answer-${escapeHTML(item.id)}">${escapeHTML(item.answer_text || "")}</textarea>
+          <div class="form-group" style="display:flex;gap:var(--space-2);flex-wrap:wrap;margin-block-start:var(--space-3);">
+            <button type="button" class="btn btn--primary btn--sm" data-question-action="${answered ? "edit" : "answer"}" data-question-id="${escapeHTML(item.id)}">${answered ? "حفظ التعديل" : "نشر الإجابة"}</button>
+            ${answered ? "" : `<button type="button" class="btn btn--outline btn--sm" data-question-action="reject" data-question-id="${escapeHTML(item.id)}">رفض / تجاهل</button>`}
+          </div>
+        </article>`).join("") : '<p class="alert alert--info">لا توجد أسئلة في هذا القسم.</p>';
+    };
+    const load = async () => {
+      try {
+        const [pending, answered] = await Promise.all([
+          fetchApi("/questions/sheikh/pending"),
+          fetchApi("/questions/sheikh/answered"),
+        ]);
+        render(pending, pendingList, false);
+        render(answered, answeredList, true);
+      } catch (error) {
+        console.error("Unable to load Sheikh questions", error);
+        if (pendingList) pendingList.innerHTML = '<p class="alert alert--error">تعذر تحميل الأسئلة.</p>';
+      }
+    };
+    document.querySelectorAll("[data-question-tab]").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const answered = tab.dataset.questionTab === "answered";
+        if (pendingList) pendingList.hidden = answered;
+        if (answeredList) answeredList.hidden = !answered;
+      });
+    });
+    document.addEventListener("click", async (event) => {
+      const button = event.target.closest("[data-question-action]");
+      if (!button) return;
+      const id = button.dataset.questionId;
+      const textarea = $(`#answer-${CSS.escape(id)}`);
+      try {
+        button.disabled = true;
+        if (button.dataset.questionAction === "reject") {
+          await fetchApi(`/questions/sheikh/${encodeURIComponent(id)}/reject`, { method: "PATCH" });
+        } else {
+          await fetchApi(`/questions/sheikh/${encodeURIComponent(id)}/${button.dataset.questionAction === "edit" ? "edit" : "answer"}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ answer_text: textarea.value }),
+          });
+        }
+        showToast("تم حفظ التغيير.");
+        await load();
+      } catch (error) {
+        console.error("Unable to update question", error);
+        showToast("تعذر حفظ التغيير.", "error");
+      } finally {
+        button.disabled = false;
+      }
+    });
+    await load();
+  }
+
+  async function initDashboard() {
     const session = getSession();
     // حاجز RBAC (SEC-002): غير مسموح بالدخول دون جلسة
-    if (!session || !["admin", "manager"].includes(session.role)) {
+    if (!session || !["admin", "site_admin", "manager", "SHEIKH"].includes(session.role)) {
       window.location.href = BASE + "login.html";
       return;
     }
+    if (["admin", "site_admin"].includes(session.role)) {
+      try {
+        await loadRemoteUsers();
+      } catch (error) {
+        console.error("Unable to load users from the server", error);
+        showToast("تعذر تحميل قائمة المستخدمين من الخادم.", "error");
+      }
+    }
 
-    const isAdmin = session.role === "admin";
+    const isAdmin = ["admin", "site_admin"].includes(session.role);
+    const isSheikh = session.role === "SHEIKH";
 
     // عرض بيانات المستخدم
     const uname = $("#dash-user-name");
@@ -1323,6 +2001,14 @@
       const pAudit = $("#panel-audit");
       if (pUsers) pUsers.remove();
       if (pAudit) pAudit.remove();
+    }
+    if (!isSheikh) {
+      $$("[data-sheikh-only]").forEach((el) => { el.hidden = true; });
+      $("#panel-questions")?.remove();
+    } else {
+      $$("[data-tab]:not([data-tab='overview']):not([data-tab='questions'])").forEach((el) => { el.closest("li")?.remove(); });
+      $$(".dash-panel:not(#panel-overview):not(#panel-questions)").forEach((el) => el.remove());
+      initSheikhQuestions();
     }
 
     /* ---- التنقل بين الألواح (Tabs) ---- */
@@ -1411,12 +2097,12 @@
           const toggleClass = c.status === "published" ? "btn--outline" : "btn--primary";
           return `
           <tr>
-            <td class="title-cell"><a href="content-detail.html?id=${encodeURIComponent(c.id)}" target="_blank" rel="noopener">${escapeHTML(c.title)}</a></td>
-            <td>${cat ? escapeHTML(cat.name) : "—"}</td>
-            <td>${badge}</td>
-            <td dir="ltr">${c.duration ? formatDuration(c.duration) : "—"}</td>
-            <td>${formatDate(c.pubDate)}</td>
-            <td class="row-actions">
+            <td class="title-cell" data-label="العنوان"><a href="content-detail.html?id=${encodeURIComponent(c.id)}" target="_blank" rel="noopener">${escapeHTML(c.title)}</a></td>
+            <td data-label="التصنيف">${cat ? escapeHTML(cat.name) : "—"}</td>
+            <td data-label="الحالة">${badge}</td>
+            <td data-label="المدة" dir="ltr">${c.duration ? formatDuration(c.duration) : "—"}</td>
+            <td data-label="التاريخ">${formatDate(c.pubDate)}</td>
+            <td class="row-actions" data-label="إجراءات">
               <button type="button" class="btn btn--ghost btn--sm" data-action="edit" data-id="${escapeHTML(c.id)}">تعديل</button>
               <button type="button" class="btn ${toggleClass} btn--sm" data-action="status" data-id="${escapeHTML(c.id)}">${toggleLabel}</button>
               <button type="button" class="btn btn--danger-outline btn--sm" data-action="delete" data-id="${escapeHTML(c.id)}">حذف</button>
@@ -1431,14 +2117,14 @@
         const btn = e.target.closest("[data-action]");
         if (!btn) return;
         const { action, id } = btn.dataset;
-        const content = loadContents().find((c) => c.id === id);
+        let content = loadContents().find((c) => c.id === id);
         if (!content) return;
 
         if (action === "edit") {
           openEditor(content);
         } else if (action === "status") {
           // التحقق من الصلاحية (RBAC)
-          if (session.role !== "admin" && session.role !== "manager") {
+          if (!["admin", "site_admin", "manager"].includes(session.role)) {
             showToast("لا تملك صلاحية تعديل الحالة", "error");
             return;
           }
@@ -1448,8 +2134,18 @@
             `تأكيد تغيير حالة «${content.title}» إلى ${next === "archived" ? "مؤرشفة" : "منشورة"}.`
           );
           if (!ok) return;
-          content.status = next;
-          saveContents(loadContents().map((x) => (x.id === id ? content : x)));
+          try {
+            const result = await fetchApi(`/materials/${encodeURIComponent(id)}/status`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ status: next }),
+            });
+            content = normalizeMaterial(result.material);
+            apiContents = loadContents().map((x) => (x.id === id ? content : x));
+          } catch (error) {
+            showToast(error.message || "تعذر تحديث حالة المادة على الخادم.", "error");
+            return;
+          }
           logAudit(next === "archived" ? "ARCHIVE_CONTENT" : "PUBLISH_CONTENT", content.title, "OK");
           showToast(next === "archived" ? "تمت أرشفة المادة." : "تم نشر المادة.");
           refreshAll();
@@ -1460,7 +2156,13 @@
             `سيتم حذف «${content.title}» نهائياً من الأرشيف. هل تريد المتابعة؟`
           );
           if (!ok) return;
-          saveContents(loadContents().filter((x) => x.id !== id));
+          try {
+            await fetchApi(`/materials/${encodeURIComponent(id)}`, { method: "DELETE" });
+            saveContents(loadContents().filter((x) => x.id !== id));
+          } catch (error) {
+            showToast(error.message || "تعذر حذف المادة من الخادم.", "error");
+            return;
+          }
           logAudit("DELETE_CONTENT", content.title, "OK");
           showToast("تم حذف المادة.");
           refreshAll();
@@ -1481,11 +2183,41 @@
     const cfDate = $("#cf-date");
     const cfDuration = $("#cf-duration");
     const cfAudio = $("#cf-audio");
+    const cfType = $("#cf-type");
+    const cfPdf = $("#cf-pdf");
+    const cfBody = $("#cf-body");
+    const cfFontSize = $("#cf-font-size");
+    const cfLineHeight = $("#cf-line-height");
     const cfSubmit = $("#cf-submit");
     const cfReset = $("#cf-reset");
     const editorTitle = $("#panel-editor-title");
     const editorAlert = $("#editor-alert");
     const newContentBtn = $("#btn-new-content");
+    const editorSteps = $$("[data-editor-step]");
+    let activeEditorStep = 1;
+
+    function showEditorStep(step) {
+      activeEditorStep = step;
+      editorSteps.forEach((panel) => {
+        panel.hidden = Number(panel.dataset.editorStep) !== step;
+      });
+    }
+    $$("[data-step-next]").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (Number(button.dataset.stepNext) === 1) {
+          let valid = true;
+          if (!cfTitle.value.trim()) { showFieldError("err-cf-title", cfTitle); valid = false; }
+          if (!cfAuthor.value.trim()) { showFieldError("err-cf-author", cfAuthor); valid = false; }
+          if (!cfCategory.value) { showFieldError("err-cf-category", cfCategory); valid = false; }
+          if (valid) showEditorStep(2);
+        } else {
+          showEditorStep(Math.min(3, activeEditorStep + 1));
+        }
+      });
+    });
+    $$("[data-step-prev]").forEach((button) => {
+      button.addEventListener("click", () => showEditorStep(Math.max(1, activeEditorStep - 1)));
+    });
 
     // تعبئة خيارات التصنيف في النموذج
     if (cfCategory) {
@@ -1510,12 +2242,22 @@
       if (cfKeywords) cfKeywords.value = (content.keywords || []).join("، ");
       if (cfDate) cfDate.value = (content.pubDate || "").slice(0, 10);
       if (cfDuration) cfDuration.value = content.duration || "";
+      if (cfType) cfType.value = content.type || (content.audio ? "audio" : "article");
+      if (cfAudio) cfAudio.value = content.audio || "";
+      if (cfPdf) cfPdf.value = content.pdf || "";
+      if (cfBody) cfBody.value = (content.body || []).join("\n\n");
+      const contentSettings = loadContentSettings()[content.id] || content.readingSettings;
+      if (cfFontSize) cfFontSize.value = String(normalizeReadingSettings(contentSettings).fontSize);
+      if (cfLineHeight) cfLineHeight.value = String(normalizeReadingSettings(contentSettings).lineHeight);
       if (editorAlert) editorAlert.hidden = true;
+      if (cfFontSize) cfFontSize.value = String(DEFAULT_READING_SETTINGS.fontSize);
+      if (cfLineHeight) cfLineHeight.value = String(DEFAULT_READING_SETTINGS.lineHeight);
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
     function resetEditor() {
       if (cfForm) cfForm.reset();
+      showEditorStep(1);
       if ($("#cf-id")) $("#cf-id").value = "";
       if (editorTitle) editorTitle.textContent = "إضافة مادة جديدة";
       if (cfSubmit) cfSubmit.textContent = "حفظ المادة";
@@ -1532,61 +2274,128 @@
     }
     if (cfReset) cfReset.addEventListener("click", resetEditor);
 
-    // التحقق من صيغة وحجم الملف الصوتي (AF-002 / SEC-009)
-    const ALLOWED_AUDIO = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/x-wav", "audio/mp4", "audio/m4a"];
-    const MAX_AUDIO = 100 * 1024 * 1024; // 100MB
-
-    function validateAudioFile(file) {
-      const errEl = $("#err-cf-audio");
-      if (!file) return true;
-      if (!ALLOWED_AUDIO.includes(file.type)) {
-        errEl.textContent = formatType(file); // نعرض تفصيلة
-        errEl.setAttribute("data-visible", "true");
+    function isDirectUrl(value) {
+      try {
+        const url = new URL(String(value).trim());
+        return url.protocol === "http:" || url.protocol === "https:";
+      } catch (_) {
         return false;
       }
-      if (file.size > MAX_AUDIO) {
-        errEl.textContent = `حجم الملف كبير (${Math.round(file.size / 1048576)}MB) – الحد الأقصى 100MB.`;
+    }
+
+    function normalizeGoogleDriveUrl(value) {
+      const raw = String(value || "").trim();
+      if (!raw) return "";
+      let url;
+      try { url = new URL(raw); } catch (_) { return raw; }
+      if (!["drive.google.com", "www.drive.google.com"].includes(url.hostname)) return raw;
+      let fileId = url.searchParams.get("id");
+      const match = url.pathname.match(/^\/file\/d\/([^/]+)/);
+      if (!fileId && match) fileId = match[1];
+      return fileId
+        ? `https://drive.usercontent.google.com/download?id=${encodeURIComponent(fileId)}&export=download`
+        : raw;
+    }
+
+    function validateAudioUrl(value) {
+      const errEl = $("#err-cf-audio");
+      if (!value) {
+        errEl.setAttribute("data-visible", "false");
+        return true;
+      }
+      if (!isDirectUrl(value)) {
+        errEl.textContent = "أدخل رابطًا مباشرًا صالحًا يبدأ بـ https:// أو http://.";
         errEl.setAttribute("data-visible", "true");
         return false;
       }
       errEl.setAttribute("data-visible", "false");
       return true;
     }
-    function formatType(file) {
-      return `صيغة الملف غير مدعومة (${file.type || "غير معروفة"}). الصيغ المسموحة: MP3، WAV، OGG، M4A.`;
-    }
-    if (cfAudio) {
-      cfAudio.addEventListener("change", () => {
-        const file = cfAudio.files[0];
-        if (!file) return;
-        if (!validateAudioFile(file)) {
-          cfAudio.value = "";
-          return;
+
+    let durationLookupId = 0;
+    function loadAudioDuration(url) {
+      const hint = $("#cf-duration-hint");
+      if (!cfAudio || !cfDuration || !url || !isDirectUrl(url) || (cfType && cfType.value !== "audio")) {
+        return;
+      }
+      const lookupId = ++durationLookupId;
+      hint.textContent = "جارٍ قراءة مدة الملف الصوتي من الرابط…";
+      const audio = document.createElement("audio");
+      audio.preload = "metadata";
+      audio.addEventListener("loadedmetadata", () => {
+        if (lookupId !== durationLookupId || cfAudio.value.trim() !== url) return;
+        if (Number.isFinite(audio.duration) && audio.duration > 0) {
+          cfDuration.value = Math.round(audio.duration);
+          hint.textContent = "تم حساب المدة تلقائيًا من الرابط. يمكنك تعديلها يدويًا.";
+        } else {
+          hint.textContent = "تعذر قراءة المدة؛ أدخلها يدويًا بالثواني.";
         }
-        // قراءة مدة الملف الصوتي المرفوع (AF-006 متطلبات إدارية)
-        const url = URL.createObjectURL(file);
-        const probe = new Audio();
-        probe.addEventListener("loadedmetadata", () => {
-          if (cfDuration) {
-            cfDuration.value = Math.round(probe.duration);
-          }
-          URL.revokeObjectURL(url);
-        });
-        probe.src = url;
-        showToast(`الملف «${file.name}» جاهز، صيغة صحيحة.`, "info");
+        audio.removeAttribute("src");
+        audio.load();
+      });
+      audio.addEventListener("error", () => {
+        if (lookupId !== durationLookupId || cfAudio.value.trim() !== url) return;
+        hint.textContent = "تعذر قراءة مدة الرابط. تأكد أنه ملف صوت مباشر وعام، أو أدخل المدة يدويًا.";
+        audio.removeAttribute("src");
+        audio.load();
+      });
+      audio.src = url;
+    }
+
+    if (cfAudio) {
+      const normalizeAudioInput = () => {
+        const normalized = normalizeGoogleDriveUrl(cfAudio.value);
+        if (normalized && normalized !== cfAudio.value.trim()) {
+          cfAudio.value = normalized;
+          showToast("تم تحويل رابط Google Drive إلى رابط تنزيل مباشر.", "info");
+        }
+      };
+      cfAudio.addEventListener("change", () => {
+        normalizeAudioInput();
+        const url = cfAudio.value.trim();
+        if (validateAudioUrl(url)) loadAudioDuration(url);
+      });
+      cfAudio.addEventListener("blur", () => {
+        normalizeAudioInput();
+        const url = cfAudio.value.trim();
+        if (validateAudioUrl(url)) loadAudioDuration(url);
+      });
+    }
+    if (cfPdf) {
+      cfPdf.addEventListener("blur", () => {
+        const normalized = normalizeGoogleDriveUrl(cfPdf.value);
+        if (normalized && normalized !== cfPdf.value.trim()) {
+          cfPdf.value = normalized;
+          showToast("تم تحويل رابط Google Drive إلى رابط تنزيل مباشر.", "info");
+        }
+      });
+    }
+    if (cfType) {
+      cfType.addEventListener("change", () => {
+        if (cfAudio.value.trim()) loadAudioDuration(cfAudio.value.trim());
       });
     }
 
     // حفظ المادة
     if (cfForm) {
-      cfForm.addEventListener("submit", (e) => {
+      cfForm.addEventListener("submit", async (e) => {
         e.preventDefault();
+        if (cfSubmit) cfSubmit.disabled = true;
         let ok = true;
         if (!cfTitle.value.trim()) { showFieldError("err-cf-title", cfTitle); ok = false; } else hideFieldError("err-cf-title", cfTitle);
         if (!cfAuthor.value.trim()) { showFieldError("err-cf-author", cfAuthor); ok = false; } else hideFieldError("err-cf-author", cfAuthor);
         if (!cfCategory.value) { showFieldError("err-cf-category", cfCategory); ok = false; } else hideFieldError("err-cf-category", cfCategory);
-        if (cfAudio && !validateAudioFile(cfAudio.files[0])) ok = false;
-        if (!ok) return;
+        if (cfAudio) cfAudio.value = normalizeGoogleDriveUrl(cfAudio.value);
+        if (cfPdf) cfPdf.value = normalizeGoogleDriveUrl(cfPdf.value);
+        if (cfAudio && !validateAudioUrl(cfAudio.value)) ok = false;
+        if (cfPdf && cfPdf.value.trim() && !isDirectUrl(cfPdf.value)) {
+          showToast("رابط PDF غير صالح. استخدم رابطًا مباشرًا يبدأ بـ https:// أو http://.", "error");
+          ok = false;
+        }
+        if (!ok) {
+          if (cfSubmit) cfSubmit.disabled = false;
+          return;
+        }
 
         const idField = $("#cf-id");
         const id = idField && idField.value ? idField.value : slugify(cfTitle.value);
@@ -1608,38 +2417,54 @@
             : [],
           pubDate: cfDate && cfDate.value ? cfDate.value : new Date().toISOString().slice(0, 10),
           duration: cfDuration ? Number(cfDuration.value) || 0 : 0,
-          audio: existing ? existing.audio : null,
+          audio: cfAudio ? cfAudio.value.trim() : (existing && existing.audio) || null,
+          type: cfType ? cfType.value : (existing && existing.type) || "audio",
+          pdf: cfPdf ? cfPdf.value.trim() : (existing && existing.pdf) || "",
+          body: cfBody
+            ? cfBody.value.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean)
+            : (existing && existing.body) || [],
+          readingSettings: normalizeReadingSettings({
+            fontSize: cfFontSize ? Number(cfFontSize.value) : DEFAULT_READING_SETTINGS.fontSize,
+            lineHeight: cfLineHeight ? Number(cfLineHeight.value) : DEFAULT_READING_SETTINGS.lineHeight,
+          }),
         };
+        saveContentSettings(item.id, item.readingSettings);
 
-        // التعامل مع الملف الصوتي المرفوع في الحالة التجريبية
-        const file = cfAudio && cfAudio.files[0];
-        if (file) {
-          // في الوضع الفعلي تُرفع إلى Object Storage (AF-003/005).
-          // هنا نخزّن الإشارة فقط – يظل الأرشفة نصافياً سليماً.
-          item.audio = (existing && existing.audio) || null;
-          item.audioFileName = file.name;
-          item.audioSize = file.size;
-          item.audioReady = true;
+        try {
+          const saved = await fetchApi(existing ? `/materials/${encodeURIComponent(existing.id)}` : "/materials", {
+            method: existing ? "PUT" : "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: item.title,
+              description: item.description,
+              author: item.author,
+              categoryId: item.category,
+              audioUrl: item.audio,
+              documentUrl: item.pdf || null,
+              contentType: item.type,
+              body: item.body,
+              readingSettings: item.readingSettings,
+              keywords: item.keywords,
+              durationSeconds: item.duration,
+              status: item.status,
+            }),
+          });
+          const normalized = normalizeMaterial(saved.material);
+          apiContents = [
+            normalized,
+            ...apiContents.filter((content) => content.id !== normalized.id),
+          ];
+          logAudit(existing ? "UPDATE_CONTENT" : "CREATE_CONTENT", item.title, "OK");
+          showToast(existing ? "تم تحديث المادة وحفظها على الخادم." : "تم رفع المادة وحفظها بنجاح.");
+          resetEditor();
+          switchTab("content");
+          refreshAll();
+        } catch (error) {
+          console.error("Unable to save material", error);
+          showToast(error.message || "تعذر حفظ المادة أو رفع الملف. لم يتم اعتماد العملية.", "error");
+        } finally {
+          if (cfSubmit) cfSubmit.disabled = false;
         }
-
-        let list = loadContents();
-        const idx = existing ? list.findIndex((c) => c.id === existing.id) : -1;
-
-        if (idx >= 0) {
-          // تحديث مادة موجودة (تحافظ على id وصوتها السابق إن لم يُرفع جديد)
-          list[idx] = { ...list[idx], ...item };
-          logAudit("UPDATE_CONTENT", item.title, "OK");
-          showToast("تم تحديث المادة بنجاح.");
-        } else {
-          // مادة جديدة
-          list = [...list, item];
-          logAudit("CREATE_CONTENT", item.title, "OK");
-          showToast("تم إضافة المادة بنجاح.");
-        }
-        saveContents(list);
-        resetEditor();
-        switchTab("content");
-        refreshAll();
       });
     }
 
@@ -1657,9 +2482,9 @@
           const count = all.filter((x) => x.category === c.id).length;
           return `
           <tr>
-            <td>${c.icon} ${escapeHTML(c.name)}</td>
-            <td>${count}</td>
-            <td class="row-actions">
+            <td data-label="التصنيف">${c.icon} ${escapeHTML(c.name)}</td>
+            <td data-label="عدد المواد">${count}</td>
+            <td class="row-actions" data-label="إجراءات">
               <button type="button" class="btn btn--danger-outline btn--sm" data-cat-delete="${escapeHTML(c.id)}" ${count ? "disabled" : ""}
                       ${count ? 'title="لا يمكن حذف تصنيف يحتوي على مواد"' : ""}>حذف</button>
             </td>
@@ -1676,6 +2501,12 @@
         const cat = loadCategories().find((x) => x.id === id);
         const ok = await confirmAction("حذف التصنيف", `سيتم حذف تصنيف «${cat.name}». هل تريد المتابعة؟`);
         if (!ok) return;
+        try {
+          await fetchApi(`/categories/${encodeURIComponent(id)}`, { method: "DELETE" });
+        } catch (error) {
+          showToast("تعذر حذف التصنيف من الخادم.", "error");
+          return;
+        }
         saveCategories(loadCategories().filter((x) => x.id !== id));
         // تحديث خيارات النموذج
         if (cfCategory) {
@@ -1692,7 +2523,7 @@
     }
 
     if (catForm) {
-      catForm.addEventListener("submit", (e) => {
+      catForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         const name = newCat.value.trim();
         if (!name) return;
@@ -1701,8 +2532,18 @@
           showToast("يوجد تصنيف بهذا الاسم مسبقاً.", "error");
           return;
         }
-        const id = "cat-" + Date.now().toString(36);
-        cats.push({ id, name, icon: "📁", desc: "تصنيف مضاف عبر لوحة الإدارة" });
+        let created;
+        try {
+          created = await fetchApi("/categories", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, description: "تصنيف مضاف عبر لوحة الإدارة" }),
+          });
+        } catch (error) {
+          showToast("تعذر حفظ التصنيف على الخادم.", "error");
+          return;
+        }
+        cats.push(normalizeCategory(created));
         saveCategories(cats);
         if (cfCategory) {
           cfCategory.innerHTML =
@@ -1727,25 +2568,28 @@
         .map(
           (u) => `
           <tr>
-            <td>${escapeHTML(u.name)}</td>
-            <td dir="ltr">${escapeHTML(u.username)}</td>
-            <td>
+            <td data-label="الاسم">${escapeHTML(u.name)}</td>
+            <td data-label="اسم المستخدم" dir="ltr">${escapeHTML(u.username)}</td>
+            <td data-label="الدور">
               <label class="visually-hidden" for="role-${escapeHTML(u.id)}">دور المستخدم</label>
               <select id="role-${escapeHTML(u.id)}" class="field" style="width:auto;" data-user-role data-id="${escapeHTML(u.id)}">
-                <option value="admin" ${u.role === "admin" ? "selected" : ""}>Administrator</option>
+                <option value="admin" ${u.role === "admin" ? "selected" : ""}>مدير النظام</option>
+                <option value="site_admin" ${u.role === "site_admin" ? "selected" : ""}>مدير الموقع</option>
                 <option value="manager" ${u.role === "manager" ? "selected" : ""}>Content Manager</option>
+                <option value="SHEIKH" ${u.role === "SHEIKH" ? "selected" : ""}>الشيخ</option>
                 <option value="viewer" ${u.role === "viewer" ? "selected" : ""}>Viewer</option>
               </select>
             </td>
-            <td>
+            <td data-label="الحالة">
               <span class="badge ${u.status === "active" ? "badge--active" : "badge--inactive"}">
                 ${u.status === "active" ? "نشط" : "معطّل"}
               </span>
             </td>
-            <td class="row-actions">
+            <td class="row-actions" data-label="إجراءات">
               <button type="button" class="btn btn--outline btn--sm" data-user-status data-id="${escapeHTML(u.id)}">
                 ${u.status === "active" ? "تعطيل" : "تفعيل"}
               </button>
+              <button type="button" class="btn btn--outline btn--sm" data-user-reset data-id="${escapeHTML(u.id)}">استعادة كلمة السر</button>
               <button type="button" class="btn btn--danger-outline btn--sm" data-user-delete data-id="${escapeHTML(u.id)}">حذف</button>
             </td>
           </tr>`
@@ -1754,7 +2598,7 @@
     }
 
     if (usersTbody) {
-      usersTbody.addEventListener("change", (e) => {
+      usersTbody.addEventListener("change", async (e) => {
         const sel = e.target.closest("[data-user-role]");
         if (!sel) return;
         const users = loadUsers();
@@ -1766,7 +2610,19 @@
             showToast("لا يمكن تغيير دورك الحالي أثناء الجلسة.", "error");
             return;
           }
-          u.role = sel.value;
+          const nextRole = sel.value === "site_admin" ? "admin" : sel.value;
+          try {
+            const updated = await fetchApi(`/auth/users/${encodeURIComponent(u.id)}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ role: nextRole }),
+            });
+            u.role = updated.role;
+          } catch (error) {
+            sel.value = u.role;
+            showToast(error.message || "تعذر تحديث صلاحية المستخدم على الخادم.", "error");
+            return;
+          }
           saveUsers(users);
           logAudit("UPDATE_USER_ROLE", u.username, "OK");
           showToast(`تم تغيير دورِ المستخدم ${u.name} إلى ${ROLES[u.role].label}.`);
@@ -1776,6 +2632,7 @@
 
       usersTbody.addEventListener("click", async (e) => {
         const st = e.target.closest("[data-user-status]");
+        const reset = e.target.closest("[data-user-reset]");
         const del = e.target.closest("[data-user-delete]");
         const users = loadUsers();
 
@@ -1797,15 +2654,56 @@
           showToast("تم تحديث حالة المستخدم.");
           renderUserTable();
         }
+        if (reset) {
+          const u = users.find((x) => x.id === reset.dataset.id);
+          if (!u) return;
+          const temporaryPassword = window.prompt(`أدخل كلمة مرور جديدة للحساب «${u.name}».`);
+          if (temporaryPassword === null) return;
+          const policyError = passwordPolicyError(temporaryPassword);
+          if (policyError) {
+            showToast(policyError, "error");
+            return;
+          }
+          try {
+            await fetchApi(`/auth/users/${encodeURIComponent(u.id)}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ password: temporaryPassword }),
+            });
+          } catch (error) {
+            showToast(error.message || "تعذر تحديث كلمة المرور على الخادم.", "error");
+            return;
+          }
+          u.passHash = "";
+          saveUsers(users);
+          logAudit("RESET_USER_PASSWORD", u.username, "OK");
+          showToast(`تمت استعادة كلمة مرور حساب ${u.name}.`);
+        }
         if (del) {
           const u = users.find((x) => x.id === del.dataset.id);
           if (!u) return;
+          if (!/^\d+$/.test(String(u.id))) {
+            showToast("هذه نسخة قديمة من الحساب. أعد تحميل قائمة المستخدمين من الخادم ثم حاول مرة أخرى.", "error");
+            try {
+              await loadRemoteUsers();
+              renderUserTable();
+            } catch (error) {
+              console.error("Unable to refresh users before deletion", error);
+            }
+            return;
+          }
           if (u.username === session.username) {
             showToast("لا يمكنك حذف حسابك الحالي.", "error");
             return;
           }
           const ok = await confirmAction("حذف المستخدم", `سيتم حذف حساب «${u.name}» (${u.username}). هل أنت متأكد؟`);
           if (!ok) return;
+          try {
+            await fetchApi(`/auth/users/${encodeURIComponent(u.id)}`, { method: "DELETE" });
+          } catch (error) {
+            showToast(error.message || "تعذر حذف المستخدم من الخادم.", "error");
+            return;
+          }
           saveUsers(users.filter((x) => x.id !== u.id));
           logAudit("DELETE_USER", u.username, "OK");
           showToast("تم حذف المستخدم.");
@@ -1815,7 +2713,7 @@
     }
 
     if (userForm) {
-      userForm.addEventListener("submit", (e) => {
+      userForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         const name = $("#new-user-name").value.trim();
         const username = $("#new-user-username").value.trim().toLowerCase();
@@ -1838,11 +2736,23 @@
           return;
         }
 
+        let created;
+        try {
+          created = await fetchApi("/auth/users", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password, role: role === "site_admin" ? "admin" : role }),
+          });
+        } catch (error) {
+          showToast("تعذر إنشاء الحساب على الخادم. تحقق من الاتصال أو من أن اسم المستخدم غير مكرر.", "error");
+          return;
+        }
         users.push({
-          id: "u" + Date.now().toString(36),
+          id: String(created.id),
           name,
           username,
-          passHash: hashDemo(password),
+          email: username.includes("@") ? username : "",
+          passHash: "",
           role,
           status: "active",
         });
@@ -1893,11 +2803,11 @@
             .map(
               (l) => `
               <tr>
-                <td>${formatAuditTime(l.ts)}</td>
-                <td>${escapeHTML(l.user)}</td>
-                <td>${ACTION_LABELS[l.action] || escapeHTML(l.action)}</td>
-                <td>${escapeHTML(l.entity)}</td>
-                <td><span class="badge ${l.result === "OK" ? "badge--active" : "badge--danger"}">${escapeHTML(l.result)}</span></td>
+                <td data-label="الزمن">${formatAuditTime(l.ts)}</td>
+                <td data-label="المستخدم">${escapeHTML(l.user)}</td>
+                <td data-label="الإجراء">${ACTION_LABELS[l.action] || escapeHTML(l.action)}</td>
+                <td data-label="الكيان">${escapeHTML(l.entity)}</td>
+                <td data-label="النتيجة"><span class="badge ${l.result === "OK" ? "badge--active" : "badge--danger"}">${escapeHTML(l.result)}</span></td>
               </tr>`
             )
             .join("")
@@ -1914,27 +2824,43 @@
   /* ----------------------------------------------------------------------
      11) نقطة الانطلاق حسب الصفحة
      ---------------------------------------------------------------------- */
-  document.addEventListener("DOMContentLoaded", () => {
-    initShared();
+  document.addEventListener("DOMContentLoaded", async () => {
+    try {
+      const pagesUsingContent = ["index", "search", "detail", "dashboard"];
+      if (pagesUsingContent.includes(PAGE)) {
+        await loadRemoteData();
+      }
+      initShared();
 
-    switch (PAGE) {
-      case "index":
-        initHome();
-        break;
-      case "search":
-        initSearch();
-        break;
-      case "detail":
-        initDetail();
-        break;
-      case "login":
-        initLogin();
-        break;
-      case "dashboard":
-        initDashboard();
-        break;
-      default:
-        break;
+      switch (PAGE) {
+        case "index":
+          initHome();
+          break;
+        case "search":
+          initSearch();
+          break;
+        case "detail":
+          initDetail();
+          break;
+        case "login":
+          initLogin();
+          break;
+        case "dashboard":
+          initDashboard();
+          break;
+          case "questions":
+            await initQuestions();
+            break;
+        default:
+          break;
+      }
+    } catch (error) {
+      console.error("Unable to load DSACMS data", error);
+      const message = "تعذر تحميل البيانات من الخادم. يرجى المحاولة لاحقًا.";
+      ["#categories-grid", "#latest-grid", "#results-grid"].forEach((selector) => {
+        const container = $(selector);
+        if (container) container.innerHTML = `<p class="alert alert--error" role="alert">${message}</p>`;
+      });
     }
   });
 })();

@@ -30,8 +30,8 @@
   <header class="site-header">
     <div class="container nav-wrap">
       <a class="brand" href="../index.html" aria-label="DSACMS – الصفحة الرئيسية">
-        <img src="../assets/images/الشعار بدون خلفية .png" alt="شعار نظام DSACMS" height="60" style="object-fit: contain;" onerror="this.onerror=null;this.src='../assets/images/logo.png';">
-        <span>DSACMS<small>أرشيف المحتوى العلمي والصوتي</small></span>
+        <img src="../assets/images/logo.png" alt="شعار نظام DSACMS" height="60" style="object-fit: contain;">
+        <span>الشيخ محمد أحمد الهادي الكرار<small>المكتبة العلمية والصوتية</small></span>
       </a>
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="فتح أو إغلاق قائمة التنقل">
         <span class="icon-menu" aria-hidden="true">☰</span>
@@ -41,6 +41,7 @@
         <ul>
           <li><a href="../index.html">الرئيسية</a></li>
           <li><a href="search.html" aria-current="page">تصفّح المحتوى</a></li>
+          <li><a href="questions.html">الأسئلة والفتاوى</a></li>
           <li><a href="login.html">تسجيل الدخول للإدارة</a></li>
         </ul>
       </nav>
@@ -89,7 +90,9 @@
             <label class="visually-hidden" for="filter-media">نوع المحتوى</label>
             <select id="filter-media" name="media" aria-label="نوع المحتوى">
               <option value="">الكل</option>
-              <option value="audio">يحتوي ملف صوتي</option>
+              <option value="audio">مادة صوتية</option>
+              <option value="article">مقال مكتوب</option>
+              <option value="book">كتاب PDF</option>
               <option value="no-audio">بدون ملف صوتي</option>
             </select>
           </fieldset>
@@ -155,6 +158,7 @@
           <ul>
             <li><a href="../index.html">الرئيسية</a></li>
             <li><a href="search.html">تصفّح المحتوى</a></li>
+            <li><a href="about.html">حول الشيخ</a></li>
             <li><a href="login.html">لوحة الإدارة</a></li>
           </ul>
         </nav>
@@ -171,12 +175,11 @@
         </div>
       </div>
       <div class="footer-bottom">
-        <p>© <span id="year">2026</span> DSACMS – جميع الحقوق محفوظة</p>
-        <p style="direction:ltr;unicode-bidi:embed;font-size:var(--fs-xs);">Built with HTML5 · CSS3 · Vanilla JS</p>
+        <p>© <span id="year">2026</span> موقع الشيخ محمد أحمد الهادي الكرار</p>
       </div>
     </div>
   </footer>
 
-  <script src="../assets/js/main.js" defer></script>
+  <script src="../assets/js/main.js?v=20260916-14" defer></script>
 </body>
 </html>

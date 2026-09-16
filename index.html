@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#14253e">
 
   <!-- SEO: العنوان والوصف والكلمات المفتاحية (SEO-002 / SEO-003) -->
-  <title>DSACMS | نظام إدارة وأرشفة المحتوى العلمي والصوتي</title>
+  <title>الشيخ محمد أحمد الهادي الكرار | المكتبة العلمية</title>
   <meta name="description" content="منصة إدارة وأرشفة المحتوى العلمي والصوتي: استمع، ابحث وتصفّح المواد العلمية المؤرشفة بتصنيفات دقيقة وواجهة عربية كاملة، متاحة على جميع الأجهزة.">
   <meta name="keywords" content="محتوى علمي, صوتي, أرشفة, نظام إدارة المحتوى, DSACMS, استماع, تصنيفات, بحث">
 
@@ -16,7 +16,7 @@
   <!-- Open Graph -->
   <meta property="og:type" content="website">
   <meta property="og:locale" content="ar_AR">
-  <meta property="og:site_name" content="DSACMS">
+  <meta property="og:site_name" content="الشيخ محمد أحمد الهادي الكرار">
   <meta property="og:title" content="DSACMS | نظام إدارة وأرشفة المحتوى العلمي والصوتي">
   <meta property="og:description" content="استمع، ابحث وتصفّح المواد العلمية والملفات الصوتية المؤرشفة بواجهة عربية كاملة RTL.">
   <meta property="og:url" content="https://dsacms.example/">
@@ -51,8 +51,8 @@
   <header class="site-header">
     <div class="container nav-wrap">
       <a class="brand" href="index.html" aria-label="DSACMS – الصفحة الرئيسية">
-        <img src="assets/images/الشعار بدون خلفية .png" alt="شعار نظام DSACMS" height="60" style="object-fit: contain;" onerror="this.onerror=null;this.src='assets/images/logo.png';">
-        <span>DSACMS<small>أرشيف المحتوى العلمي والصوتي</small></span>
+        <img src="assets/images/logo.png" alt="شعار نظام DSACMS" height="60" style="object-fit: contain;">
+        <span>الشيخ محمد أحمد الهادي الكرار<small>المكتبة العلمية والصوتية</small></span>
       </a>
 
       <!-- زر قائمة الجوال -->
@@ -65,6 +65,9 @@
         <ul>
           <li><a href="index.html" aria-current="page">الرئيسية</a></li>
           <li><a href="pages/search.html">تصفّح المحتوى</a></li>
+          <li><a href="pages/questions.html">الأسئلة والفتاوى</a></li>
+          <li><a href="pages/search.html?media=audio">المحتوى الصوتي</a></li>
+          <li><a href="pages/about.html">حول الشيخ</a></li>
           <li><a href="pages/login.html">تسجيل الدخول للإدارة</a></li>
         </ul>
       </nav>
@@ -77,7 +80,7 @@
     <section class="hero" aria-labelledby="hero-title">
       <div class="container hero-pad">
         <h1 id="hero-title">مكتبتك العلمية الصوتية، منظمة ومتاحة للجميع</h1>
-        <p>نظام DSACMS يُتيح لك تصفّح و أرشفة المحتوى العلمي مع ملفات صوتية واضحة، بواجهة عربية كاملة، وتصميم متجاوب يناسب جميع الأجهزة والفئات التقنية.</p>
+        <p>يتيح موقع الشيخ محمد أحمد الهادي الكرار تصفّح وأرشفة المحتوى العلمي مع ملفات صوتية واضحة، بواجهة عربية كاملة وتصميم متجاوب.</p>
 
         <!-- نموذج البحث الرئيسي (FR-004, SR-001) -->
         <form class="hero-search" id="hero-search-form" role="search" action="pages/search.html" method="get">
@@ -93,6 +96,8 @@
         <ul class="hero-stats" id="hero-stats" aria-label="إحصائيات النظام">
           <li><strong id="stat-content">–</strong><span>مادة علمية</span></li>
           <li><strong id="stat-audio">–</strong><span>ملفاً صوتياً</span></li>
+          <li><strong id="stat-articles">–</strong><span>مقالاً مكتوباً</span></li>
+          <li><strong id="stat-books">–</strong><span>كتاب PDF</span></li>
           <li><strong id="stat-categories">–</strong><span>تصنيفاً</span></li>
         </ul>
       </div>
@@ -121,7 +126,7 @@
     <!-- ======================= نبذة عن النظام (FR-002) ======================= -->
     <section class="container" id="about" aria-labelledby="about-title" style="margin-block-start: var(--space-6);">
       <div class="card" style="padding: var(--space-5);">
-        <h2 class="section-title" id="about-title">لماذا DSACMS؟</h2>
+        <h2 class="section-title" id="about-title">مكتبة الشيخ العلمية</h2>
         <div class="grid grid--content">
           <article>
             <h3 style="margin-block-end: var(--space-2);">🎧 محتوى صوتي أولاً</h3>
@@ -174,12 +179,11 @@
         </div>
       </div>
       <div class="footer-bottom">
-        <p>© <span id="year">2026</span> DSACMS – جميع الحقوق محفوظة</p>
-        <p class="footer-lang-note">Built with HTML5 · CSS3 · Vanilla JS</p>
+        <p>© <span id="year">2026</span> موقع الشيخ محمد أحمد الهادي الكرار</p>
       </div>
     </div>
   </footer>
 
-  <script src="assets/js/main.js" defer></script>
+  <script src="assets/js/main.js?v=20260916-14" defer></script>
 </body>
 </html>
