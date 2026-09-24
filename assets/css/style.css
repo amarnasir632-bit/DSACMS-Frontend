@@ -523,6 +523,7 @@ table {
   border-radius: var(--radius-sm);
   color: var(--color-text);
   font-weight: 600;
+  white-space: nowrap;
 }
 .site-nav a:hover {
   background: var(--color-surface-muted);
