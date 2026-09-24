@@ -1160,6 +1160,11 @@
     // زر تسجيل الخروج في الواجهة للجلسات النشطة (FR-022)
     if (session && PAGE !== "login") {
       const li = document.createElement("li");
+      const accountLink = document.createElement("a");
+      accountLink.href = BASE + "pages/account.html";
+      accountLink.textContent = "الحساب وكلمة المرور";
+      li.appendChild(accountLink);
+      const accountItem = document.createElement("li");
       const logoutBtn = document.createElement("button");
       logoutBtn.type = "button";
       logoutBtn.className = "btn btn--ghost btn--sm";
@@ -1170,9 +1175,9 @@
         clearSession();
         window.location.href = BASE + "index.html";
       });
-      li.appendChild(logoutBtn);
+      accountItem.appendChild(logoutBtn);
       const navUl = $(".site-nav ul");
-      if (navUl) navUl.appendChild(li);
+      if (navUl) navUl.append(li, accountItem);
     }
 
     if (session && loginLink) {
@@ -2014,6 +2019,45 @@
         return;
       }
       setTimeout(() => goToDashboard(user), 600);
+    });
+  }
+
+  function initAccount() {
+    if (!getSession()) {
+      window.location.href = BASE + "pages/login.html";
+      return;
+    }
+    const form = $("#account-password-form");
+    if (!form) return;
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const currentPassword = $("#account-current-password").value;
+      const newPassword = $("#account-new-password").value;
+      const confirmation = $("#account-confirm-password").value;
+      const error = $("#account-password-error");
+      const policyError = passwordPolicyError(newPassword);
+      if (!currentPassword || policyError || newPassword !== confirmation) {
+        error.textContent = !currentPassword ? "أدخل كلمة المرور الحالية." : (policyError || "كلمتا المرور الجديدة غير متطابقتين.");
+        error.hidden = false;
+        return;
+      }
+      const submit = $("#account-password-submit");
+      submit.disabled = true;
+      error.hidden = true;
+      try {
+        await fetchApi("/auth/change-password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ currentPassword, newPassword }),
+        });
+        form.reset();
+        showToast("تم تغيير كلمة المرور بنجاح.");
+      } catch (requestError) {
+        error.textContent = requestError.message || "تعذر تغيير كلمة المرور. تحقق من كلمة المرور الحالية وحاول مجدداً.";
+        error.hidden = false;
+      } finally {
+        submit.disabled = false;
+      }
     });
   }
 
@@ -3028,6 +3072,9 @@
           break;
         case "login":
           initLogin();
+          break;
+        case "account":
+          initAccount();
           break;
         case "dashboard":
           initDashboard();

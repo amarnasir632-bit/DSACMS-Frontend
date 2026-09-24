@@ -2067,6 +2067,9 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   color: var(--color-danger);
   margin-block-end: var(--space-3);
 }
+.account-password-error {
+  color: var(--color-danger);
+}
 .image-orientation-options {
   border: 0;
   padding: 0;

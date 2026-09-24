@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#14253e">
+  <title>الحساب وكلمة المرور | DSACMS</title>
+  <meta name="description" content="إعدادات حساب المستخدم في موقع الشيخ محمد أحمد الهادي الكرار.">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="stylesheet" href="../assets/css/style.css">
+  <link rel="icon" type="image/png" href="../assets/images/logo.png">
+</head>
+<body data-page="account" data-base="../">
+  <a class="skip-link" href="#main">تخطَّ إلى إعدادات الحساب</a>
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a class="brand" href="../index.html" aria-label="الصفحة الرئيسية">
+        <img src="../assets/images/logo.png" alt="شعار نظام DSACMS" height="60" style="object-fit: contain;">
+        <span>الشيخ محمد أحمد الهادي الكرار<small>إعدادات الحساب</small></span>
+      </a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="فتح أو إغلاق قائمة التنقل">
+        <span class="icon-menu" aria-hidden="true">☰</span>
+        <span class="icon-close" aria-hidden="true">✕</span>
+      </button>
+      <nav id="site-nav" class="site-nav" aria-label="القائمة الرئيسية">
+        <ul>
+          <li><a href="../index.html">الرئيسية</a></li>
+          <li><a href="search.html">المحتوى</a></li>
+          <li><a href="questions.html">الأسئلة والفتاوى</a></li>
+          <li><a href="login.html">تسجيل الدخول</a></li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+  <main id="main" class="site-main auth-page" aria-labelledby="account-title">
+    <section class="auth-card" aria-labelledby="account-title">
+      <header>
+        <h1 id="account-title">الحساب وكلمة المرور</h1>
+        <p>يمكنك تغيير كلمة مرور حسابك في أي وقت.</p>
+      </header>
+      <form id="account-password-form" novalidate>
+        <div class="form-group">
+          <label for="account-current-password">كلمة المرور الحالية <span class="req" aria-label="مطلوب">*</span></label>
+          <input class="field" id="account-current-password" type="password" autocomplete="current-password" required>
+        </div>
+        <div class="form-group">
+          <label for="account-new-password">كلمة المرور الجديدة <span class="req" aria-label="مطلوب">*</span></label>
+          <input class="field" id="account-new-password" type="password" autocomplete="new-password" required>
+        </div>
+        <div class="form-group">
+          <label for="account-confirm-password">تأكيد كلمة المرور الجديدة <span class="req" aria-label="مطلوب">*</span></label>
+          <input class="field" id="account-confirm-password" type="password" autocomplete="new-password" required>
+        </div>
+        <p class="password-policy">يجب أن تتكون كلمة المرور من 8 أحرف على الأقل، وتحتوي على حرف ورقم وحرف كبير أو حرف عربي.</p>
+        <p class="hint account-password-error" id="account-password-error" role="alert" hidden></p>
+        <button type="submit" class="btn btn--primary" id="account-password-submit" style="width:100%;">حفظ كلمة المرور الجديدة</button>
+      </form>
+    </section>
+  </main>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-bottom">
+        <p>© <span id="year">2026</span> موقع الشيخ محمد أحمد الهادي الكرار</p>
+        <p style="direction:ltr;unicode-bidi:embed;font-size:var(--fs-xs);">DSACMS</p>
+      </div>
+    </div>
+  </footer>
+  <div class="toast-region" id="toast-region" aria-live="polite"></div>
+  <script src="../assets/js/main.js?v=20260924-account-password" defer></script>
+</body>
+</html>
