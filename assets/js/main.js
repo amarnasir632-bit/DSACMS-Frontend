@@ -1887,6 +1887,62 @@
     const passInput = $("#login-password");
     const attemptsHint = $("#attempts-hint");
     const toggleBtn = $("#password-toggle");
+    const passwordModal = $("#password-setup-modal");
+
+    const goToDashboard = (user) => {
+      const home = (ROLES[user.role] && ROLES[user.role].home) || "pages/dashboard.html";
+      window.location.href = BASE + home;
+    };
+
+    if (passwordModal) {
+      const changeForm = $("#password-change-form", passwordModal);
+      const error = $("#password-change-error", passwordModal);
+      $("#password-continue", passwordModal).addEventListener("click", () => {
+        passwordModal.hidden = true;
+        goToDashboard(getSession());
+      });
+      $("#password-change-start", passwordModal).addEventListener("click", () => {
+        $("#password-setup-message", passwordModal).hidden = true;
+        $("#password-setup-actions", passwordModal).hidden = true;
+        changeForm.hidden = false;
+        $("#new-password", changeForm).focus();
+      });
+      $("#password-change-back", passwordModal).addEventListener("click", () => {
+        changeForm.hidden = true;
+        $("#password-setup-message", passwordModal).hidden = false;
+        $("#password-setup-actions", passwordModal).hidden = false;
+        changeForm.reset();
+        error.hidden = true;
+      });
+      changeForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const newPassword = $("#new-password", changeForm).value;
+        const confirmation = $("#confirm-new-password", changeForm).value;
+        const policyError = passwordPolicyError(newPassword);
+        if (policyError || newPassword !== confirmation) {
+          error.textContent = policyError || "كلمتا المرور غير متطابقتين.";
+          error.hidden = false;
+          return;
+        }
+        const submit = $("#password-change-submit", changeForm);
+        submit.disabled = true;
+        try {
+          await fetchApi("/auth/change-password", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ currentPassword: passInput.value, newPassword }),
+          });
+          passwordModal.hidden = true;
+          showToast("تم تغيير كلمة المرور بنجاح.");
+          goToDashboard(getSession());
+        } catch (requestError) {
+          error.textContent = requestError.message || "تعذر تغيير كلمة المرور. حاول مرة أخرى.";
+          error.hidden = false;
+        } finally {
+          submit.disabled = false;
+        }
+      });
+    }
 
     // زر إظهار/إخفاء كلمة المرور
     if (toggleBtn && passInput) {
@@ -1952,10 +2008,12 @@
       // نجاح الدخول → جلسة آمنة + سجل
       setSession(user);
       logAudit("LOGIN", user.username, "OK");
-      setTimeout(() => {
-        const home = (ROLES[user.role] && ROLES[user.role].home) || "pages/dashboard.html";
-        window.location.href = BASE + home;
-      }, 600);
+      if (user.mustChangePassword && passwordModal) {
+        passwordModal.hidden = false;
+        $("#password-continue", passwordModal).focus();
+        return;
+      }
+      setTimeout(() => goToDashboard(user), 600);
     });
   }
 

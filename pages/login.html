@@ -95,6 +95,32 @@
 
   </main>
 
+  <div class="modal-backdrop" id="password-setup-modal" hidden>
+    <section class="modal password-setup-modal" role="dialog" aria-modal="true" aria-labelledby="password-setup-title">
+      <h3 id="password-setup-title">كلمة المرور مؤقتة</h3>
+      <p id="password-setup-message">هل ترغب في تغيير كلمة المرور الآن، أم تواصل باستخدامها؟ سيظهر هذا التنبيه عند تسجيل الدخول القادم حتى تغيّرها.</p>
+      <div class="modal-actions" id="password-setup-actions">
+        <button type="button" class="btn btn--outline" id="password-continue">المواصلة بنفس كلمة المرور</button>
+        <button type="button" class="btn btn--primary" id="password-change-start">تغيير كلمة المرور</button>
+      </div>
+      <form id="password-change-form" hidden>
+        <div class="form-group">
+          <label for="new-password">كلمة المرور الجديدة</label>
+          <input class="field" id="new-password" type="password" autocomplete="new-password" required>
+        </div>
+        <div class="form-group">
+          <label for="confirm-new-password">تأكيد كلمة المرور</label>
+          <input class="field" id="confirm-new-password" type="password" autocomplete="new-password" required>
+        </div>
+        <p class="hint" id="password-change-error" role="alert" hidden></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn--outline" id="password-change-back">رجوع</button>
+          <button type="submit" class="btn btn--primary" id="password-change-submit">حفظ كلمة المرور</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
   <footer class="site-footer">
     <div class="container">
       <div class="footer-bottom">
@@ -104,6 +130,6 @@
     </div>
   </footer>
 
-  <script src="../assets/js/main.js?v=20260916-15" defer></script>
+  <script src="../assets/js/main.js?v=20260924-password-change" defer></script>
 </body>
 </html>

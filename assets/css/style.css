@@ -2057,6 +2057,16 @@ input[type="range"]:focus-visible::-moz-range-thumb {
 .metadata-share-modal {
   max-width: 34rem;
 }
+.password-setup-modal {
+  max-width: 32rem;
+}
+.password-setup-modal .form-group {
+  margin-block-end: var(--space-3);
+}
+.password-setup-modal .hint {
+  color: var(--color-danger);
+  margin-block-end: var(--space-3);
+}
 .image-orientation-options {
   border: 0;
   padding: 0;
