@@ -127,11 +127,121 @@
     return slug + "-" + Date.now().toString(36).slice(-4);
   }
 
+  const SITE_ORIGIN = "https://mohamedalahadi.com";
+
+  function setMetaContent(selector, attribute, value) {
+    let element = $(selector);
+    if (!element) {
+      element = document.createElement("meta");
+      document.head.appendChild(element);
+    }
+    element.setAttribute(attribute, value);
+    return element;
+  }
+
+  function setCanonicalUrl(url) {
+    let canonical = $('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement("link");
+      canonical.setAttribute("rel", "canonical");
+      document.head.appendChild(canonical);
+    }
+    canonical.setAttribute("href", url);
+  }
+
+  function setJsonLd(id, data) {
+    const script = document.getElementById(id);
+    if (script) script.textContent = JSON.stringify(data);
+  }
+
   /** إضافة إعدادات رأس الصفحة للمواد المعروضة (SEO-002 / SEO-003) */
   function setPageMeta(title, description) {
     document.title = title;
-    const desc = $('meta[name="description"]');
-    if (desc && description) desc.setAttribute("content", description);
+    setMetaContent('meta[name="description"]', "content", description);
+    setMetaContent('meta[property="og:title"]', "content", title);
+    setMetaContent('meta[property="og:description"]', "content", description);
+    setMetaContent('meta[name="twitter:title"]', "content", title);
+    setMetaContent('meta[name="twitter:description"]', "content", description);
+  }
+
+  function contentMetaDescription(content) {
+    const lead = String(content.description || "").replace(/\s+/g, " ").trim();
+    const suffix = " من المكتبة العلمية للشيخ محمد أحمد الهادي الكرار. استمع إلى الدروس الصوتية وتصفح المواد الشرعية.";
+    let description = `${lead}${suffix}`.trim();
+    if (description.length < 140) {
+      description += " تصفح المزيد من الدروس والكتب والمقالات العلمية.";
+    }
+    if (description.length > 160) {
+      description = `${description.slice(0, 157).replace(/\s+\S*$/, "").trim()}…`;
+    }
+    return description;
+  }
+
+  function setContentStructuredData(content, canonicalUrl, category) {
+    const graph = [
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "الرئيسية", item: `${SITE_ORIGIN}/` },
+          { "@type": "ListItem", position: 2, name: "المكتبة العلمية", item: `${SITE_ORIGIN}/pages/search.html` },
+          ...(category ? [{
+            "@type": "ListItem",
+            position: 3,
+            name: category.name,
+            item: `${SITE_ORIGIN}/pages/search.html?category=${encodeURIComponent(category.id)}`,
+          }] : []),
+          { "@type": "ListItem", position: category ? 4 : 3, name: content.title, item: canonicalUrl },
+        ],
+      },
+    ];
+    const published = content.pubDate && !Number.isNaN(new Date(content.pubDate).getTime())
+      ? new Date(content.pubDate).toISOString()
+      : undefined;
+    const author = content.author && content.author !== "غير محدد"
+      ? { "@type": "Person", name: content.author }
+      : undefined;
+
+    if (content.type === "book") {
+      graph.push({
+        "@type": "Book",
+        name: content.title,
+        description: content.description,
+        url: canonicalUrl,
+        inLanguage: "ar",
+        ...(author ? { author } : {}),
+        ...(published ? { datePublished: published } : {}),
+        ...(content.pdf ? { bookFormat: "https://schema.org/EBook", encodingFormat: "application/pdf" } : {}),
+      });
+    } else if (content.type === "article") {
+      graph.push({
+        "@type": "Article",
+        headline: content.title,
+        description: content.description,
+        url: canonicalUrl,
+        inLanguage: "ar",
+        ...(author ? { author } : {}),
+        ...(published ? { datePublished: published } : {}),
+        ...(category ? { articleSection: category.name } : {}),
+      });
+    }
+
+    if (content.audio) {
+      const duration = Number(content.duration) || 0;
+      const minutes = Math.floor(duration / 60);
+      const seconds = duration % 60;
+      graph.push({
+        "@type": "AudioObject",
+        name: content.title,
+        description: content.description,
+        contentUrl: new URL(resolveContentUrl(content.audio), window.location.href).toString(),
+        url: canonicalUrl,
+        inLanguage: "ar",
+        ...(duration ? { duration: `PT${minutes}M${seconds}S` } : {}),
+        ...(published ? { uploadDate: published } : {}),
+      });
+    }
+
+    setJsonLd("content-structured-data", { "@context": "https://schema.org", "@graph": graph });
   }
 
   /** تقييد تنفيذ دالة حتى تتوقف الكتابة (للبحث المباشر) */
@@ -1310,22 +1420,27 @@
     if (!content) {
       notFound.hidden = false;
       wrap.style.display = "none";
-      setPageMeta("مادة غير متوفرة | DSACMS", "لم يتم العثور على المادة المطلوبة.");
+      setPageMeta("مادة غير متوفرة | مكتبة الشيخ محمد أحمد الهادي الكرار", "لم يتم العثور على المادة المطلوبة في المكتبة العلمية للشيخ محمد أحمد الهادي الكرار.");
+      setMetaContent('meta[name="robots"]', "content", "noindex, follow");
+      setCanonicalUrl(`${SITE_ORIGIN}${window.location.pathname}`);
+      setMetaContent('meta[property="og:url"]', "content", `${SITE_ORIGIN}${window.location.pathname}`);
+      setJsonLd("content-structured-data", { "@context": "https://schema.org", "@graph": [] });
       return;
     }
 
     const cat = loadCategories().find((x) => x.id === content.category);
 
     // تحديث عنوان الصفحة وبيانات SEO + Open Graph (SEo-002/003 + مشاركة)
-    setPageMeta(`${content.title} | DSACMS`, content.description);
-    const ogDesc = $('meta[property="og:description"]');
-    const ogTitle = $('meta[property="og:title"]');
-    if (ogDesc) ogDesc.setAttribute("content", content.description);
-    if (ogTitle) ogTitle.setAttribute("content", content.title);
-    const canonical = document.querySelector('link[rel="canonical"]');
-    if (canonical) {
-      canonical.setAttribute("href", window.location.origin + window.location.pathname + "?id=" + encodeURIComponent(content.id));
-    }
+    const pageTitle = `${content.title} | الشيخ محمد أحمد الهادي الكرار`;
+    const pageDescription = contentMetaDescription(content);
+    const canonicalUrl = new URL(window.location.pathname, SITE_ORIGIN);
+    canonicalUrl.searchParams.set("id", content.id);
+    const canonicalHref = canonicalUrl.toString();
+    setPageMeta(pageTitle, pageDescription);
+    setCanonicalUrl(canonicalHref);
+    setMetaContent('meta[property="og:url"]', "content", canonicalHref);
+    setMetaContent('meta[property="og:type"]', "content", "article");
+    setContentStructuredData(content, canonicalHref, cat);
 
     // مسار التنقل
     const bcCat = $("#breadcrumb-category");
