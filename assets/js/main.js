@@ -2421,6 +2421,56 @@
     const editorTitle = $("#panel-editor-title");
     const editorAlert = $("#editor-alert");
     const newContentBtn = $("#btn-new-content");
+    const archiveUploadModal = $("#archive-upload-modal");
+    const archiveUploadFrame = $("#archive-uploader-frame");
+    const archiveUploadButtons = [$("#cf-archive-upload"), $("#cf-archive-upload-pdf")].filter(Boolean);
+    const archiveUploadClose = $("#archive-upload-close");
+    const archiveUploaderOrigin = "https://ia-uploader-frontend.vercel.app";
+    let archiveIdentifier = "";
+
+    function closeArchiveUpload() {
+      if (archiveUploadModal) archiveUploadModal.hidden = true;
+    }
+    if (archiveUploadButtons.length && archiveUploadModal && archiveUploadFrame) {
+      archiveUploadButtons.forEach((button) => button.addEventListener("click", () => {
+        archiveIdentifier = `dsacms-${Date.now().toString(36)}`;
+        archiveUploadModal.hidden = false;
+        archiveUploadFrame.src = `${archiveUploaderOrigin}/?embed=1`;
+        archiveUploadFrame.onload = () => archiveUploadFrame.contentWindow.postMessage({
+          type: "dsacms:archive-context",
+          identifier: archiveIdentifier,
+          title: cfTitle ? cfTitle.value.trim() : "",
+          description: cfDesc ? cfDesc.value.trim() : "",
+        }, archiveUploaderOrigin);
+        archiveUploadModal.querySelector(".archive-upload-dialog").focus();
+      }));
+      archiveUploadClose.addEventListener("click", closeArchiveUpload);
+      archiveUploadModal.addEventListener("click", (event) => {
+        if (event.target === archiveUploadModal) closeArchiveUpload();
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !archiveUploadModal.hidden) closeArchiveUpload();
+      });
+      window.addEventListener("message", (event) => {
+        if (event.origin !== archiveUploaderOrigin || event.data?.type !== "dsacms:archive-file-selected") return;
+        let url;
+        try { url = new URL(event.data.url); } catch (_) { return; }
+        if (url.protocol !== "https:" || !["archive.org", "www.archive.org"].includes(url.hostname)) return;
+        const filename = String(event.data.filename || url.pathname.split("/").pop() || "");
+        if (/\.pdf$/i.test(filename)) {
+          if (cfPdf) cfPdf.value = url.href;
+          showToast("تمت إضافة رابط PDF إلى المادة.", "success");
+        } else {
+          if (cfAudio) {
+            cfAudio.value = url.href;
+            if (validateAudioUrl(url.href)) loadAudioDuration(url.href);
+          }
+          showToast("تمت إضافة رابط الصوت إلى المادة.", "success");
+        }
+        closeArchiveUpload();
+      });
+    }
+
     const editorSteps = $$("[data-editor-step]");
     let activeEditorStep = 1;
 
