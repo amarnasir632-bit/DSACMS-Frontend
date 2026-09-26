@@ -2199,7 +2199,7 @@
     const session = getSession();
     // حاجز RBAC (SEC-002): غير مسموح بالدخول دون جلسة
     if (!session || !["admin", "site_admin", "manager", "SHEIKH"].includes(session.role)) {
-      window.location.href = BASE + "login.html";
+      window.location.href = BASE + "pages/login.html";
       return;
     }
     if (["admin", "site_admin"].includes(session.role)) {
