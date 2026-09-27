@@ -2439,8 +2439,11 @@
         request.upload.addEventListener("progress", (event) => {
           if (event.lengthComputable) setUploadStatus(target, `جارٍ رفع الملف… ${Math.round(event.loaded / event.total * 100)}٪`, "loading");
         });
-        request.addEventListener("load", () => request.status >= 200 && request.status < 300
-          ? resolve() : reject(new Error(`فشل التخزين (${request.status}).`)));
+        request.addEventListener("load", () => {
+          if (request.status >= 200 && request.status < 300) { resolve(); return; }
+          const detail = String(request.responseText || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 180);
+          reject(new Error(`فشل التخزين (${request.status})${detail ? `: ${detail}` : "."}`));
+        });
         request.addEventListener("error", () => reject(new Error("تعذر الاتصال بالتخزين. تحقق من الاتصال وإعدادات السماح بالرفع من المتصفح.")));
         request.addEventListener("abort", () => reject(new Error("تم إلغاء رفع الملف.")));
         request.send(file);
