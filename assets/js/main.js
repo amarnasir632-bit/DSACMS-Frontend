@@ -2421,53 +2421,73 @@
     const editorTitle = $("#panel-editor-title");
     const editorAlert = $("#editor-alert");
     const newContentBtn = $("#btn-new-content");
-    const archiveUploadModal = $("#archive-upload-modal");
-    const archiveUploadFrame = $("#archive-uploader-frame");
     const archiveUploadButtons = [$("#cf-archive-upload"), $("#cf-archive-upload-pdf")].filter(Boolean);
-    const archiveUploadClose = $("#archive-upload-close");
-    const archiveUploaderOrigin = "https://ia-uploader-frontend.vercel.app";
-    let archiveIdentifier = "";
-
-    function closeArchiveUpload() {
-      if (archiveUploadModal) archiveUploadModal.hidden = true;
+    const mediaFileInput = $("#cf-media-file");
+    let selectedUploadTarget = "audio";
+    function setUploadStatus(target, message, state = "") {
+      const status = target === "pdf" ? $("#cf-pdf-upload-status") : $("#cf-audio-upload-status");
+      if (!status) return;
+      status.hidden = !message;
+      status.textContent = message;
+      status.dataset.state = state;
     }
-    if (archiveUploadButtons.length && archiveUploadModal && archiveUploadFrame) {
+    function putFileWithProgress(url, file, target, contentType) {
+      return new Promise((resolve, reject) => {
+        const request = new XMLHttpRequest();
+        request.open("PUT", url);
+        request.setRequestHeader("Content-Type", contentType || file.type || "application/octet-stream");
+        request.upload.addEventListener("progress", (event) => {
+          if (event.lengthComputable) setUploadStatus(target, `جارٍ رفع الملف… ${Math.round(event.loaded / event.total * 100)}٪`, "loading");
+        });
+        request.addEventListener("load", () => request.status >= 200 && request.status < 300
+          ? resolve() : reject(new Error(`فشل التخزين (${request.status}).`)));
+        request.addEventListener("error", () => reject(new Error("تعذر الاتصال بالتخزين. تحقق من الاتصال وإعدادات السماح بالرفع من المتصفح.")));
+        request.addEventListener("abort", () => reject(new Error("تم إلغاء رفع الملف.")));
+        request.send(file);
+      });
+    }
+    if (archiveUploadButtons.length && mediaFileInput) {
       archiveUploadButtons.forEach((button) => button.addEventListener("click", () => {
-        archiveIdentifier = `dsacms-${Date.now().toString(36)}`;
-        archiveUploadModal.hidden = false;
-        archiveUploadFrame.src = `${archiveUploaderOrigin}/?embed=1`;
-        archiveUploadFrame.onload = () => archiveUploadFrame.contentWindow.postMessage({
-          type: "dsacms:archive-context",
-          identifier: archiveIdentifier,
-          title: cfTitle ? cfTitle.value.trim() : "",
-          description: cfDesc ? cfDesc.value.trim() : "",
-        }, archiveUploaderOrigin);
-        archiveUploadModal.querySelector(".archive-upload-dialog").focus();
+        selectedUploadTarget = button.id === "cf-archive-upload-pdf" ? "pdf" : "audio";
+        mediaFileInput.accept = selectedUploadTarget === "pdf" ? ".pdf,application/pdf" : "audio/*";
+        mediaFileInput.value = "";
+        mediaFileInput.click();
       }));
-      archiveUploadClose.addEventListener("click", closeArchiveUpload);
-      archiveUploadModal.addEventListener("click", (event) => {
-        if (event.target === archiveUploadModal) closeArchiveUpload();
-      });
-      document.addEventListener("keydown", (event) => {
-        if (event.key === "Escape" && !archiveUploadModal.hidden) closeArchiveUpload();
-      });
-      window.addEventListener("message", (event) => {
-        if (event.origin !== archiveUploaderOrigin || event.data?.type !== "dsacms:archive-file-selected") return;
-        let url;
-        try { url = new URL(event.data.url); } catch (_) { return; }
-        if (url.protocol !== "https:" || !["archive.org", "www.archive.org"].includes(url.hostname)) return;
-        const filename = String(event.data.filename || url.pathname.split("/").pop() || "");
-        if (/\.pdf$/i.test(filename)) {
-          if (cfPdf) cfPdf.value = url.href;
-          showToast("تمت إضافة رابط PDF إلى المادة.", "success");
-        } else {
-          if (cfAudio) {
-            cfAudio.value = url.href;
-            if (validateAudioUrl(url.href)) loadAudioDuration(url.href);
-          }
-          showToast("تمت إضافة رابط الصوت إلى المادة.", "success");
+      mediaFileInput.addEventListener("change", async () => {
+        const file = mediaFileInput.files?.[0];
+        if (!file) return;
+        const isPdf = selectedUploadTarget === "pdf";
+        const ext = file.name.split(".").pop().toLowerCase();
+        const validAudioExtensions = ["mp3", "wav", "ogg", "oga", "m4a", "aac", "flac", "opus", "wma"];
+        const valid = isPdf ? file.type === "application/pdf" || ext === "pdf" : file.type.startsWith("audio/") || validAudioExtensions.includes(ext);
+        const target = isPdf ? "pdf" : "audio";
+        if (!valid || file.size > 2 * 1024 * 1024 * 1024) {
+          setUploadStatus(target, isPdf ? "اختر ملف PDF صالحًا لا يتجاوز حجمه 2 جيجابايت." : "اختر ملفًا صوتيًا صالحًا لا يتجاوز حجمه 2 جيجابايت.", "error");
+          return;
         }
-        closeArchiveUpload();
+        const button = archiveUploadButtons.find((item) => item.id === (isPdf ? "cf-archive-upload-pdf" : "cf-archive-upload"));
+        const field = isPdf ? cfPdf : cfAudio;
+        if (button) button.disabled = true;
+        setUploadStatus(target, "جارٍ تجهيز الرفع…", "loading");
+        try {
+          const prepared = await fetchApi("/media-upload", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ filename: file.name, contentType: isPdf ? "application/pdf" : (file.type || "application/octet-stream"), size: file.size }),
+          });
+          await putFileWithProgress(prepared.uploadUrl, file, target, prepared.contentType);
+          if (field) {
+            field.value = prepared.fileUrl;
+            field.dispatchEvent(new Event("input", { bubbles: true }));
+          }
+          if (!isPdf && validateAudioUrl(prepared.fileUrl)) loadAudioDuration(prepared.fileUrl);
+          setUploadStatus(target, "تم رفع الملف وإضافة رابطه تلقائيًا إلى الحقل.", "success");
+          showToast("تم رفع الملف وإضافة رابطه إلى المادة.", "success");
+        } catch (error) {
+          console.error("Media upload failed", error);
+          setUploadStatus(target, error.message || "تعذر رفع الملف. حاول مرة أخرى.", "error");
+        } finally {
+          if (button) button.disabled = false;
+        }
       });
     }
 

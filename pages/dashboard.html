@@ -236,11 +236,12 @@
                 <div class="form-group">
                   <label for="cf-audio">رابط الملف الصوتي</label>
                   <input type="url" id="cf-audio" name="audioUrl" class="field" maxlength="2000" placeholder="https://archive.org/download/.../audio.mp3" inputmode="url" aria-describedby="cf-audio-hint">
-                  <p class="hint" id="cf-audio-hint">الصق رابطًا مباشرًا للملف، أو ارفعه إلى Internet Archive من هنا ليُضاف رابطه تلقائيًا.</p>
+                  <p class="hint" id="cf-audio-hint">اختر ملفًا صوتيًا لرفعه مباشرة؛ سيُضاف الرابط تلقائيًا إلى الحقل.</p>
                   <div class="archive-upload-actions">
-                    <button type="button" class="btn btn--outline" id="cf-archive-upload">رفع ملف إلى Internet Archive</button>
-                    <span class="hint">يبقى إدخال الرابط يدويًا متاحًا في الحقل أعلاه.</span>
+                    <button type="button" class="btn btn--outline" id="cf-archive-upload">اختيار ملف صوتي ورفعه</button>
+                    <span class="hint">يدعم الملفات الصوتية حتى 2 جيجابايت.</span>
                   </div>
+                  <p class="upload-status" id="cf-audio-upload-status" role="status" aria-live="polite" hidden></p>
                   <p class="field-error-msg" id="err-cf-audio"></p>
                 </div>
               </div>
@@ -248,8 +249,9 @@
               <div class="form-group">
                 <label for="cf-pdf">رابط ملف PDF</label>
                 <input type="url" id="cf-pdf" name="pdf" class="field" maxlength="2000" placeholder="https://archive.org/download/.../book.pdf" inputmode="url">
-                <p class="hint">الصق رابطًا مباشرًا عامًا، أو ارفعه إلى Internet Archive وأضف رابطه تلقائيًا.</p>
-                <button type="button" class="btn btn--outline" id="cf-archive-upload-pdf">رفع PDF إلى Internet Archive</button>
+                <p class="hint">اختر ملف PDF لرفعه مباشرة؛ سيُضاف الرابط تلقائيًا إلى الحقل.</p>
+                <button type="button" class="btn btn--outline" id="cf-archive-upload-pdf">اختيار PDF ورفعه</button>
+                <p class="upload-status" id="cf-pdf-upload-status" role="status" aria-live="polite" hidden></p>
               </div>
               <div class="editor-step__actions">
                 <button type="button" class="btn btn--outline" data-step-prev="2">السابق</button>
@@ -418,18 +420,7 @@
     </div>
   </div>
 
-  <div class="modal-backdrop" id="archive-upload-modal" hidden role="dialog" aria-modal="true" aria-labelledby="archive-upload-title">
-    <section class="archive-upload-dialog" tabindex="-1">
-      <header class="archive-upload-dialog__header">
-        <div>
-          <h2 id="archive-upload-title">رفع الملف إلى Internet Archive</h2>
-          <p>بعد اكتمال الرفع اختر «استخدام الرابط في الموقع» لإضافته إلى المادة.</p>
-        </div>
-        <button type="button" class="btn btn--outline" id="archive-upload-close" aria-label="إغلاق نافذة الرفع">إغلاق</button>
-      </header>
-      <iframe id="archive-uploader-frame" title="أداة رفع الملفات إلى Internet Archive" src="about:blank" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>
-    </section>
-  </div>
+  <input class="visually-hidden" type="file" id="cf-media-file" tabindex="-1" aria-hidden="true">
 
   <!-- منطقة الإشعارات -->
   <div class="toast-region" id="toast-region" aria-live="polite"></div>
