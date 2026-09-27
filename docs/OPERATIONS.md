@@ -88,9 +88,8 @@ Internet Archive.
 
 **الحل المؤقت:** إبقاء proxy للملفات الصغيرة مع رسالة خطأ واضحة وحد حجم مؤقت.
 
-**الحل الإنتاجي:** رفع مباشر من المتصفح إلى Cloudflare R2، ثم معالجة غير متزامنة
-بواسطة Queue وWorker. هذا المسار موجود كـ scaffold في
-`backend/workers/archive-worker`.
+**الحل المستخدم:** رفع مباشر من المتصفح عبر Cloudflare Worker إلى Internet
+Archive، دون تمرير الملف عبر Vercel أو تخزينه في R2.
 
 ## 11. حذف المادة ثم عودتها بعد إعادة التحميل
 
@@ -116,21 +115,20 @@ Internet Archive.
 4. راجع Vercel Function Logs.
 5. استخدم رابط PostgreSQL صالحًا مع إعداد SSL المناسب.
 
-## 13. تصميم الرفع الإنتاجي
+## 13. الرفع المجاني إلى Internet Archive
 
-التدفق المستهدف:
+يرفع المتصفح الملفات إلى Worker في Cloudflare، ويمررها الـWorker إلى IAS3
+باستخدام ترويسة `Authorization: LOW`. يحتفظ Worker بمفاتيح Archive، بينما
+يصدر Backend تصريح HMAC صالحًا لملف واحد لمدة 15 دقيقة.
 
 ```text
-Browser -> R2 (direct upload)
-       -> Vercel API (metadata/control plane)
-       -> Cloudflare Queue
-       -> Archive Worker
-       -> Internet Archive
+Browser -> Vercel API (short-lived upload token)
+       -> Cloudflare Worker (streaming, no file buffering)
+       -> Internet Archive (public file URL)
 ```
 
-Worker يستخدم إعادة محاولة مع backoff وjitter عند `429` و`5xx`، ويستخدم Dead
-Letter Queue بعد تجاوز عدد المحاولات. لا تضع مفاتيح IA أو R2 في JavaScript
-المحمّل للمتصفح.
+Cloudflare Workers Free يحد الطلب الواحد إلى 100 MB؛ الواجهة والخادم يضعان
+حدًا أقل قدره 90 MiB. لا تضع مفاتيح IAS3 في JavaScript أو Vercel.
 
 ## 14. إعداد Worker
 
@@ -138,19 +136,15 @@ Letter Queue بعد تجاوز عدد المحاولات. لا تضع مفاتي
 
 ```bash
 cd backend/workers/archive-worker
-npx wrangler queues create dsacms-archive-queue
-npx wrangler queues create dsacms-archive-dlq
-npx wrangler secret put IA_BUCKET
 npx wrangler secret put IA_ACCESS_KEY
 npx wrangler secret put IA_SECRET_KEY
-npx wrangler secret put API_ORIGIN
-npx wrangler secret put INTERNAL_CALLBACK_TOKEN
-npx wrangler secret put PRODUCER_TOKEN
+npx wrangler secret put MEDIA_UPLOAD_SECRET
 npx wrangler deploy
 ```
 
-يجب إنشاء bucket باسم `dsacms-media` أو تعديل
-`wrangler.jsonc`، ثم اختبار Worker قبل تحويل الواجهة إليه.
+أضف `ARCHIVE_WORKER_URL` و`MEDIA_UPLOAD_SECRET` إلى إعدادات Vercel Backend؛ يجب
+أن تتطابق قيمة السر بين الخدمتين. أصول الواجهة المسموح بها مضمنة في
+`wrangler.jsonc` تحت `FRONTEND_ORIGINS`.
 
 ## 15. فحوص ما قبل النشر
 
@@ -205,10 +199,10 @@ node --check workers/archive-worker/src/index.js
 
 ## 19. أسرار وبيانات الاختبار
 
-- لا تحفظ كلمات المرور أو مفاتيح IA/R2 في Git.
+- لا تحفظ كلمات المرور أو مفاتيح IA أو `MEDIA_UPLOAD_SECRET` في Git.
 - دوّر أي مفتاح ظهر في الرسائل أو سجلات الاختبار.
 - احذف ملفات الاختبار من Internet Archive بعد التأكد من عدم الحاجة إليها.
 - لا تعتبر بيانات الجلسة المحلية دليل صلاحية؛ التحقق الحقيقي يجب أن يكون
   مركزيًا.
-- قبل الإنتاج، راجع CORS، حدود الرفع، سياسة حذف ملفات R2، وسياسة حذف أو إبقاء
-  نسخ Internet Archive.
+- قبل الإنتاج، تأكد من ضبط أصول Worker وحماية أسرار IAS3، وراجع شروط نشر
+  الملفات العامة في Internet Archive.

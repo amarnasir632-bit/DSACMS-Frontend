@@ -2431,17 +2431,25 @@
       status.textContent = message;
       status.dataset.state = state;
     }
-    function putFileWithProgress(url, file, target, contentType) {
+    function putFileWithProgress(url, file, target, contentType, uploadToken) {
       return new Promise((resolve, reject) => {
         const request = new XMLHttpRequest();
         request.open("PUT", url);
+        request.setRequestHeader("Authorization", `Bearer ${uploadToken}`);
         request.setRequestHeader("Content-Type", contentType || file.type || "application/octet-stream");
         request.upload.addEventListener("progress", (event) => {
           if (event.lengthComputable) setUploadStatus(target, `جارٍ رفع الملف… ${Math.round(event.loaded / event.total * 100)}٪`, "loading");
         });
         request.addEventListener("load", () => {
-          if (request.status >= 200 && request.status < 300) { resolve(); return; }
-          const detail = String(request.responseText || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 180);
+          if (request.status >= 200 && request.status < 300) {
+            try { resolve(JSON.parse(request.responseText)); }
+            catch (_) { reject(new Error("اكتمل الرفع لكن لم يصل رابط الملف من خدمة الأرشيف.")); }
+            return;
+          }
+          let detail = "";
+          try { detail = JSON.parse(request.responseText).error || ""; } catch (_) {
+            detail = String(request.responseText || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 180);
+          }
           reject(new Error(`فشل التخزين (${request.status})${detail ? `: ${detail}` : "."}`));
         });
         request.addEventListener("error", () => reject(new Error("تعذر الاتصال بالتخزين. تحقق من الاتصال وإعدادات السماح بالرفع من المتصفح.")));
@@ -2464,8 +2472,8 @@
         const validAudioExtensions = ["mp3", "wav", "ogg", "oga", "m4a", "aac", "flac", "opus", "wma"];
         const valid = isPdf ? file.type === "application/pdf" || ext === "pdf" : file.type.startsWith("audio/") || validAudioExtensions.includes(ext);
         const target = isPdf ? "pdf" : "audio";
-        if (!valid || file.size > 2 * 1024 * 1024 * 1024) {
-          setUploadStatus(target, isPdf ? "اختر ملف PDF صالحًا لا يتجاوز حجمه 2 جيجابايت." : "اختر ملفًا صوتيًا صالحًا لا يتجاوز حجمه 2 جيجابايت.", "error");
+        if (!valid || file.size > 90 * 1024 * 1024) {
+          setUploadStatus(target, isPdf ? "اختر ملف PDF صالحًا لا يتجاوز حجمه 90 ميغابايت." : "اختر ملفًا صوتيًا صالحًا لا يتجاوز حجمه 90 ميغابايت.", "error");
           return;
         }
         const button = archiveUploadButtons.find((item) => item.id === (isPdf ? "cf-archive-upload-pdf" : "cf-archive-upload"));
@@ -2475,14 +2483,20 @@
         try {
           const prepared = await fetchApi("/media-upload", {
             method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ filename: file.name, contentType: isPdf ? "application/pdf" : (file.type || "application/octet-stream"), size: file.size }),
+            body: JSON.stringify({
+              filename: file.name,
+              contentType: isPdf ? "application/pdf" : (file.type || "application/octet-stream"),
+              size: file.size,
+              title: cfTitle?.value.trim() || file.name,
+              description: cfDesc?.value.trim() || "",
+            }),
           });
-          await putFileWithProgress(prepared.uploadUrl, file, target, prepared.contentType);
+          const uploaded = await putFileWithProgress(prepared.uploadUrl, file, target, prepared.contentType, prepared.uploadToken);
           if (field) {
-            field.value = prepared.fileUrl;
+            field.value = uploaded.fileUrl;
             field.dispatchEvent(new Event("input", { bubbles: true }));
           }
-          if (!isPdf && validateAudioUrl(prepared.fileUrl)) loadAudioDuration(prepared.fileUrl);
+          if (!isPdf && validateAudioUrl(uploaded.fileUrl)) loadAudioDuration(uploaded.fileUrl);
           setUploadStatus(target, "تم رفع الملف وإضافة رابطه تلقائيًا إلى الحقل.", "success");
           showToast("تم رفع الملف وإضافة رابطه إلى المادة.", "success");
         } catch (error) {
