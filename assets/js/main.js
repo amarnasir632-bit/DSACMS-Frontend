@@ -2447,7 +2447,10 @@
     const periodSelect = $("#lectures-period");
     const weekPicker = $("#lectures-week-picker");
     const monthPicker = $("#lectures-month-picker");
+    const rangeFromPicker = $("#lectures-range-from");
+    const rangeToPicker = $("#lectures-range-to");
     const heading = $("#lectures-list-title");
+    const downloadButton = $("#lectures-download-image");
     const toISO = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     const formatDate = (value) => new Intl.DateTimeFormat("ar-SD", { weekday: "long", day: "numeric", month: "long" }).format(new Date(`${value}T12:00:00`));
     const formatRange = (date) => new Intl.DateTimeFormat("ar-SD", { day: "numeric", month: "long" }).format(date);
@@ -2460,12 +2463,28 @@
     let selectedEnd = new Date(today);
     let selectedPeriodLabel = "";
     let allLectures = [];
-
     const renderSchedule = () => {
       const mode = periodSelect.value;
       weekPicker.hidden = mode !== "specific-week";
       monthPicker.hidden = mode !== "month";
-      if (mode === "month") {
+      rangeFromPicker.hidden = mode !== "range";
+      rangeToPicker.hidden = mode !== "range";
+      if (mode === "range") {
+        const from = rangeFromPicker.value;
+        const to = rangeToPicker.value;
+        heading.textContent = "محاضرات الفترة المحددة";
+        if (!from || !to || from > to) {
+          selectedPeriodLabel = from && to ? "تاريخ البداية يجب أن يسبق تاريخ النهاية" : "اختر تاريخ البداية والنهاية";
+          weekLabel.textContent = selectedPeriodLabel;
+          currentWeek = [];
+          list.innerHTML = `<tr><td colspan="4" class="lectures-empty">${escapeHTML(selectedPeriodLabel)}</td></tr>`;
+          if (downloadButton) downloadButton.disabled = true;
+          return;
+        }
+        selectedStart = new Date(`${from}T12:00:00`);
+        selectedEnd = new Date(`${to}T12:00:00`);
+        selectedPeriodLabel = `من ${formatDate(from)} إلى ${formatDate(to)}`;
+      } else if (mode === "month") {
         const value = monthPicker.value || todayIso.slice(0, 7);
         const [year, month] = value.split("-").map(Number);
         selectedStart = new Date(year, month - 1, 1);
@@ -2497,19 +2516,22 @@
           <td data-label="المحاضرة">${escapeHTML(item.title)}</td>
           <td data-label="المسجد">${escapeHTML(item.mosque)}</td>
         </tr>`).join("") : `<tr><td colspan="4" class="lectures-empty">لا توجد محاضرات معلنة في الفترة المحددة.</td></tr>`;
+      if (downloadButton) downloadButton.disabled = false;
     };
     periodSelect?.addEventListener("change", renderSchedule);
     weekPicker?.addEventListener("change", renderSchedule);
     monthPicker?.addEventListener("change", renderSchedule);
+    rangeFromPicker?.addEventListener("change", renderSchedule);
+    rangeToPicker?.addEventListener("change", renderSchedule);
     try {
       allLectures = await fetchApi("/lectures");
       renderSchedule();
     } catch (error) {
       console.error("Unable to load lectures", error);
       list.innerHTML = `<tr><td colspan="4" class="lectures-empty" role="status">تعذر تحميل الجدول الآن. يرجى المحاولة لاحقًا.</td></tr>`;
+      if (downloadButton) downloadButton.disabled = true;
     }
 
-    const downloadButton = $("#lectures-download-image");
     const imageStatus = $("#lectures-image-status");
     downloadButton?.addEventListener("click", async () => {
       downloadButton.disabled = true;

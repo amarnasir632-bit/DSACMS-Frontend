@@ -61,9 +61,12 @@
             <option value="current-week">الأسبوع الحالي</option>
             <option value="specific-week">أسبوع محدد</option>
             <option value="month">شهر محدد</option>
+            <option value="range">فترة من تاريخ إلى تاريخ</option>
           </select>
           <input class="field" id="lectures-week-picker" type="date" aria-label="اختر يومًا من الأسبوع المطلوب" hidden>
           <input class="field" id="lectures-month-picker" type="month" aria-label="اختر الشهر المطلوب" hidden>
+          <input class="field" id="lectures-range-from" type="date" aria-label="تاريخ بداية الفترة" hidden>
+          <input class="field" id="lectures-range-to" type="date" aria-label="تاريخ نهاية الفترة" hidden>
         </div>
         <div class="lectures-table-wrap">
           <table class="lectures-table">
@@ -80,6 +83,6 @@
   <footer class="site-footer">
     <div class="container"><div class="footer-bottom"><p>© <span id="year">2026</span> موقع الشيخ محمد أحمد الهادي الكرار</p></div></div>
   </footer>
-  <script src="../assets/js/main.js?v=20260930-lecture-cairo3" defer></script>
+  <script src="../assets/js/main.js?v=20260930-lecture-range" defer></script>
 </body>
 </html>
