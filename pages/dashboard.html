@@ -9,7 +9,7 @@
   <meta name="description" content="لوحة إدارة المحتوى والتصنيفات والمستخدمين وسجل العمليات في نظام DSACMS.">
   <meta name="robots" content="noindex, nofollow">
 
-  <link rel="stylesheet" href="../assets/css/style.css?v=20260926-archive-upload">
+  <link rel="stylesheet" href="../assets/css/style.css?v=20260930-reliability">
   <link rel="icon" type="image/png" href="../assets/images/logo.png">
 </head>
 
@@ -185,15 +185,6 @@
                   </select>
                   <p class="field-error-msg" id="err-cf-category">اختر تصنيفاً.</p>
                 </div>
-                <div class="form-group">
-                  <label for="cf-status">الحالة</label>
-                  <select id="cf-status" name="status" class="field">
-                    <option value="published">منشور</option>
-                    <option value="draft">مسودة (Draft)</option>
-                    <option value="archived">مؤرشف</option>
-                  </select>
-                  <p class="hint">المواد غير المنشورة لا تظهر للمستخدم العام (BR-002).</p>
-                </div>
               </div>
 
               <div class="form-group">
@@ -294,6 +285,16 @@
                 </div>
               </fieldset>
 
+              <div class="form-group publication-state">
+                <label for="cf-status">حالة المادة عند الحفظ</label>
+                <select id="cf-status" name="status" class="field">
+                  <option value="published">منشور — يظهر للزوار</option>
+                  <option value="draft">مسودة — محفوظ للتحرير ولا يظهر للزوار</option>
+                  <option value="archived">مؤرشف — محفوظ في الإدارة ومخفي عن الزوار</option>
+                </select>
+                <p class="hint" id="cf-status-description" aria-live="polite">تظهر المادة المنشورة للزوار في الموقع.</p>
+              </div>
+
               <div class="form-group" style="display:flex;gap:var(--space-2);flex-wrap:wrap;">
                 <button type="button" class="btn btn--outline" data-step-prev="3">السابق</button>
                 <button type="submit" class="btn btn--primary" id="cf-submit">حفظ المادة</button>
@@ -381,7 +382,7 @@
           <!-- ===== سجل العمليات (Admin فقط – FR-019 / SEC-012) ===== -->
           <section class="dash-panel" id="panel-audit" aria-hidden="true" aria-labelledby="panel-audit-title">
             <div class="dash-panel-head">
-              <h2 id="panel-audit-title">سجل العمليات (Audit Log)</h2>
+              <h2 id="panel-audit-title">سجل العمليات </h2>
               <div class="list-toolbar">
                 <label class="visually-hidden" for="audit-filter">تصفية السجل</label>
                 <input type="search" id="audit-filter" class="field" placeholder="تصفية…" aria-label="تصفية سجل العمليات">
@@ -436,6 +437,6 @@
   </footer>
 
   <!-- التذييل -->
-  <script src="../assets/js/main.js?v=20260926-archive-upload" defer></script>
+  <script src="../assets/js/main.js?v=20260930-reliability" defer></script>
 </body>
 </html>

@@ -20,7 +20,7 @@
   <meta name="twitter:title" content="الأسئلة والفتاوى | مكتبة الشيخ محمد أحمد الهادي الكرار">
   <meta name="twitter:description" content="تصفح الإجابات المنشورة واطرح سؤالك الشرعي.">
   <meta name="twitter:image" content="https://mohamedalahadi.com/assets/images/logo.png">
-  <link rel="stylesheet" href="../assets/css/style.css">
+  <link rel="stylesheet" href="../assets/css/style.css?v=20260930-reliability">
   <link rel="icon" type="image/png" href="../assets/images/logo.png">
   <script type="application/ld+json">
   {
@@ -59,18 +59,33 @@
     <div class="container qa-layout">
       <header>
         <h1>الأسئلة والفتاوى</h1>
-        <p class="section-desc">أرسل سؤالك، وتظهر الإجابة للعامة بعد مراجعة الشيخ ونشرها.</p>
+        <p class="section-desc">أرسل سؤالك للشيخ، وستظهر الإجابة هنا بعد مراجعتها ونشرها. تختلف مدة الرد بحسب توفر الشيخ.</p>
+        <p class="section-desc">تعتمد الإجابة على التفاصيل المذكورة في السؤال؛ أعد إرسال سؤالك إذا كانت هناك معلومات لازمة لم تذكرها، مع تجنب البيانات التي تكشف هويتك.</p>
       </header>
       <section class="card qa-form-card" aria-labelledby="ask-question-title">
         <h2 id="ask-question-title">أرسل سؤالك</h2>
+        <p class="alert alert--info qa-privacy-note">اكتب سؤالك بوضوح، وتجنب ذكر الأسماء أو أي معلومات خاصة. إذا نُشرت الإجابة فسيكون السؤال والإجابة متاحين لجميع زوار الموقع.</p>
         <form id="question-form">
           <div class="form-group">
-            <label for="question-asker-name">اسم السائل (اختياري)</label>
+            <label for="question-asker-name">اسم العرض (اختياري)</label>
             <input id="question-asker-name" class="field" maxlength="255" autocomplete="name">
           </div>
           <div class="form-group">
+            <label for="question-category">موضوع السؤال</label>
+            <select id="question-category" class="field">
+              <option value="عام">عام</option>
+              <option value="العقيدة">العقيدة</option>
+              <option value="العبادات">العبادات</option>
+              <option value="الأسرة">الأسرة</option>
+              <option value="المعاملات">المعاملات</option>
+              <option value="الآداب والسلوك">الآداب والسلوك</option>
+              <option value="أخرى">أخرى</option>
+            </select>
+          </div>
+          <div class="form-group">
             <label for="question-text">السؤال <span aria-hidden="true">*</span></label>
-            <textarea id="question-text" class="field" rows="6" maxlength="10000" required></textarea>
+            <textarea id="question-text" class="field" rows="6" minlength="10" maxlength="10000" aria-describedby="question-guidance" required></textarea>
+            <p class="hint" id="question-guidance">اذكر التفاصيل اللازمة لفهم المسألة، مثل البلد أو الظروف المرتبطة بها، من دون بيانات تكشف هويتك. الحد الأدنى 10 أحرف.</p>
           </div>
           <div class="qa-honeypot" aria-hidden="true">
             <label for="website-url">موقعك</label>
@@ -82,11 +97,18 @@
       </section>
       <section aria-labelledby="answered-questions-title">
         <h2 id="answered-questions-title">الأسئلة المجاب عنها</h2>
+        <div class="qa-tools" id="public-question-tools" hidden>
+          <label class="visually-hidden" for="public-question-search">ابحث في الأسئلة والإجابات</label>
+          <input id="public-question-search" class="field" type="search" placeholder="ابحث في الأسئلة والإجابات…">
+          <label class="visually-hidden" for="public-question-category">صفّ حسب الموضوع</label>
+          <select id="public-question-category" class="field"><option value="">كل الموضوعات</option></select>
+        </div>
         <div id="public-questions-list" class="qa-list" aria-live="polite"></div>
+        <nav id="public-question-pagination" class="qa-pagination" aria-label="صفحات الأسئلة المجاب عنها" hidden></nav>
       </section>
     </div>
   </main>
   <footer class="site-footer"><div class="container"><p>© 2026 موقع الشيخ محمد أحمد الهادي الكرار</p></div></footer>
-  <script src="../assets/js/main.js?v=20260924-account-password" defer></script>
+  <script src="../assets/js/main.js?v=20260930-reliability" defer></script>
 </body>
 </html>

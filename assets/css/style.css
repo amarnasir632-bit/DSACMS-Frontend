@@ -260,6 +260,43 @@ table {
 .qa-form-card {
   max-width: 48rem;
 }
+.qa-privacy-note {
+  margin-block: var(--space-3) var(--space-4);
+  line-height: 1.8;
+}
+.qa-tools {
+  display: grid;
+  grid-template-columns: minmax(12rem, 2fr) minmax(10rem, 1fr);
+  gap: var(--space-3);
+  margin-block: var(--space-3) var(--space-4);
+}
+.qa-item-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--fs-sm);
+  margin-block-end: var(--space-3);
+}
+.qa-category {
+  display: inline-flex;
+  border-radius: var(--radius-pill);
+  padding: 0.15rem 0.65rem;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  font-weight: 700;
+}
+.qa-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-block: var(--space-4);
+}
+.qa-pagination[hidden],
+.qa-tools[hidden] {
+  display: none;
+}
 .qa-honeypot {
   position: absolute;
   inset-inline-start: -9999px;
@@ -286,6 +323,24 @@ table {
   font-family: var(--font-reading);
   font-size: 1.25rem;
   line-height: 2;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.qa-category-editor {
+  display: grid;
+  grid-template-columns: auto minmax(10rem, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block: var(--space-3) var(--space-4);
+}
+.qa-category-editor label {
+  font-weight: 700;
+}
+.publication-state {
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-muted);
 }
 .qa-answer {
   padding: var(--space-3);
@@ -304,6 +359,17 @@ table {
 }
 .qa-admin-item textarea {
   min-height: 8rem;
+}
+@media (max-width: 600px) {
+  .qa-tools {
+    grid-template-columns: 1fr;
+  }
+  .qa-category-editor {
+    grid-template-columns: 1fr;
+  }
+  .qa-pagination {
+    gap: var(--space-2);
+  }
 }
 
 /* أزرار تنقّل كبيرة ومثبتة لتسهيل الصعود والنزول، خصوصاً على الهاتف */

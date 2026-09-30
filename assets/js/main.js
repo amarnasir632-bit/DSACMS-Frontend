@@ -646,6 +646,9 @@
         }
       }
       const error = new Error(`API request failed: ${response.status}${detail}`);
+      error.status = response.status;
+      error.detail = detail.replace(/^:\s*/, "");
+      error.path = path;
       console.error("DSACMS API request failed", {
         path,
         method: requestOptions.method || "GET",
@@ -778,9 +781,21 @@
   function passwordPolicyError(pw) {
     if (!pw || pw.length < 8) return "كلمة المرور يجب ألا تقل عن 8 أحرف.";
     if (!/[A-Za-z\u0621-\u064a]/.test(pw)) return "كلمة المرور يجب أن تحتوي على حرف واحد على الأقل.";
-    if (!/\d/.test(pw)) return "كلمة المرور يجب أن تحتوي على رقم واحد على الأقل.";
+    if (!/[0-9\u0660-\u0669\u06f0-\u06f9]/.test(pw)) return "كلمة المرور يجب أن تحتوي على رقم واحد على الأقل.";
     if (!/[A-Z\u0621-\u064a]/.test(pw)) return "كلمة المرور يجب أن تحتوي على حرف كبير أو حرف عربي على الأقل.";
     return null;
+  }
+
+  function passwordChangeErrorMessage(error) {
+    if (error?.name === "AbortError") return "انتهت مهلة الاتصال. تحقق من الشبكة ثم حاول مرة أخرى.";
+    if (error?.status === 401) {
+      return String(error.detail || "").includes("كلمة المرور الحالية")
+        ? "كلمة المرور الحالية غير صحيحة. تحقق منها وحاول مرة أخرى."
+        : "انتهت الجلسة. سجّل الدخول من جديد ثم غيّر كلمة المرور.";
+    }
+    if (error?.status === 400) return error.detail || "كلمة المرور الجديدة لا تحقق الشروط المطلوبة.";
+    if (error?.status >= 500) return "تعذر تحديث كلمة المرور على الخادم الآن. حاول بعد قليل.";
+    return "تعذر تغيير كلمة المرور. تحقق من اتصالك وحاول مرة أخرى.";
   }
 
   /** التحقق من بيانات الدخول مقابل المستخدمين النشطين */
@@ -829,7 +844,7 @@
 
     _bindEvents() {
       const a = this.audio;
-      a.preload = "metadata";
+      a.preload = "none";
 
       a.addEventListener("loadedmetadata", () => {
         this._notify("onMeta", a.duration);
@@ -838,6 +853,10 @@
         this._notify("onTime", a.currentTime, a.duration);
       });
       a.addEventListener("play", () => this._notify("onPlay"));
+      a.addEventListener("loadstart", () => this._notify("onLoading"));
+      a.addEventListener("waiting", () => this._notify("onBuffering"));
+      a.addEventListener("stalled", () => this._notify("onBuffering"));
+      a.addEventListener("canplay", () => this._notify("onReady"));
       a.addEventListener("pause", () => this._notify("onPause"));
       a.addEventListener("ended", () => this._notify("onEnd"));
       a.addEventListener("error", () => {
@@ -861,10 +880,14 @@
 
       const a = this.audio;
       a.pause();
+      const sameSource = a.getAttribute("data-src") === src;
+      this._notify("onLoading");
       // تفادي إعادة تحميل نفس الملف عند كل ضغطة
-      if (a.getAttribute("data-src") !== src) {
+      if (!sameSource) {
         a.setAttribute("data-src", src);
         a.src = src;
+        a.load();
+      } else if (a.error || a.networkState === 3) {
         a.load();
       }
       a.volume = this.isMuted ? 0 : this.volume;
@@ -932,6 +955,8 @@
     AudioPlayer.register(id, {
       onPlay: () => setLabel(true),
       onPause: () => setLabel(false),
+      onLoading: () => { btn.querySelector("[data-label]").textContent = "جارٍ التحميل…"; },
+      onReady: () => { if (AudioPlayer.audio.paused) btn.querySelector("[data-label]").textContent = "تشغيل"; },
       onTime: () => {},
       onMeta: () => {},
       onError: () => setLabel(false),
@@ -1005,8 +1030,18 @@
       onPlay() {
         toggleBtn.setAttribute("aria-pressed", "true");
         toggleBtn.querySelector(".icon").textContent = "⏸";
-        status.textContent = "جارٍ التشغيل…";
+        status.textContent = "يعمل الآن";
         status.classList.remove("player__error");
+      },
+      onLoading() {
+        status.textContent = "جارٍ تحميل الصوت…";
+        status.classList.remove("player__error");
+      },
+      onBuffering() {
+        status.textContent = "الاتصال بطيء؛ جارٍ استكمال تحميل الصوت…";
+      },
+      onReady() {
+        if (AudioPlayer.audio.paused) status.textContent = "الصوت جاهز. اضغط تشغيل.";
       },
       onPause() {
         toggleBtn.setAttribute("aria-pressed", "false");
@@ -1038,7 +1073,10 @@
       onError() {
         toggleBtn.setAttribute("aria-pressed", "false");
         toggleBtn.querySelector(".icon").textContent = "▶";
-        status.textContent = "تعذّر تحميل الملف الصوتي (AF-007)";
+        const mediaError = AudioPlayer.audio.error;
+        status.textContent = mediaError?.code === 4
+          ? "صيغة الصوت غير مدعومة أو أن الرابط لا يشير إلى ملف صوت مباشر."
+          : "تعذّر تحميل الصوت. تحقق من اتصالك ثم حاول مجدداً.";
         status.classList.add("player__error");
       },
     });
@@ -1089,6 +1127,16 @@
      5) التهيئة المشتركة لكل الصفحات (هيدر/فوتر/جلسة)
      ====================================================================== */
   function initShared() {
+    // جميع مشغلات الصفحة، بما فيها عناصر audio الأصلية، تتناوب على التشغيل.
+    document.addEventListener("play", (event) => {
+      const playing = event.target;
+      if (!(playing instanceof HTMLMediaElement)) return;
+      $$('audio').forEach((audio) => {
+        if (audio !== playing) audio.pause();
+      });
+      if (playing !== AudioPlayer.audio) AudioPlayer.pause();
+    }, true);
+
     // أزرار تنقّل ثابتة تساعد على الوصول إلى بداية الصفحة ونهايتها.
     const scrollControls = document.createElement("div");
     scrollControls.className = "scroll-controls";
@@ -1823,15 +1871,51 @@
   function renderPublicQuestions(items) {
     const list = $("#public-questions-list");
     if (!list) return;
-    list.innerHTML = items.length
-      ? items.map((item) => `
+    const tools = $("#public-question-tools");
+    const search = $("#public-question-search");
+    const categoryFilter = $("#public-question-category");
+    const pagination = $("#public-question-pagination");
+    const pageSize = 10;
+    let currentPage = 1;
+    const categories = [...new Set(items.map((item) => item.category || "عام"))].sort((a, b) => a.localeCompare(b, "ar"));
+    if (categoryFilter) {
+      categoryFilter.innerHTML = '<option value="">كل الموضوعات</option>' + categories.map((category) => `<option value="${escapeHTML(category)}">${escapeHTML(category)}</option>`).join("");
+    }
+    if (tools) tools.hidden = items.length === 0;
+    const render = () => {
+      const query = (search?.value || "").trim().toLocaleLowerCase("ar");
+      const selectedCategory = categoryFilter?.value || "";
+      const filtered = items.filter((item) => {
+        const content = `${item.question_text || ""} ${item.answer_text || ""} ${item.asker_name || ""}`.toLocaleLowerCase("ar");
+        return (!query || content.includes(query)) && (!selectedCategory || (item.category || "عام") === selectedCategory);
+      });
+      const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+      currentPage = Math.min(currentPage, pageCount);
+      const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+      list.innerHTML = visible.length
+      ? visible.map((item) => `
         <article class="qa-item">
-          <h3>سؤال ${escapeHTML(item.asker_name || "فاعل خير")}</h3>
+          <div class="qa-item-meta"><span class="qa-category">${escapeHTML(item.category || "عام")}</span><span>${escapeHTML(item.asker_name || "بدون اسم")}</span></div>
+          <h3>السؤال</h3>
           <p class="qa-question">${escapeHTML(item.question_text)}</p>
           <div class="qa-answer"><strong>الإجابة:</strong><br>${escapeHTML(item.answer_text)}</div>
           <small>تاريخ الإجابة: ${formatDate(item.answered_at)}</small>
         </article>`).join("")
-      : '<p class="alert alert--info">لا توجد أسئلة مجاب عنها حتى الآن.</p>';
+      : `<p class="alert alert--info">${items.length ? "لا توجد نتائج مطابقة. جرّب كلمات أو موضوعاً آخر." : "لا توجد أسئلة مجاب عنها حتى الآن."}</p>`;
+      if (pagination) {
+        pagination.hidden = filtered.length <= pageSize;
+        pagination.innerHTML = pagination.hidden ? "" : `<button type="button" class="btn btn--outline btn--sm" data-question-page="prev" ${currentPage === 1 ? "disabled" : ""}>السابق</button><span>صفحة ${currentPage} من ${pageCount}</span><button type="button" class="btn btn--outline btn--sm" data-question-page="next" ${currentPage === pageCount ? "disabled" : ""}>التالي</button>`;
+      }
+    };
+    search?.addEventListener("input", () => { currentPage = 1; render(); });
+    categoryFilter?.addEventListener("change", () => { currentPage = 1; render(); });
+    pagination?.addEventListener("click", (event) => {
+      const direction = event.target.closest("[data-question-page]")?.dataset.questionPage;
+      if (!direction) return;
+      currentPage += direction === "next" ? 1 : -1;
+      render();
+    });
+    render();
   }
 
   async function initQuestions() {
@@ -1859,6 +1943,7 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             asker_name: $("#question-asker-name").value.trim(),
+            category: $("#question-category").value,
             question_text: question,
             website_url: $("#website-url").value,
           }),
@@ -1867,7 +1952,11 @@
         status.textContent = "تم استلام سؤالك للمراجعة، وستظهر الإجابة بعد نشرها.";
       } catch (error) {
         console.error("Unable to submit question", error);
-        status.textContent = "تعذر إرسال السؤال. حاول لاحقاً.";
+        status.textContent = error.message.includes("429")
+          ? "وصلت للحد المسموح من الأسئلة حالياً. حاول بعد خمس دقائق."
+          : error.message.includes("400")
+            ? "يرجى كتابة سؤال لا يقل عن 10 أحرف."
+            : "تعذر إرسال السؤال حالياً. تحقق من اتصالك وحاول لاحقاً.";
       } finally {
         submit.disabled = false;
       }
@@ -1941,7 +2030,7 @@
           showToast("تم تغيير كلمة المرور بنجاح.");
           goToDashboard(getSession());
         } catch (requestError) {
-          error.textContent = requestError.message || "تعذر تغيير كلمة المرور. حاول مرة أخرى.";
+          error.textContent = passwordChangeErrorMessage(requestError);
           error.hidden = false;
         } finally {
           submit.disabled = false;
@@ -2053,7 +2142,7 @@
         form.reset();
         showToast("تم تغيير كلمة المرور بنجاح.");
       } catch (requestError) {
-        error.textContent = requestError.message || "تعذر تغيير كلمة المرور. تحقق من كلمة المرور الحالية وحاول مجدداً.";
+        error.textContent = passwordChangeErrorMessage(requestError);
         error.hidden = false;
       } finally {
         submit.disabled = false;
@@ -2091,7 +2180,7 @@
   }
 
   /** نافذة تأكيد ديناميكية تُرجع وعداً */
-  function confirmAction(title, desc) {
+  function confirmAction(title, desc, confirmLabel = "تأكيد", confirmClass = "btn--danger") {
     return new Promise((resolve) => {
       const modal = $("#confirm-modal");
       if (!modal) return resolve(true);
@@ -2100,20 +2189,31 @@
       modal.hidden = false;
       const confirmEl = $("#modal-confirm");
       const cancelEl = $("#modal-cancel");
+      const previousConfirmLabel = confirmEl.textContent;
+      const previousConfirmClass = confirmEl.className;
+      confirmEl.textContent = confirmLabel;
+      confirmEl.className = `btn ${confirmClass}`;
+      let settled = false;
 
       const finish = (val) => {
+        if (settled) return;
+        settled = true;
         modal.hidden = true;
         confirmEl.removeEventListener("click", onConfirm);
         cancelEl.removeEventListener("click", onCancel);
+        modal.removeEventListener("click", onBackdrop);
+        confirmEl.textContent = previousConfirmLabel;
+        confirmEl.className = previousConfirmClass;
         resolve(val);
       };
       const onConfirm = () => finish(true);
       const onCancel = () => finish(false);
+      const onBackdrop = (event) => {
+        if (event.target === modal) finish(false);
+      };
       $("#modal-cancel").addEventListener("click", onCancel);
       $("#modal-confirm").addEventListener("click", onConfirm);
-      modal.addEventListener("click", (e) => {
-        if (e.target === modal) finish(false);
-      });
+      modal.addEventListener("click", onBackdrop);
       $("#modal-cancel").focus();
     });
   }
@@ -2121,12 +2221,20 @@
   async function initSheikhQuestions() {
     const pendingList = $("#pending-questions-list");
     const answeredList = $("#answered-questions-list");
+    const questionCategories = ["عام", "العقيدة", "العبادات", "الأسرة", "المعاملات", "الآداب والسلوك", "أخرى"];
     const render = (items, target, answered) => {
       if (!target) return;
       target.innerHTML = items.length ? items.map((item) => `
         <article class="qa-item qa-admin-item">
-          <h3>${escapeHTML(item.asker_name || "فاعل خير")}</h3>
+          <div class="qa-item-meta"><span class="qa-category">${escapeHTML(item.category || "عام")}</span><span>${escapeHTML(item.asker_name || "بدون اسم")}</span></div>
           <p class="qa-question">${escapeHTML(item.question_text)}</p>
+          <div class="qa-category-editor">
+            <label for="question-category-${escapeHTML(item.id)}">تصنيف السؤال</label>
+            <select class="field" id="question-category-${escapeHTML(item.id)}" data-question-category="${escapeHTML(item.id)}">
+              ${questionCategories.map((category) => `<option value="${escapeHTML(category)}" ${category === (item.category || "عام") ? "selected" : ""}>${escapeHTML(category)}</option>`).join("")}
+            </select>
+            <button type="button" class="btn btn--outline btn--sm" data-question-action="category" data-question-id="${escapeHTML(item.id)}">حفظ التصنيف</button>
+          </div>
           <label for="answer-${escapeHTML(item.id)}">${answered ? "الإجابة" : "اكتب الإجابة"}</label>
           <textarea class="field" id="answer-${escapeHTML(item.id)}">${escapeHTML(item.answer_text || "")}</textarea>
           <div class="form-group" style="display:flex;gap:var(--space-2);flex-wrap:wrap;margin-block-start:var(--space-3);">
@@ -2160,6 +2268,7 @@
       if (!button) return;
       const id = button.dataset.questionId;
       const textarea = $(`#answer-${CSS.escape(id)}`);
+      const categorySelect = $(`[data-question-category="${CSS.escape(id)}"]`);
       try {
         button.disabled = true;
         if (button.dataset.questionAction === "delete") {
@@ -2176,6 +2285,12 @@
           );
           if (!ok) return;
           await fetchApi(`/questions/sheikh/${encodeURIComponent(id)}/reject`, { method: "PATCH" });
+        } else if (button.dataset.questionAction === "category") {
+          await fetchApi(`/questions/sheikh/${encodeURIComponent(id)}/category`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ category: categorySelect?.value || "عام" }),
+          });
         } else {
           await fetchApi(`/questions/sheikh/${encodeURIComponent(id)}/${button.dataset.questionAction === "edit" ? "edit" : "answer"}`, {
             method: "PATCH",
@@ -2406,6 +2521,7 @@
     const cfAuthor = $("#cf-author");
     const cfCategory = $("#cf-category");
     const cfStatus = $("#cf-status");
+    const cfStatusDescription = $("#cf-status-description");
     const cfDesc = $("#cf-description");
     const cfKeywords = $("#cf-keywords");
     const cfDate = $("#cf-date");
@@ -2421,6 +2537,16 @@
     const editorTitle = $("#panel-editor-title");
     const editorAlert = $("#editor-alert");
     const newContentBtn = $("#btn-new-content");
+    const statusDescriptions = {
+      published: "تظهر المادة المنشورة للزوار في الموقع.",
+      draft: "تُحفظ المسودة للتحرير لاحقاً، ولا تظهر للزوار.",
+      archived: "تظل المادة محفوظة في لوحة الإدارة، لكنها مخفية عن الزوار.",
+    };
+    const updateStatusDescription = () => {
+      if (cfStatusDescription && cfStatus) cfStatusDescription.textContent = statusDescriptions[cfStatus.value] || statusDescriptions.published;
+    };
+    cfStatus?.addEventListener("change", updateStatusDescription);
+    updateStatusDescription();
     const archiveUploadButtons = [$("#cf-archive-upload"), $("#cf-archive-upload-pdf")].filter(Boolean);
     const mediaFileInput = $("#cf-media-file");
     let selectedUploadTarget = "audio";
@@ -2431,15 +2557,27 @@
       status.textContent = message;
       status.dataset.state = state;
     }
+    function uploadErrorMessage(error) {
+      if (error?.name === "AbortError") return "انتهت مهلة تجهيز الرفع. تحقق من الاتصال وحاول مرة أخرى.";
+      if (error?.status === 401) return "انتهت جلستك. سجّل الدخول مجدداً ثم أعد الرفع.";
+      if (error?.status === 403) return "تعذر تصريح الرفع؛ تحقق من إعدادات نطاق الموقع وصلاحية التصريح ثم حاول مجدداً.";
+      if (error?.status === 404) return "خدمة الأرشيف غير متاحة حالياً. تحقق من رابط Worker.";
+      if (error?.status === 413) return "حجم الملف أكبر من الحد المسموح (90 ميغابايت).";
+      if (error?.status === 503) return "إعدادات الرفع غير مكتملة على الخادم. أبلغ مدير الموقع.";
+      if (error?.status === 502) return "رفض الأرشيف الملف أو تعذر إكمال التخزين. أعد المحاولة بعد قليل.";
+      return error?.message || "تعذر رفع الملف. تحقق من الاتصال وإعدادات خدمة الأرشيف.";
+    }
     function putFileWithProgress(url, file, target, contentType, uploadToken) {
       return new Promise((resolve, reject) => {
         const request = new XMLHttpRequest();
         request.open("PUT", url);
+        request.timeout = 20 * 60 * 1000;
         request.setRequestHeader("Authorization", `Bearer ${uploadToken}`);
         request.setRequestHeader("Content-Type", contentType || file.type || "application/octet-stream");
         request.upload.addEventListener("progress", (event) => {
           if (event.lengthComputable) setUploadStatus(target, `جارٍ رفع الملف… ${Math.round(event.loaded / event.total * 100)}٪`, "loading");
         });
+        request.upload.addEventListener("load", () => setUploadStatus(target, "اكتمل النقل؛ جارٍ حفظ الملف في الأرشيف…", "loading"));
         request.addEventListener("load", () => {
           if (request.status >= 200 && request.status < 300) {
             try { resolve(JSON.parse(request.responseText)); }
@@ -2450,10 +2588,13 @@
           try { detail = JSON.parse(request.responseText).error || ""; } catch (_) {
             detail = String(request.responseText || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 180);
           }
-          reject(new Error(`فشل التخزين (${request.status})${detail ? `: ${detail}` : "."}`));
+          const error = new Error(`فشل التخزين (${request.status})${detail ? `: ${detail}` : "."}`);
+          error.status = request.status;
+          reject(error);
         });
         request.addEventListener("error", () => reject(new Error("تعذر الاتصال بالتخزين. تحقق من الاتصال وإعدادات السماح بالرفع من المتصفح.")));
         request.addEventListener("abort", () => reject(new Error("تم إلغاء رفع الملف.")));
+        request.addEventListener("timeout", () => reject(new Error("استغرق الرفع وقتاً أطول من المسموح. تحقق من الاتصال ثم أعد المحاولة.")));
         request.send(file);
       });
     }
@@ -2501,7 +2642,7 @@
           showToast("تم رفع الملف وإضافة رابطه إلى المادة.", "success");
         } catch (error) {
           console.error("Media upload failed", error);
-          setUploadStatus(target, error.message || "تعذر رفع الملف. حاول مرة أخرى.", "error");
+          setUploadStatus(target, uploadErrorMessage(error), "error");
         } finally {
           if (button) button.disabled = false;
         }
@@ -2553,6 +2694,7 @@
       if (cfAuthor) cfAuthor.value = content.author;
       if (cfCategory) cfCategory.value = content.category;
       if (cfStatus) cfStatus.value = content.status;
+      updateStatusDescription();
       if (cfDesc) cfDesc.value = content.description || "";
       if (cfKeywords) cfKeywords.value = (content.keywords || []).join("، ");
       if (cfDate) cfDate.value = (content.pubDate || "").slice(0, 10);
@@ -2572,6 +2714,7 @@
 
     function resetEditor() {
       if (cfForm) cfForm.reset();
+      updateStatusDescription();
       showEditorStep(1);
       if ($("#cf-id")) $("#cf-id").value = "";
       if (editorTitle) editorTitle.textContent = "إضافة مادة جديدة";
@@ -2712,6 +2855,19 @@
           return;
         }
 
+        const selectedStatus = cfStatus?.value || "published";
+        const selectedStatusLabel = { published: "منشور", draft: "مسودة", archived: "مؤرشف" }[selectedStatus] || "منشور";
+        const shouldSave = await confirmAction(
+          "تأكيد حالة المادة",
+          `الحالة المختارة: ${selectedStatusLabel}. ${statusDescriptions[selectedStatus] || statusDescriptions.published} هل تريد المتابعة؟`,
+          "حفظ بالحالة المختارة",
+          "btn--primary"
+        );
+        if (!shouldSave) {
+          if (cfSubmit) cfSubmit.disabled = false;
+          return;
+        }
+
         const idField = $("#cf-id");
         const id = idField && idField.value ? idField.value : slugify(cfTitle.value);
         const existing = (idField && idField.value)
@@ -2725,7 +2881,7 @@
           title: cfTitle.value.trim(),
           author: cfAuthor.value.trim(),
           category: cfCategory.value,
-          status: cfStatus ? cfStatus.value : "published",
+          status: selectedStatus,
           description: cfDesc ? cfDesc.value.trim() : "",
           keywords: cfKeywords
             ? cfKeywords.value.split(/[،,]/).map((k) => k.trim()).filter(Boolean)
