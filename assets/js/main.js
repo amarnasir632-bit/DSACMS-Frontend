@@ -2519,7 +2519,7 @@
         const width = 1080;
         const padding = 72;
         const rowHeight = 230;
-        const headerHeight = 390;
+        const headerHeight = 320;
         const footerHeight = 330;
         const height = headerHeight + Math.max(currentWeek.length, 1) * rowHeight + footerHeight;
         const canvas = document.createElement("canvas");
@@ -2528,8 +2528,13 @@
         const context = canvas.getContext("2d");
         if (!context) throw new Error("Canvas is not supported");
         if (document.fonts?.ready) await document.fonts.ready;
-        await document.fonts?.load("700 52px Cairo");
-        await document.fonts?.load("500 34px Cairo");
+        await Promise.all([
+          document.fonts?.load("700 52px Cairo"),
+          document.fonts?.load("500 34px Cairo"),
+        ]);
+        if (document.fonts && (!document.fonts.check("700 52px Cairo") || !document.fonts.check("500 34px Cairo"))) {
+          throw new Error("Cairo font is unavailable");
+        }
         context.fillStyle = "#f5f7f6";
         context.fillRect(0, 0, width, height);
         context.fillStyle = "#14253e";
@@ -2542,9 +2547,6 @@
         context.font = "500 34px Cairo, Arial, sans-serif";
         context.fillText(selectedPeriodLabel, width / 2, 180);
         context.fillText("المكتبة العلمية والصوتية للشيخ محمد أحمد الهادي الكرار", width / 2, 250, width - padding * 2);
-        context.font = "500 30px Cairo, Arial, sans-serif";
-        context.fillText("تُحدّد المحاضرات بحسب الصلاة دون ساعة محددة", width / 2, 320);
-
         currentWeek.forEach((item, index) => {
           const y = headerHeight + index * rowHeight;
           context.fillStyle = index % 2 ? "#ffffff" : "#e9efec";
