@@ -2528,8 +2528,8 @@
         const context = canvas.getContext("2d");
         if (!context) throw new Error("Canvas is not supported");
         if (document.fonts?.ready) await document.fonts.ready;
-        await document.fonts?.load("700 48px Tajawal");
-        await document.fonts?.load("500 34px Tajawal");
+        await document.fonts?.load("700 52px Cairo");
+        await document.fonts?.load("500 34px Cairo");
         context.fillStyle = "#f5f7f6";
         context.fillRect(0, 0, width, height);
         context.fillStyle = "#14253e";
@@ -2537,12 +2537,12 @@
         context.direction = "rtl";
         context.textAlign = "center";
         context.fillStyle = "#ffffff";
-        context.font = "700 52px Tajawal, Arial, sans-serif";
+        context.font = "700 52px Cairo, Arial, sans-serif";
         context.fillText("جدول محاضرات الشيخ", width / 2, 110);
-        context.font = "500 34px Tajawal, Arial, sans-serif";
+        context.font = "500 34px Cairo, Arial, sans-serif";
         context.fillText(selectedPeriodLabel, width / 2, 180);
         context.fillText("المكتبة العلمية والصوتية للشيخ محمد أحمد الهادي الكرار", width / 2, 250, width - padding * 2);
-        context.font = "500 30px Tajawal, Arial, sans-serif";
+        context.font = "500 30px Cairo, Arial, sans-serif";
         context.fillText("تُحدّد المحاضرات بحسب الصلاة دون ساعة محددة", width / 2, 320);
 
         currentWeek.forEach((item, index) => {
@@ -2553,19 +2553,19 @@
           context.fill();
           context.textAlign = "right";
           context.fillStyle = "#176b5b";
-          context.font = "700 34px Tajawal, Arial, sans-serif";
+          context.font = "700 34px Cairo, Arial, sans-serif";
           context.fillText(formatDate(String(item.lecture_date).slice(0, 10)), width - padding * 1.5, y + 68, width - padding * 3);
           context.fillStyle = "#14253e";
-          context.font = "700 40px Tajawal, Arial, sans-serif";
+          context.font = "700 40px Cairo, Arial, sans-serif";
           context.fillText(String(item.title), width - padding * 1.5, y + 125, width - padding * 3);
           context.fillStyle = "#334155";
-          context.font = "500 32px Tajawal, Arial, sans-serif";
+          context.font = "500 32px Cairo, Arial, sans-serif";
           context.fillText(`${lecturePrayerLabel(item.lecture_time)} · ${item.mosque}`, width - padding * 1.5, y + 182, width - padding * 3);
         });
         if (!currentWeek.length) {
           context.textAlign = "center";
           context.fillStyle = "#334155";
-          context.font = "500 38px Tajawal, Arial, sans-serif";
+          context.font = "500 38px Cairo, Arial, sans-serif";
           context.fillText("لا توجد محاضرات معلنة لهذا الأسبوع", width / 2, headerHeight + 120);
         }
 
@@ -2583,7 +2583,7 @@
         context.drawImage(qr, (width - 220) / 2, qrY + 10, 220, 220);
         context.textAlign = "center";
         context.fillStyle = "#14253e";
-        context.font = "700 30px Tajawal, Arial, sans-serif";
+        context.font = "700 30px Cairo, Arial, sans-serif";
         context.fillText("امسح الرمز لفتح جدول المحاضرات", width / 2, height - 30);
         const blob = await new Promise((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error("تعذر حفظ الصورة")), "image/png"));
         triggerBlobDownload(blob, "جدول-محاضرات-الشيخ.png");
