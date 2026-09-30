@@ -2467,7 +2467,7 @@
           openEditor(content);
         } else if (action === "status") {
           // التحقق من الصلاحية (RBAC)
-          if (!["admin", "site_admin", "manager"].includes(session.role)) {
+          if (!["admin", "site_admin", "manager", "SHEIKH"].includes(session.role)) {
             showToast("لا تملك صلاحية تعديل الحالة", "error");
             return;
           }
