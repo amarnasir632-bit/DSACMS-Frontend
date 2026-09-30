@@ -1252,6 +1252,8 @@
     if (statBooks) statBooks.textContent = String(pub.filter((c) => c.type === "book").length);
     if (statCats) statCats.textContent = String(loadCategories().length);
 
+    loadUpcomingLectures();
+
     // شبكة التصنيفات
     const catGrid = $("#categories-grid");
     if (catGrid) {
@@ -1277,6 +1279,62 @@
       const latest = [...pub].sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate)).slice(0, 6);
       latestGrid.innerHTML = latest.map((c) => contentCard(c)).join("");
       initCardPlayers(latestGrid);
+    }
+  }
+
+  async function loadUpcomingLectures() {
+    const container = $("#upcoming-lectures-list");
+    if (!container) return;
+    const phone = "0965811827";
+    const toLatinDigits = (value) => String(value).replace(/[٠-٩۰-۹]/g, (digit) => "٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹".indexOf(digit) < 10
+      ? "٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹".indexOf(digit)
+      : String("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹".indexOf(digit) - 10));
+    const lectureMoment = (lecture) => {
+      const date = String(lecture.lecture_date || "").slice(0, 10);
+      const dateParts = date.split("-").map(Number);
+      if (dateParts.length !== 3 || dateParts.some((part) => !Number.isFinite(part))) return null;
+      const dateTime = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+      if (Number.isNaN(dateTime.getTime())) return null;
+      const rawTime = toLatinDigits(lecture.lecture_time || "");
+      const match = rawTime.match(/(?:^|\D)(\d{1,2})(?::|٫)(\d{2})(?:\s*(صباحًا|صباحا|مساءً|مساءا|ص|م|am|pm))?/i);
+      if (match) {
+        let hours = Number(match[1]);
+        const minutes = Number(match[2]);
+        const period = match[3] || "";
+        if (/مساء|م$|pm/i.test(period) && hours < 12) hours += 12;
+        if (/صباح|ص$|am/i.test(period) && hours === 12) hours = 0;
+        if (hours < 24 && minutes < 60) dateTime.setHours(hours, minutes, 0, 0);
+        else dateTime.setHours(23, 59, 0, 0);
+      } else {
+        // عندما يكتب المدير وصفًا مثل «بعد صلاة المغرب» بدل ساعة دقيقة، يُعامل الموعد كآخر اليوم.
+        dateTime.setHours(23, 59, 0, 0);
+      }
+      return dateTime;
+    };
+    const formatDate = (date) => new Intl.DateTimeFormat("ar-SD", {
+      weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit",
+    }).format(date);
+    try {
+      const entries = await fetchApi("/lectures");
+      const now = new Date();
+      const upcoming = entries
+        .map((lecture) => ({ lecture, moment: lectureMoment(lecture) }))
+        .filter((item) => item.moment && item.moment >= now)
+        .sort((a, b) => a.moment - b.moment)
+        .slice(0, 3);
+      container.innerHTML = upcoming.length ? upcoming.map(({ lecture, moment }) => `
+        <article class="upcoming-lecture-card">
+          <div class="upcoming-lecture-date">${escapeHTML(formatDate(moment))}</div>
+          <h3>${escapeHTML(lecture.title)}</h3>
+          <p class="upcoming-lecture-mosque"><span aria-hidden="true">⌖</span> ${escapeHTML(lecture.mosque)}</p>
+          <p class="upcoming-lecture-time"><span aria-hidden="true">◷</span> ${escapeHTML(lecture.lecture_time)}</p>
+          <a class="btn btn--outline btn--sm" href="tel:${phone}">معلومات: <span dir="ltr">${phone}</span></a>
+        </article>`).join("") : `<p class="section-desc upcoming-lectures-empty">لا توجد محاضرات قادمة معلنة حاليًا. <a href="pages/lectures.html">افتح جدول الأسبوع</a> أو اتصل للاستفسار.</p>`;
+    } catch (error) {
+      console.error("Unable to load upcoming lectures", error);
+      container.innerHTML = `<p class="section-desc upcoming-lectures-empty">تعذر تحميل المواعيد الآن. <a href="pages/lectures.html">افتح جدول المحاضرات</a> أو اتصل للاستفسار.</p>`;
+    } finally {
+      container.setAttribute("aria-busy", "false");
     }
   }
 
@@ -2310,6 +2368,119 @@
     await load();
   }
 
+  async function initLecturesAdmin() {
+    const form = $("#lecture-admin-form");
+    const list = $("#lecture-admin-list");
+    const status = $("#lecture-admin-status");
+    if (!form || !list) return;
+    let lectures = [];
+    const reset = () => {
+      form.reset();
+      $("#lecture-id").value = "";
+      $("#lecture-save").textContent = "إضافة المحاضرة";
+      $("#lecture-cancel").hidden = true;
+    };
+    const load = async () => {
+      lectures = await fetchApi("/lectures");
+      list.innerHTML = lectures.length ? lectures.map((item) => `
+        <tr>
+          <td data-label="التاريخ">${escapeHTML(item.lecture_date)}</td>
+          <td data-label="الزمن">${escapeHTML(item.lecture_time)}</td>
+          <td data-label="المحاضرة">${escapeHTML(item.title)}</td>
+          <td data-label="المسجد">${escapeHTML(item.mosque)}</td>
+          <td data-label="إجراءات"><button class="btn btn--outline btn--sm" type="button" data-lecture-edit="${escapeHTML(item.id)}">تعديل</button> <button class="btn btn--danger btn--sm" type="button" data-lecture-delete="${escapeHTML(item.id)}">حذف</button></td>
+        </tr>`).join("") : `<tr><td colspan="5">لا توجد محاضرات مضافة.</td></tr>`;
+    };
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const id = $("#lecture-id").value;
+      const payload = {
+        lecture_date: $("#lecture-date").value,
+        lecture_time: $("#lecture-time").value.trim(),
+        title: $("#lecture-title").value.trim(),
+        mosque: $("#lecture-mosque").value.trim(),
+      };
+      const save = $("#lecture-save");
+      save.disabled = true;
+      try {
+        await fetchApi(id ? `/lectures/${encodeURIComponent(id)}` : "/lectures", {
+          method: id ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        status.hidden = false;
+        status.dataset.state = "success";
+        status.textContent = id ? "تم تحديث المحاضرة." : "تمت إضافة المحاضرة.";
+        reset();
+        await load();
+      } catch (error) {
+        console.error("Unable to save lecture", error);
+        status.hidden = false;
+        status.dataset.state = "error";
+        status.textContent = "تعذر حفظ المحاضرة. تحقق من الاتصال ثم حاول مجددًا.";
+      } finally { save.disabled = false; }
+    });
+    $("#lecture-cancel").addEventListener("click", reset);
+    list.addEventListener("click", async (event) => {
+      const edit = event.target.closest("[data-lecture-edit]");
+      if (edit) {
+        const item = lectures.find((lecture) => String(lecture.id) === edit.dataset.lectureEdit);
+        if (!item) return;
+        $("#lecture-id").value = item.id;
+        $("#lecture-date").value = String(item.lecture_date).slice(0, 10);
+        $("#lecture-time").value = item.lecture_time;
+        $("#lecture-title").value = item.title;
+        $("#lecture-mosque").value = item.mosque;
+        $("#lecture-save").textContent = "حفظ التعديلات";
+        $("#lecture-cancel").hidden = false;
+        $("#lecture-date").focus();
+      }
+      const remove = event.target.closest("[data-lecture-delete]");
+      if (remove && window.confirm("هل تريد حذف هذه المحاضرة؟")) {
+        remove.disabled = true;
+        try { await fetchApi(`/lectures/${encodeURIComponent(remove.dataset.lectureDelete)}`, { method: "DELETE" }); await load(); }
+        catch (error) { console.error("Unable to delete lecture", error); showToast("تعذر حذف المحاضرة.", "error"); remove.disabled = false; }
+      }
+    });
+    try { await load(); }
+    catch (error) { console.error("Unable to load lectures for admin", error); status.hidden = false; status.dataset.state = "error"; status.textContent = "تعذر تحميل جدول المحاضرات من الخادم."; }
+  }
+
+  async function initLecturesPage() {
+    const list = $("#lectures-list");
+    const weekLabel = $("#lectures-week");
+    if (!list) return;
+    const today = new Date();
+    const start = new Date(today);
+    const offset = (start.getDay() + 1) % 7;
+    start.setDate(start.getDate() - offset);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    const toISO = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    const formatDate = (value) => new Intl.DateTimeFormat("ar-SD", { weekday: "long", day: "numeric", month: "long" }).format(new Date(`${value}T12:00:00`));
+    const formatRange = (date) => new Intl.DateTimeFormat("ar-SD", { day: "numeric", month: "long" }).format(date);
+    weekLabel.textContent = `الأسبوع من ${formatRange(start)} إلى ${formatRange(end)}`;
+    try {
+      const entries = await fetchApi("/lectures");
+      const currentWeek = entries.filter((item) => {
+        const date = String(item.lecture_date).slice(0, 10);
+        return date >= toISO(start) && date <= toISO(end);
+      });
+      list.innerHTML = currentWeek.length ? currentWeek.map((item) => `
+        <tr>
+          <td data-label="اليوم والتاريخ">${escapeHTML(formatDate(String(item.lecture_date).slice(0, 10)))}</td>
+          <td data-label="الزمن">${escapeHTML(item.lecture_time)}</td>
+          <td data-label="المحاضرة">${escapeHTML(item.title)}</td>
+          <td data-label="المسجد">${escapeHTML(item.mosque)}</td>
+          <td data-label="معلومات"><a class="btn btn--primary btn--sm" href="tel:0965811827" aria-label="اتصل لمزيد من المعلومات عن ${escapeHTML(item.title)} على الرقم 0965811827"><span dir="ltr">0965811827</span></a></td>
+        </tr>`).join("") : `<tr><td colspan="5" class="lectures-empty">لا توجد محاضرات معلنة لهذا الأسبوع حتى الآن. اتصل للاستفسار أو التأكد من وجود محاضرة.</td></tr>`;
+    } catch (error) {
+      console.error("Unable to load this week's lectures", error);
+      list.innerHTML = `<tr><td colspan="5" class="lectures-empty" role="status">تعذر تحميل الجدول الآن. يمكنك الاتصال للاستفسار عن المواعيد.</td></tr>`;
+    }
+  }
+
   async function initDashboard() {
     const session = getSession();
     // حاجز RBAC (SEC-002): غير مسموح بالدخول دون جلسة
@@ -2352,6 +2523,12 @@
     }
     if (isSheikh) {
       initSheikhQuestions();
+    }
+    if (["admin", "site_admin", "manager"].includes(session.role)) {
+      initLecturesAdmin();
+    } else {
+      $$('[data-manager-only]').forEach((el) => { el.hidden = true; });
+      $("#panel-lectures")?.remove();
     }
 
     /* ---- التنقل بين الألواح (Tabs) ---- */
@@ -3322,9 +3499,12 @@
         case "dashboard":
           initDashboard();
           break;
-          case "questions":
+        case "questions":
             await initQuestions();
             break;
+        case "lectures":
+          await initLecturesPage();
+          break;
         default:
           break;
       }

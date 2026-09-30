@@ -75,6 +75,7 @@ python3 -m http.server 5500
 | الرئيسية | `index.html` |
 | البحث والتصفح | `pages/search.html` |
 | حول الشيخ | `pages/about.html` |
+| جدول محاضرات الأسبوع | `pages/lectures.html` |
 | تفاصيل مادة | `pages/content-detail.html?id=<id>` |
 | تسجيل الدخول | `pages/login.html` |
 | لوحة الإدارة | `pages/dashboard.html` |

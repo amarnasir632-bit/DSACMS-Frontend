@@ -9,7 +9,7 @@
   <meta name="description" content="لوحة إدارة المحتوى والتصنيفات والمستخدمين وسجل العمليات في نظام DSACMS.">
   <meta name="robots" content="noindex, nofollow">
 
-  <link rel="stylesheet" href="../assets/css/style.css?v=20260930-reliability">
+  <link rel="stylesheet" href="../assets/css/style.css?v=20260930-lectures">
   <link rel="icon" type="image/png" href="../assets/images/logo.png">
 </head>
 
@@ -32,6 +32,7 @@
           <li><a href="../index.html">الرئيسية</a></li>
           <li><a href="search.html">المحتوى</a></li>
           <li><a href="questions.html">الأسئلة والفتاوى</a></li>
+          <li><a href="lectures.html">جدول المحاضرات</a></li>
           <li><a href="search.html">العودة للموقع</a></li>
         </ul>
       </nav>
@@ -65,6 +66,7 @@
             <li><button type="button" data-tab="users" data-admin-only>👥 المستخدمون</button></li>
             <li><button type="button" data-tab="audit" data-admin-only>🧾 سجل العمليات</button></li>
             <li><button type="button" data-tab="questions" data-sheikh-only>🕌 الأسئلة والفتاوى</button></li>
+            <li><button type="button" data-tab="lectures" data-manager-only>🗓 جدول المحاضرات</button></li>
           </ul>
         </nav>
 
@@ -90,6 +92,25 @@
             </div>
             <div id="pending-questions-list" class="qa-list"></div>
             <div id="answered-questions-list" class="qa-list" hidden></div>
+          </section>
+
+          <section class="dash-panel" id="panel-lectures" aria-hidden="true" aria-labelledby="panel-lectures-title">
+            <div class="dash-panel-head"><h2 id="panel-lectures-title">جدول المحاضرات</h2></div>
+            <p class="section-desc">أضف مواعيد المحاضرات أو عدّلها. تظهر المحاضرات المنشورة لزوار الموقع خلال أسبوعها.</p>
+            <form id="lecture-admin-form" class="card lecture-admin-form">
+              <input type="hidden" id="lecture-id">
+              <div class="lecture-form-grid">
+                <div class="form-group"><label for="lecture-date">التاريخ</label><input class="field" type="date" id="lecture-date" required></div>
+                <div class="form-group"><label for="lecture-time">الزمن</label><input class="field" id="lecture-time" maxlength="80" placeholder="مثال: بعد صلاة المغرب" required></div>
+                <div class="form-group"><label for="lecture-title">اسم المحاضرة</label><input class="field" id="lecture-title" maxlength="300" required></div>
+                <div class="form-group"><label for="lecture-mosque">المسجد</label><input class="field" id="lecture-mosque" maxlength="300" required></div>
+              </div>
+              <div class="editor-step__actions"><button class="btn btn--primary" type="submit" id="lecture-save">إضافة المحاضرة</button><button class="btn btn--outline" type="button" id="lecture-cancel" hidden>إلغاء التعديل</button></div>
+              <p id="lecture-admin-status" class="upload-status" role="status" aria-live="polite" hidden></p>
+            </form>
+            <div class="table-wrap" style="margin-block-start:var(--space-4);">
+              <table class="data-table"><thead><tr><th>التاريخ</th><th>الزمن</th><th>المحاضرة</th><th>المسجد</th><th>إجراءات</th></tr></thead><tbody id="lecture-admin-list"></tbody></table>
+            </div>
           </section>
 
           <!-- ===== إدارة المحتوى ===== -->
@@ -437,6 +458,6 @@
   </footer>
 
   <!-- التذييل -->
-  <script src="../assets/js/main.js?v=20260930-status-permissions" defer></script>
+  <script src="../assets/js/main.js?v=20260930-lectures" defer></script>
 </body>
 </html>

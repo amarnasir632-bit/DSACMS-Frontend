@@ -19,6 +19,7 @@ export async function GET() {
     sitemapEntry(`${SITE_ORIGIN}/pages/about.html`),
     sitemapEntry(`${SITE_ORIGIN}/pages/search.html`),
     sitemapEntry(`${SITE_ORIGIN}/pages/questions.html`),
+    sitemapEntry(`${SITE_ORIGIN}/pages/lectures.html`),
   ];
 
   try {
