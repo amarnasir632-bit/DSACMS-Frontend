@@ -2539,11 +2539,26 @@
         context.fillRect(0, 0, width, height);
         context.fillStyle = "#14253e";
         context.fillRect(0, 0, width, headerHeight);
+        const logo = new Image();
+        logo.src = `${BASE}assets/images/logo.png`;
+        await new Promise((resolve, reject) => {
+          logo.onload = resolve;
+          logo.onerror = () => reject(new Error("Unable to load site logo"));
+        });
         context.direction = "rtl";
-        context.textAlign = "center";
         context.fillStyle = "#ffffff";
         context.font = "700 52px Cairo, Arial, sans-serif";
-        context.fillText("جدول محاضرات الشيخ", width / 2, 110);
+        const title = "جدول محاضرات الشيخ";
+        const titleWidth = context.measureText(title).width;
+        const logoWidth = 126;
+        const logoHeight = logo.naturalHeight * Math.min(logoWidth / logo.naturalWidth, 78 / logo.naturalHeight);
+        const titleLogoGap = 22;
+        const groupWidth = titleWidth + titleLogoGap + logoWidth;
+        const groupStart = (width - groupWidth) / 2;
+        context.textAlign = "right";
+        context.fillText(title, groupStart + titleWidth, 110);
+        context.drawImage(logo, groupStart + titleWidth + titleLogoGap, 92 - logoHeight / 2, logoWidth, logoHeight);
+        context.textAlign = "center";
         context.font = "500 34px Cairo, Arial, sans-serif";
         context.fillText(selectedPeriodLabel, width / 2, 180);
         context.fillText("المكتبة العلمية والصوتية للشيخ محمد أحمد الهادي الكرار", width / 2, 250, width - padding * 2);
