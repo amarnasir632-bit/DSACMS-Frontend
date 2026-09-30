@@ -127,7 +127,7 @@
     return slug + "-" + Date.now().toString(36).slice(-4);
   }
 
-  const SITE_ORIGIN = "https://mohamedalahadi.com";
+  const SITE_ORIGIN = "https://www.mohamedalahadi.com";
 
   function setMetaContent(selector, attribute, value) {
     let element = $(selector);

@@ -3,4 +3,4 @@ Allow: /
 
 # صفحات الإدارة تحمل توجيه noindex في HTML
 
-Sitemap: https://mohamedalahadi.com/sitemap.xml
+Sitemap: https://www.mohamedalahadi.com/sitemap.xml

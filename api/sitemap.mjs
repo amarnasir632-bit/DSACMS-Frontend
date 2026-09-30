@@ -1,4 +1,4 @@
-const SITE_ORIGIN = "https://mohamedalahadi.com";
+const SITE_ORIGIN = "https://www.mohamedalahadi.com";
 const API_URL = "https://dsacms-backend.vercel.app/api/materials";
 
 const escapeXml = (value) => String(value)
