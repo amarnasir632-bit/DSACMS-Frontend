@@ -98,6 +98,16 @@
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
 
+  const lecturePrayers = ["الفجر", "الظهر", "العصر", "المغرب", "العشاء"];
+  function lecturePrayerLabel(value) {
+    const prayer = lecturePrayers.find((name) => String(value || "").includes(name));
+    return prayer ? `بعد صلاة ${prayer}` : "بعد الصلاة";
+  }
+  function lecturePrayerRank(value) {
+    const index = lecturePrayers.findIndex((name) => String(value || "").includes(name));
+    return index < 0 ? 5 : index;
+  }
+
   /** تنسيق المدة بالثواني إلى نص mm:ss أو h:mm:ss */
   function formatDuration(totalSeconds) {
     const s = Math.max(0, Math.floor(Number(totalSeconds) || 0));
@@ -1285,34 +1295,18 @@
   async function loadUpcomingLectures() {
     const container = $("#upcoming-lectures-list");
     if (!container) return;
-    const phone = "0965811827";
-    const toLatinDigits = (value) => String(value).replace(/[٠-٩۰-۹]/g, (digit) => "٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹".indexOf(digit) < 10
-      ? "٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹".indexOf(digit)
-      : String("٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹".indexOf(digit) - 10));
     const lectureMoment = (lecture) => {
       const date = String(lecture.lecture_date || "").slice(0, 10);
       const dateParts = date.split("-").map(Number);
       if (dateParts.length !== 3 || dateParts.some((part) => !Number.isFinite(part))) return null;
       const dateTime = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
       if (Number.isNaN(dateTime.getTime())) return null;
-      const rawTime = toLatinDigits(lecture.lecture_time || "");
-      const match = rawTime.match(/(?:^|\D)(\d{1,2})(?::|٫)(\d{2})(?:\s*(صباحًا|صباحا|مساءً|مساءا|ص|م|am|pm))?/i);
-      if (match) {
-        let hours = Number(match[1]);
-        const minutes = Number(match[2]);
-        const period = match[3] || "";
-        if (/مساء|م$|pm/i.test(period) && hours < 12) hours += 12;
-        if (/صباح|ص$|am/i.test(period) && hours === 12) hours = 0;
-        if (hours < 24 && minutes < 60) dateTime.setHours(hours, minutes, 0, 0);
-        else dateTime.setHours(23, 59, 0, 0);
-      } else {
-        // عندما يكتب المدير وصفًا مثل «بعد صلاة المغرب» بدل ساعة دقيقة، يُعامل الموعد كآخر اليوم.
-        dateTime.setHours(23, 59, 0, 0);
-      }
+      // ترتيب تقريبي داخل اليوم بحسب الصلاة، دون عرض ساعة محددة.
+      dateTime.setHours([5, 13, 16, 19, 21, 23][lecturePrayerRank(lecture.lecture_time)], 0, 0, 0);
       return dateTime;
     };
     const formatDate = (date) => new Intl.DateTimeFormat("ar-SD", {
-      weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit",
+      weekday: "long", day: "numeric", month: "long",
     }).format(date);
     try {
       const entries = await fetchApi("/lectures");
@@ -1327,12 +1321,11 @@
           <div class="upcoming-lecture-date">${escapeHTML(formatDate(moment))}</div>
           <h3>${escapeHTML(lecture.title)}</h3>
           <p class="upcoming-lecture-mosque"><span aria-hidden="true">⌖</span> ${escapeHTML(lecture.mosque)}</p>
-          <p class="upcoming-lecture-time"><span aria-hidden="true">◷</span> ${escapeHTML(lecture.lecture_time)}</p>
-          <a class="btn btn--outline btn--sm" href="tel:${phone}">معلومات: <span dir="ltr">${phone}</span></a>
-        </article>`).join("") : `<p class="section-desc upcoming-lectures-empty">لا توجد محاضرات قادمة معلنة حاليًا. <a href="pages/lectures.html">افتح جدول الأسبوع</a> أو اتصل للاستفسار.</p>`;
+          <p class="upcoming-lecture-time"><span aria-hidden="true">◷</span> ${escapeHTML(lecturePrayerLabel(lecture.lecture_time))}</p>
+        </article>`).join("") : `<p class="section-desc upcoming-lectures-empty">لا توجد محاضرات قادمة معلنة حاليًا. <a href="pages/lectures.html">افتح جدول المحاضرات</a>.</p>`;
     } catch (error) {
       console.error("Unable to load upcoming lectures", error);
-      container.innerHTML = `<p class="section-desc upcoming-lectures-empty">تعذر تحميل المواعيد الآن. <a href="pages/lectures.html">افتح جدول المحاضرات</a> أو اتصل للاستفسار.</p>`;
+      container.innerHTML = `<p class="section-desc upcoming-lectures-empty">تعذر تحميل المواعيد الآن. <a href="pages/lectures.html">افتح جدول المحاضرات</a>.</p>`;
     } finally {
       container.setAttribute("aria-busy", "false");
     }
@@ -2385,7 +2378,7 @@
       list.innerHTML = lectures.length ? lectures.map((item) => `
         <tr>
           <td data-label="التاريخ">${escapeHTML(item.lecture_date)}</td>
-          <td data-label="الزمن">${escapeHTML(item.lecture_time)}</td>
+          <td data-label="وقت الصلاة">${escapeHTML(lecturePrayerLabel(item.lecture_time))}</td>
           <td data-label="المحاضرة">${escapeHTML(item.title)}</td>
           <td data-label="المسجد">${escapeHTML(item.mosque)}</td>
           <td data-label="إجراءات"><button class="btn btn--outline btn--sm" type="button" data-lecture-edit="${escapeHTML(item.id)}">تعديل</button> <button class="btn btn--danger btn--sm" type="button" data-lecture-delete="${escapeHTML(item.id)}">حذف</button></td>
@@ -2428,7 +2421,7 @@
         if (!item) return;
         $("#lecture-id").value = item.id;
         $("#lecture-date").value = String(item.lecture_date).slice(0, 10);
-        $("#lecture-time").value = item.lecture_time;
+        $("#lecture-time").value = lecturePrayerLabel(item.lecture_time);
         $("#lecture-title").value = item.title;
         $("#lecture-mosque").value = item.mosque;
         $("#lecture-save").textContent = "حفظ التعديلات";
@@ -2451,34 +2444,157 @@
     const weekLabel = $("#lectures-week");
     if (!list) return;
     const today = new Date();
-    const start = new Date(today);
-    const offset = (start.getDay() + 1) % 7;
-    start.setDate(start.getDate() - offset);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 6);
+    const periodSelect = $("#lectures-period");
+    const weekPicker = $("#lectures-week-picker");
+    const monthPicker = $("#lectures-month-picker");
+    const heading = $("#lectures-list-title");
     const toISO = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     const formatDate = (value) => new Intl.DateTimeFormat("ar-SD", { weekday: "long", day: "numeric", month: "long" }).format(new Date(`${value}T12:00:00`));
     const formatRange = (date) => new Intl.DateTimeFormat("ar-SD", { day: "numeric", month: "long" }).format(date);
-    weekLabel.textContent = `الأسبوع من ${formatRange(start)} إلى ${formatRange(end)}`;
-    try {
-      const entries = await fetchApi("/lectures");
-      const currentWeek = entries.filter((item) => {
-        const date = String(item.lecture_date).slice(0, 10);
-        return date >= toISO(start) && date <= toISO(end);
+    const formatMonth = (value) => new Intl.DateTimeFormat("ar-SD", { month: "long", year: "numeric" }).format(new Date(`${value}-01T12:00:00`));
+    const todayIso = toISO(today);
+    weekPicker.value = todayIso;
+    monthPicker.value = todayIso.slice(0, 7);
+    let currentWeek = [];
+    let selectedStart = new Date(today);
+    let selectedEnd = new Date(today);
+    let selectedPeriodLabel = "";
+    let allLectures = [];
+
+    const renderSchedule = () => {
+      const mode = periodSelect.value;
+      weekPicker.hidden = mode !== "specific-week";
+      monthPicker.hidden = mode !== "month";
+      if (mode === "month") {
+        const value = monthPicker.value || todayIso.slice(0, 7);
+        const [year, month] = value.split("-").map(Number);
+        selectedStart = new Date(year, month - 1, 1);
+        selectedEnd = new Date(year, month, 0);
+        selectedPeriodLabel = `شهر ${formatMonth(value)}`;
+        heading.textContent = `محاضرات ${formatMonth(value)}`;
+      } else {
+        const anchor = mode === "specific-week" && weekPicker.value ? new Date(`${weekPicker.value}T12:00:00`) : today;
+        selectedStart = new Date(anchor);
+        selectedStart.setDate(selectedStart.getDate() - selectedStart.getDay());
+        selectedStart.setHours(0, 0, 0, 0);
+        selectedEnd = new Date(selectedStart);
+        selectedEnd.setDate(selectedEnd.getDate() + 6);
+        selectedPeriodLabel = `الأسبوع من ${formatRange(selectedStart)} إلى ${formatRange(selectedEnd)}`;
+        heading.textContent = mode === "specific-week" ? `محاضرات أسبوع ${formatRange(selectedStart)} إلى ${formatRange(selectedEnd)}` : "محاضرات الأسبوع الحالي";
+      }
+      weekLabel.textContent = selectedPeriodLabel;
+      const from = toISO(selectedStart);
+      const to = toISO(selectedEnd);
+      currentWeek = allLectures.filter((item) => {
+        const date = String(item.lecture_date || "").slice(0, 10);
+        return date >= from && date <= to;
       });
+      currentWeek.sort((a, b) => String(a.lecture_date).localeCompare(String(b.lecture_date)) || lecturePrayerRank(a.lecture_time) - lecturePrayerRank(b.lecture_time));
       list.innerHTML = currentWeek.length ? currentWeek.map((item) => `
         <tr>
           <td data-label="اليوم والتاريخ">${escapeHTML(formatDate(String(item.lecture_date).slice(0, 10)))}</td>
-          <td data-label="الزمن">${escapeHTML(item.lecture_time)}</td>
+          <td data-label="وقت الصلاة">${escapeHTML(lecturePrayerLabel(item.lecture_time))}</td>
           <td data-label="المحاضرة">${escapeHTML(item.title)}</td>
           <td data-label="المسجد">${escapeHTML(item.mosque)}</td>
-          <td data-label="معلومات"><a class="btn btn--primary btn--sm" href="tel:0965811827" aria-label="اتصل لمزيد من المعلومات عن ${escapeHTML(item.title)} على الرقم 0965811827"><span dir="ltr">0965811827</span></a></td>
-        </tr>`).join("") : `<tr><td colspan="5" class="lectures-empty">لا توجد محاضرات معلنة لهذا الأسبوع حتى الآن. اتصل للاستفسار أو التأكد من وجود محاضرة.</td></tr>`;
+        </tr>`).join("") : `<tr><td colspan="4" class="lectures-empty">لا توجد محاضرات معلنة في الفترة المحددة.</td></tr>`;
+    };
+    periodSelect?.addEventListener("change", renderSchedule);
+    weekPicker?.addEventListener("change", renderSchedule);
+    monthPicker?.addEventListener("change", renderSchedule);
+    try {
+      allLectures = await fetchApi("/lectures");
+      renderSchedule();
     } catch (error) {
-      console.error("Unable to load this week's lectures", error);
-      list.innerHTML = `<tr><td colspan="5" class="lectures-empty" role="status">تعذر تحميل الجدول الآن. يمكنك الاتصال للاستفسار عن المواعيد.</td></tr>`;
+      console.error("Unable to load lectures", error);
+      list.innerHTML = `<tr><td colspan="4" class="lectures-empty" role="status">تعذر تحميل الجدول الآن. يرجى المحاولة لاحقًا.</td></tr>`;
     }
+
+    const downloadButton = $("#lectures-download-image");
+    const imageStatus = $("#lectures-image-status");
+    downloadButton?.addEventListener("click", async () => {
+      downloadButton.disabled = true;
+      imageStatus.hidden = false;
+      imageStatus.textContent = "جارٍ تجهيز صورة الجدول…";
+      try {
+        const width = 1080;
+        const padding = 72;
+        const rowHeight = 230;
+        const headerHeight = 390;
+        const footerHeight = 330;
+        const height = headerHeight + Math.max(currentWeek.length, 1) * rowHeight + footerHeight;
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Canvas is not supported");
+        if (document.fonts?.ready) await document.fonts.ready;
+        await document.fonts?.load("700 48px Tajawal");
+        await document.fonts?.load("500 34px Tajawal");
+        context.fillStyle = "#f5f7f6";
+        context.fillRect(0, 0, width, height);
+        context.fillStyle = "#14253e";
+        context.fillRect(0, 0, width, headerHeight);
+        context.direction = "rtl";
+        context.textAlign = "center";
+        context.fillStyle = "#ffffff";
+        context.font = "700 52px Tajawal, Arial, sans-serif";
+        context.fillText("جدول محاضرات الشيخ", width / 2, 110);
+        context.font = "500 34px Tajawal, Arial, sans-serif";
+        context.fillText(selectedPeriodLabel, width / 2, 180);
+        context.fillText("المكتبة العلمية والصوتية للشيخ محمد أحمد الهادي الكرار", width / 2, 250, width - padding * 2);
+        context.font = "500 30px Tajawal, Arial, sans-serif";
+        context.fillText("تُحدّد المحاضرات بحسب الصلاة دون ساعة محددة", width / 2, 320);
+
+        currentWeek.forEach((item, index) => {
+          const y = headerHeight + index * rowHeight;
+          context.fillStyle = index % 2 ? "#ffffff" : "#e9efec";
+          context.beginPath();
+          context.roundRect(padding, y + 12, width - padding * 2, rowHeight - 24, 22);
+          context.fill();
+          context.textAlign = "right";
+          context.fillStyle = "#176b5b";
+          context.font = "700 34px Tajawal, Arial, sans-serif";
+          context.fillText(formatDate(String(item.lecture_date).slice(0, 10)), width - padding * 1.5, y + 68, width - padding * 3);
+          context.fillStyle = "#14253e";
+          context.font = "700 40px Tajawal, Arial, sans-serif";
+          context.fillText(String(item.title), width - padding * 1.5, y + 125, width - padding * 3);
+          context.fillStyle = "#334155";
+          context.font = "500 32px Tajawal, Arial, sans-serif";
+          context.fillText(`${lecturePrayerLabel(item.lecture_time)} · ${item.mosque}`, width - padding * 1.5, y + 182, width - padding * 3);
+        });
+        if (!currentWeek.length) {
+          context.textAlign = "center";
+          context.fillStyle = "#334155";
+          context.font = "500 38px Tajawal, Arial, sans-serif";
+          context.fillText("لا توجد محاضرات معلنة لهذا الأسبوع", width / 2, headerHeight + 120);
+        }
+
+        const pageUrl = "https://www.mohamedalahadi.com/pages/lectures.html";
+        const qr = new Image();
+        qr.crossOrigin = "anonymous";
+        qr.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&format=png&data=${encodeURIComponent(pageUrl)}`;
+        await new Promise((resolve, reject) => {
+          qr.onload = resolve;
+          qr.onerror = () => reject(new Error("تعذر إنشاء رمز QR"));
+        });
+        const qrY = height - footerHeight + 34;
+        context.fillStyle = "#ffffff";
+        context.fillRect((width - 240) / 2, qrY, 240, 240);
+        context.drawImage(qr, (width - 220) / 2, qrY + 10, 220, 220);
+        context.textAlign = "center";
+        context.fillStyle = "#14253e";
+        context.font = "700 30px Tajawal, Arial, sans-serif";
+        context.fillText("امسح الرمز لفتح جدول المحاضرات", width / 2, height - 30);
+        const blob = await new Promise((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error("تعذر حفظ الصورة")), "image/png"));
+        triggerBlobDownload(blob, "جدول-محاضرات-الشيخ.png");
+        imageStatus.textContent = "تم حفظ صورة الجدول. يمكنك مشاركتها عبر واتساب.";
+      } catch (error) {
+        console.error("Unable to create lectures image", error);
+        imageStatus.textContent = "تعذر إنشاء الصورة الآن. تحقق من الاتصال ثم أعد المحاولة.";
+      } finally {
+        downloadButton.disabled = false;
+      }
+    });
   }
 
   async function initDashboard() {

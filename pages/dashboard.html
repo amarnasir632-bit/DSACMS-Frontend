@@ -9,7 +9,7 @@
   <meta name="description" content="لوحة إدارة المحتوى والتصنيفات والمستخدمين وسجل العمليات في نظام DSACMS.">
   <meta name="robots" content="noindex, nofollow">
 
-  <link rel="stylesheet" href="../assets/css/style.css?v=20260930-lectures">
+  <link rel="stylesheet" href="../assets/css/style.css?v=20260930-lecture-schedule">
   <link rel="icon" type="image/png" href="../assets/images/logo.png">
 </head>
 
@@ -101,7 +101,7 @@
               <input type="hidden" id="lecture-id">
               <div class="lecture-form-grid">
                 <div class="form-group"><label for="lecture-date">التاريخ</label><input class="field" type="date" id="lecture-date" required></div>
-                <div class="form-group"><label for="lecture-time">الزمن</label><input class="field" id="lecture-time" maxlength="80" placeholder="مثال: بعد صلاة المغرب" required></div>
+                <div class="form-group"><label for="lecture-time">وقت الصلاة</label><select class="field" id="lecture-time" required><option value="">اختر الصلاة</option><option value="بعد صلاة الفجر">بعد صلاة الفجر</option><option value="بعد صلاة الظهر">بعد صلاة الظهر</option><option value="بعد صلاة العصر">بعد صلاة العصر</option><option value="بعد صلاة المغرب">بعد صلاة المغرب</option><option value="بعد صلاة العشاء">بعد صلاة العشاء</option></select></div>
                 <div class="form-group"><label for="lecture-title">اسم المحاضرة</label><input class="field" id="lecture-title" maxlength="300" required></div>
                 <div class="form-group"><label for="lecture-mosque">المسجد</label><input class="field" id="lecture-mosque" maxlength="300" required></div>
               </div>
@@ -109,7 +109,7 @@
               <p id="lecture-admin-status" class="upload-status" role="status" aria-live="polite" hidden></p>
             </form>
             <div class="table-wrap" style="margin-block-start:var(--space-4);">
-              <table class="data-table"><thead><tr><th>التاريخ</th><th>الزمن</th><th>المحاضرة</th><th>المسجد</th><th>إجراءات</th></tr></thead><tbody id="lecture-admin-list"></tbody></table>
+              <table class="data-table"><thead><tr><th>التاريخ</th><th>وقت الصلاة</th><th>المحاضرة</th><th>المسجد</th><th>إجراءات</th></tr></thead><tbody id="lecture-admin-list"></tbody></table>
             </div>
           </section>
 
@@ -458,6 +458,6 @@
   </footer>
 
   <!-- التذييل -->
-  <script src="../assets/js/main.js?v=20260930-seo-canonical" defer></script>
+  <script src="../assets/js/main.js?v=20260930-lecture-schedule" defer></script>
 </body>
 </html>

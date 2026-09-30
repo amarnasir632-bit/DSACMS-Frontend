@@ -4,16 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#14253e">
-  <title>جدول محاضرات هذا الأسبوع | الشيخ محمد أحمد الهادي الكرار</title>
-  <meta name="description" content="تعرّف على مواعيد ومحاضرات الشيخ محمد أحمد الهادي الكرار لهذا الأسبوع، والمساجد التي تقام فيها. للاستفسار تواصل عبر الهاتف.">
+  <title>جدول محاضرات الشيخ | الشيخ محمد أحمد الهادي الكرار</title>
+  <meta name="description" content="تصفّح جدول محاضرات الشيخ محمد أحمد الهادي الكرار للأسبوع الحالي أو أسبوع تختاره أو لشهر محدد، مع وقت الصلاة والمسجد.">
   <link rel="canonical" href="https://www.mohamedalahadi.com/pages/lectures.html">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="ar_AR">
   <meta property="og:site_name" content="المكتبة العلمية والصوتية للشيخ محمد أحمد الهادي الكرار">
-  <meta property="og:title" content="جدول محاضرات هذا الأسبوع | الشيخ محمد أحمد الهادي الكرار">
-  <meta property="og:description" content="جدول مواعيد المحاضرات الأسبوعية للشيخ محمد أحمد الهادي الكرار.">
+  <meta property="og:title" content="جدول محاضرات الشيخ | الشيخ محمد أحمد الهادي الكرار">
+  <meta property="og:description" content="تصفّح مواعيد محاضرات الشيخ بحسب الأسبوع أو الشهر، مع وقت الصلاة والمسجد.">
   <meta property="og:url" content="https://www.mohamedalahadi.com/pages/lectures.html">
-  <link rel="stylesheet" href="../assets/css/style.css?v=20260930-lectures">
+  <link rel="stylesheet" href="../assets/css/style.css?v=20260930-lecture-schedule">
   <link rel="icon" type="image/png" href="../assets/images/logo.png">
 </head>
 <body data-page="lectures" data-base="../">
@@ -47,30 +47,39 @@
       <header class="lectures-heading">
         <p class="lectures-eyebrow">المواعيد الأسبوعية</p>
         <h1>جدول محاضرات الشيخ</h1>
-        <p class="section-desc">تابع مواعيد المحاضرات لهذا الأسبوع. يُرجى التواصل للتأكد من الموعد قبل الحضور.</p>
+        <p class="section-desc">تابع مواعيد المحاضرات لهذا الأسبوع. يحدد الموعد بحسب الصلاة دون ساعة محددة.</p>
         <p class="lectures-week" id="lectures-week" aria-live="polite"></p>
       </header>
       <section class="lectures-board" aria-labelledby="lectures-list-title">
         <div class="section-head">
-          <h2 class="section-title" id="lectures-list-title">محاضرات هذا الأسبوع</h2>
-          <span class="lectures-count">المواعيد المعلنة</span>
+          <h2 class="section-title" id="lectures-list-title">جدول المحاضرات</h2>
+          <button class="btn btn--outline lectures-image-button" id="lectures-download-image" type="button">حفظ صورة الجدول للمشاركة عبر واتساب</button>
+        </div>
+        <div class="lectures-filters" aria-label="خيارات عرض المحاضرات">
+          <label for="lectures-period">عرض المحاضرات حسب</label>
+          <select class="field" id="lectures-period">
+            <option value="current-week">الأسبوع الحالي</option>
+            <option value="specific-week">أسبوع محدد</option>
+            <option value="month">شهر محدد</option>
+          </select>
+          <input class="field" id="lectures-week-picker" type="date" aria-label="اختر يومًا من الأسبوع المطلوب" hidden>
+          <input class="field" id="lectures-month-picker" type="month" aria-label="اختر الشهر المطلوب" hidden>
         </div>
         <div class="lectures-table-wrap">
           <table class="lectures-table">
-            <thead><tr><th scope="col">اليوم والتاريخ</th><th scope="col">الزمن</th><th scope="col">المحاضرة</th><th scope="col">المسجد</th><th scope="col">معلومات</th></tr></thead>
+            <thead><tr><th scope="col">اليوم والتاريخ</th><th scope="col">وقت الصلاة</th><th scope="col">المحاضرة</th><th scope="col">المسجد</th></tr></thead>
             <tbody id="lectures-list">
-              <tr><td colspan="5" class="lectures-empty">سيتم إعلان مواعيد هذا الأسبوع قريبًا. اتصل للاستفسار أو التأكد من وجود محاضرة.</td></tr>
+              <tr><td colspan="4" class="lectures-empty">سيتم إعلان مواعيد هذا الأسبوع قريبًا.</td></tr>
             </tbody>
           </table>
         </div>
-        <p class="lectures-contact"><span aria-hidden="true">☎</span> للاستفسار عن المواعيد أو تفاصيل الوصول، تواصل معنا.</p>
-        <a class="btn btn--primary lectures-contact-button" href="tel:0965811827">اتصل لمزيد من المعلومات <span dir="ltr">0965811827</span></a>
+        <p class="lectures-image-status" id="lectures-image-status" role="status" aria-live="polite" hidden></p>
       </section>
     </div>
   </main>
   <footer class="site-footer">
     <div class="container"><div class="footer-bottom"><p>© <span id="year">2026</span> موقع الشيخ محمد أحمد الهادي الكرار</p></div></div>
   </footer>
-  <script src="../assets/js/main.js?v=20260930-seo-canonical" defer></script>
+  <script src="../assets/js/main.js?v=20260930-lecture-schedule" defer></script>
 </body>
 </html>
