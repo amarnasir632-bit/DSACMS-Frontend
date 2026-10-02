@@ -32,6 +32,88 @@
   <link rel="stylesheet" href="assets/css/style.css?v=20260930-local-cairo">
   <link rel="icon" type="image/png" href="assets/images/logo.png">
 
+  <style>
+    /* تنسيقات خاصة بالقائمة المنسدلة الجديدة */
+    .site-nav ul {
+      list-style: none;
+    }
+    
+    .site-nav li.dropdown {
+      position: relative;
+    }
+
+    /* إخفاء القائمة الفرعية بشكل افتراضي */
+    .site-nav li.dropdown .dropdown-menu {
+      display: none;
+      position: absolute;
+      top: 100%;
+      right: 0; /* محاذاة لليمين لأن الموقع RTL */
+      background-color: #ffffff;
+      min-width: 220px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+      border-radius: 8px;
+      padding: 0;
+      margin: 0;
+      z-index: 1000;
+      border: 1px solid #eaeaea;
+    }
+
+    /* إظهار القائمة الفرعية عند تمرير الماوس */
+    .site-nav li.dropdown:hover .dropdown-menu {
+      display: block; /* تغيير طريقة العرض لتظهر */
+    }
+
+    /* تنسيق عناصر القائمة الفرعية */
+    .site-nav li.dropdown .dropdown-menu li {
+      width: 100%;
+      margin: 0;
+    }
+
+    .site-nav li.dropdown .dropdown-menu li a {
+      display: block;
+      padding: 12px 20px;
+      color: #333;
+      font-size: 0.95rem;
+      border-bottom: 1px solid #f0f0f0;
+      transition: all 0.2s ease-in-out;
+    }
+
+    .site-nav li.dropdown .dropdown-menu li:last-child a {
+      border-bottom: none;
+    }
+
+    /* تأثير تمرير الماوس على العناصر الفرعية */
+    .site-nav li.dropdown .dropdown-menu li a:hover {
+      background-color: #f8f9fa;
+      color: #14253e;
+      padding-right: 25px; /* حركة خفيفة لليسار عند التأشير */
+    }
+
+    /* إضافة سهم صغير بجانب زر القائمة المنسدلة */
+    .dropdown-toggle::after {
+      content: "▼";
+      font-size: 0.6em;
+      margin-right: 6px;
+      vertical-align: middle;
+      opacity: 0.7;
+    }
+
+    /* تمييز زر الإدارة بصرياً */
+    .admin-link a {
+      border: 1px solid #14253e;
+      border-radius: 6px;
+      padding: 6px 15px !important;
+      opacity: 0.8;
+      transition: all 0.3s;
+    }
+    
+    .admin-link a:hover {
+      background-color: #14253e;
+      color: #ffffff !important;
+      opacity: 1;
+    }
+  </style>
+
   <!-- Structured Data: تحديد نوع الموقع مع إجراء البحث (SEO) -->
   <script type="application/ld+json">
   {
@@ -53,7 +135,7 @@
 
   <a class="skip-link" href="#main">تخطَّ إلى المحتوى الرئيسي</a>
 
-  <!-- ======================= الرأس والتنقل (UI-008: ثابت بين الصفحات) ======================= -->
+  <!-- ======================= الرأس والتنقل ======================= -->
   <header class="site-header">
     <div class="container nav-wrap">
       <a class="brand" href="index.html" aria-label="DSACMS – الصفحة الرئيسية">
@@ -70,12 +152,22 @@
       <nav id="site-nav" class="site-nav" aria-label="القائمة الرئيسية">
         <ul>
           <li><a href="index.html" aria-current="page">الرئيسية</a></li>
-          <li><a href="pages/search.html">تصفّح المحتوى</a></li>
-          <li><a href="pages/questions.html">الأسئلة والفتاوى</a></li>
-          <li><a href="pages/lectures.html">جدول المحاضرات</a></li>
-          <li><a href="pages/search.html?media=audio">المحتوى الصوتي</a></li>
+          
+          <!-- التعديل هنا: بداية القائمة المنسدلة -->
+          <li class="dropdown">
+            <a href="pages/search.html" class="dropdown-toggle" aria-haspopup="true" aria-expanded="false">تصفّح المحتوى</a>
+            <ul class="dropdown-menu" aria-label="قائمة تصفح المحتوى">
+              <li><a href="pages/search.html?media=audio">المحتوى الصوتي</a></li>
+              <li><a href="pages/questions.html">الأسئلة والفتاوى</a></li>
+              <li><a href="pages/lectures.html">جدول المحاضرات</a></li>
+            </ul>
+          </li>
+          <!-- نهاية القائمة المنسدلة -->
+
           <li><a href="pages/about.html">حول الشيخ</a></li>
-          <li><a href="pages/login.html">تسجيل الدخول للإدارة</a></li>
+          
+          <!-- التعديل هنا: إضافة فئة خاصة لزر الإدارة لتمييزه -->
+          <li class="admin-link"><a href="pages/login.html">تسجيل الدخول للإدارة</a></li>
         </ul>
       </nav>
     </div>
@@ -192,13 +284,12 @@
           <ul id="footer-categories"></ul>
         </nav>
         <div>
-<h3>التواصل</h3>
+          <h3>التواصل</h3>
           <ul>
             <li><a href="mailto:ammarnassir@outlook.sa">ammarnassir@outlook.sa</a></li>
             <li><a href="tel:0965811827">0965811827</a></li>
             <li>الخرطوم – السودان</li>
           </ul>
-
         </div>
       </div>
       <div class="footer-bottom">
