@@ -1986,18 +1986,19 @@
       const status = $("#question-form-status");
       const question = $("#question-text").value.trim();
       if (!question) return;
-      if (!window.grecaptcha) {
+      if (!window.grecaptcha?.ready || !window.grecaptcha?.execute) {
         status.textContent = "تعذر تحميل reCAPTCHA. تحقق من اتصالك وأعد تحميل الصفحة.";
         return;
       }
-      const captchaToken = window.grecaptcha.getResponse();
-      if (!captchaToken) {
-        status.textContent = "يرجى إكمال التحقق من أنك لست روبوتاً.";
-        return;
-      }
       submit.disabled = true;
-      status.textContent = "جارٍ إرسال السؤال…";
+      status.textContent = "جارٍ التحقق وإرسال السؤال…";
       try {
+        const captchaToken = await new Promise((resolve, reject) => {
+          window.grecaptcha.ready(() => {
+            window.grecaptcha.execute("6Lev1NwtAAAAABjiN_30vDoEPXlFcZx7Y1byw6-p", { action: "submit_question" })
+              .then(resolve, reject);
+          });
+        });
         await fetchApi("/questions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -2019,7 +2020,6 @@
             ? error.detail || "تعذر التحقق من reCAPTCHA. أعد المحاولة."
             : "تعذر إرسال السؤال حالياً. تحقق من اتصالك وحاول لاحقاً.";
       } finally {
-        window.grecaptcha?.reset();
         submit.disabled = false;
       }
     });
