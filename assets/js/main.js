@@ -1986,6 +1986,15 @@
       const status = $("#question-form-status");
       const question = $("#question-text").value.trim();
       if (!question) return;
+      if (!window.grecaptcha) {
+        status.textContent = "تعذر تحميل reCAPTCHA. تحقق من اتصالك وأعد تحميل الصفحة.";
+        return;
+      }
+      const captchaToken = window.grecaptcha.getResponse();
+      if (!captchaToken) {
+        status.textContent = "يرجى إكمال التحقق من أنك لست روبوتاً.";
+        return;
+      }
       submit.disabled = true;
       status.textContent = "جارٍ إرسال السؤال…";
       try {
@@ -1997,18 +2006,20 @@
             category: $("#question-category").value,
             question_text: question,
             website_url: $("#website-url").value,
+            captcha_token: captchaToken,
           }),
         });
         form.reset();
         status.textContent = "تم استلام سؤالك للمراجعة، وستظهر الإجابة بعد نشرها.";
       } catch (error) {
         console.error("Unable to submit question", error);
-        status.textContent = error.message.includes("429")
+        status.textContent = error.status === 429
           ? "وصلت للحد المسموح من الأسئلة حالياً. حاول بعد خمس دقائق."
-          : error.message.includes("400")
-            ? "يرجى كتابة سؤال لا يقل عن 10 أحرف."
+          : error.status === 400 || error.status === 503
+            ? error.detail || "تعذر التحقق من reCAPTCHA. أعد المحاولة."
             : "تعذر إرسال السؤال حالياً. تحقق من اتصالك وحاول لاحقاً.";
       } finally {
+        window.grecaptcha?.reset();
         submit.disabled = false;
       }
     });
