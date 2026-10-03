@@ -2014,58 +2014,6 @@
     });
   }
 
-  function initContactRequestForm() {
-    const form = $("#contact-request-form");
-    if (!form) return;
-    const submit = $("#contact-request-submit");
-    const status = $("#contact-request-status");
-    const keyField = $("#contact-request-submission-key");
-    const newSubmissionKey = () => {
-      if (window.crypto?.randomUUID) return window.crypto.randomUUID();
-      const bytes = new Uint8Array(16);
-      window.crypto.getRandomValues(bytes);
-      bytes[6] = (bytes[6] & 0x0f) | 0x40;
-      bytes[8] = (bytes[8] & 0x3f) | 0x80;
-      const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-      return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-    };
-
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const name = $("#contact-request-name").value.trim();
-      const phone = $("#contact-request-phone").value.trim();
-      const question = $("#contact-request-question").value.trim();
-      if (!name || !phone || !question) return;
-      if (!keyField.value) keyField.value = newSubmissionKey();
-      submit.disabled = true;
-      status.textContent = "جارٍ إرسال طلب التواصل…";
-      try {
-        await fetchApi("/contact-requests", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name,
-            phone,
-            question,
-            website_url: $("#contact-request-website").value,
-            submission_key: keyField.value,
-          }),
-        });
-        form.reset();
-        keyField.value = "";
-        status.textContent = "تم إرسال طلب التواصل بنجاح. سيطلع الشيخ على طلبك، وإذا رغب في التواصل معك فسيتواصل معك على الرقم الذي أدخلته.";
-      } catch (error) {
-        status.textContent = error.status === 429
-          ? "وصلت للحد المسموح. حاول إرسال الطلب بعد 15 دقيقة."
-          : error.status === 400
-            ? error.detail || "راجع الاسم ورقم السودان ونص سبب التواصل."
-            : "تعذر إرسال الطلب الآن. تحقق من اتصالك وحاول مرة أخرى.";
-      } finally {
-        submit.disabled = false;
-      }
-    });
-  }
-
   /* ======================================================================
      9) صفحة تسجيل الدخول (login.html) – FR-021 / SEC-001 / SEC-004/006/011
      ====================================================================== */
@@ -3708,7 +3656,6 @@
           break;
         case "questions":
             await initQuestions();
-            initContactRequestForm();
             break;
         case "lectures":
           await initLecturesPage();
