@@ -57,7 +57,11 @@
     </div>
   </header>
   <main id="main" class="site-main">
-    <div class="container qa-layout">
+    <div class="container qa-layout qa-layout--maintenance">
+      <section class="qa-maintenance-notice" role="alert" aria-live="assertive" aria-labelledby="qa-maintenance-title">
+        <h1 id="qa-maintenance-title">صفحة الأسئلة تحت الصيانة</h1>
+        <p>أوقفنا استقبال الأسئلة مؤقتاً حتى نحل مشكلة التحقق والحماية. نعتذر عن ذلك، وسنعيد فتح الخدمة بعد اكتمال الصيانة.</p>
+      </section>
       <header>
         <h1>الأسئلة والفتاوى</h1>
         <p class="section-desc">أرسل سؤالك للشيخ، وستظهر الإجابة هنا بعد مراجعتها ونشرها. تختلف مدة الرد بحسب توفر الشيخ.</p>
@@ -66,14 +70,14 @@
       <section class="card qa-form-card" aria-labelledby="ask-question-title">
         <h2 id="ask-question-title">أرسل سؤالك</h2>
         <p class="alert alert--info qa-privacy-note">اكتب سؤالك بوضوح، وتجنب ذكر الأسماء أو أي معلومات خاصة. إذا نُشرت الإجابة فسيكون السؤال والإجابة متاحين لجميع زوار الموقع.</p>
-        <form id="question-form">
+        <form id="question-form" aria-disabled="true">
           <div class="form-group">
             <label for="question-asker-name">اسم العرض (اختياري)</label>
-            <input id="question-asker-name" class="field" maxlength="255" autocomplete="name">
+            <input id="question-asker-name" class="field" maxlength="255" autocomplete="name" disabled>
           </div>
           <div class="form-group">
             <label for="question-category">موضوع السؤال</label>
-            <select id="question-category" class="field">
+            <select id="question-category" class="field" disabled>
               <option value="عام">عام</option>
               <option value="العقيدة">العقيدة</option>
               <option value="العبادات">العبادات</option>
@@ -85,14 +89,14 @@
           </div>
           <div class="form-group">
             <label for="question-text">السؤال <span aria-hidden="true">*</span></label>
-            <textarea id="question-text" class="field" rows="6" minlength="10" maxlength="10000" aria-describedby="question-guidance" required></textarea>
+            <textarea id="question-text" class="field" rows="6" minlength="10" maxlength="10000" aria-describedby="question-guidance" required disabled></textarea>
             <p class="hint" id="question-guidance">اذكر التفاصيل اللازمة لفهم المسألة، مثل البلد أو الظروف المرتبطة بها، من دون بيانات تكشف هويتك. الحد الأدنى 10 أحرف.</p>
           </div>
           <div class="qa-honeypot" aria-hidden="true">
             <label for="website-url">موقعك</label>
-            <input id="website-url" name="website_url" tabindex="-1" autocomplete="off">
+            <input id="website-url" name="website_url" tabindex="-1" autocomplete="off" disabled>
           </div>
-          <button type="submit" class="btn btn--primary" id="question-submit">إرسال السؤال</button>
+          <button type="submit" class="btn btn--primary" id="question-submit" disabled>إرسال السؤال</button>
           <p class="hint" id="question-form-status" role="status" aria-live="polite"></p>
         </form>
       </section>
