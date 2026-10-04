@@ -2233,12 +2233,30 @@
   function showToast(message, type) {
     const region = toastRegion();
     if (!region) return;
+    const kind = ["success", "info", "warning", "error"].includes(type) ? type : "success";
+    const symbols = { success: "✓", info: "i", warning: "!", error: "×" };
     const t = document.createElement("div");
-    t.className = "toast toast--" + (type || "success");
-    t.setAttribute("role", "status");
-    t.textContent = message;
+    t.className = "toast toast--" + kind;
+    t.setAttribute("role", kind === "error" ? "alert" : "status");
+    const icon = document.createElement("span");
+    icon.className = "toast__icon";
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = symbols[kind];
+    const text = document.createElement("span");
+    text.className = "toast__message";
+    text.textContent = message;
+    const close = document.createElement("button");
+    close.className = "toast__close";
+    close.type = "button";
+    close.setAttribute("aria-label", "إغلاق الإشعار");
+    close.textContent = "×";
+    close.addEventListener("click", () => t.remove());
+    t.append(icon, text, close);
     region.appendChild(t);
-    setTimeout(() => t.remove(), 3800);
+    setTimeout(() => {
+      t.classList.add("toast--leaving");
+      setTimeout(() => t.remove(), 220);
+    }, 4500);
   }
 
   /** نافذة تأكيد ديناميكية تُرجع وعداً */
