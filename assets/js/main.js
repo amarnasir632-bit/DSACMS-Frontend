@@ -1972,6 +1972,21 @@
   async function initQuestions() {
     const form = $("#question-form");
     const list = $("#public-questions-list");
+    const maintenanceNotice = $("#qa-maintenance-notice");
+    const maintenanceMessage = $("#qa-maintenance-message");
+    const formStatus = $("#question-form-status");
+
+    const setQuestionIntakeState = (accepting, message = "") => {
+      if (maintenanceNotice) maintenanceNotice.hidden = accepting;
+      if (maintenanceMessage && message) maintenanceMessage.textContent = message;
+      if (!form) return;
+      form.setAttribute("aria-disabled", String(!accepting));
+      form.querySelectorAll("input, select, textarea, button[type='submit']").forEach((control) => {
+        control.disabled = !accepting;
+      });
+      if (formStatus) formStatus.textContent = accepting ? "خدمة استقبال الأسئلة متاحة." : "";
+    };
+
     try {
       const items = await fetchApi("/questions");
       renderPublicQuestions(Array.isArray(items) ? items : []);
@@ -1980,6 +1995,38 @@
       if (list) list.innerHTML = '<p class="alert alert--error">تعذر تحميل الأسئلة حالياً.</p>';
     }
     if (!form) return;
+
+    const siteKey = String(form.dataset.recaptchaSiteKey || "").trim();
+    try {
+      const status = await fetchApi("/questions/status");
+      if (!status?.accepting) {
+        setQuestionIntakeState(false, "استقبال الأسئلة متوقف مؤقتاً. ستُفتح الخدمة تلقائياً بعد اكتمال إعداد التحقق.");
+      } else if (!siteKey) {
+        setQuestionIntakeState(false, "مفتاح reCAPTCHA العام غير مضبوط في صفحة الموقع.");
+      } else {
+        await new Promise((resolve, reject) => {
+          if (window.grecaptcha?.ready) return resolve();
+          const timeout = setTimeout(() => finish(reject, new Error("reCAPTCHA loading timed out")), 12000);
+          const finish = (callback, value) => {
+            clearTimeout(timeout);
+            callback(value);
+          };
+          const script = document.createElement("script");
+          script.src = `https://www.google.com/recaptcha/api.js?render=${encodeURIComponent(siteKey)}&hl=ar`;
+          script.async = true;
+          script.onload = () => window.grecaptcha?.ready
+            ? finish(resolve)
+            : finish(reject, new Error("reCAPTCHA did not initialize"));
+          script.onerror = () => finish(reject, new Error("Unable to load reCAPTCHA"));
+          document.head.appendChild(script);
+        });
+        setQuestionIntakeState(true);
+      }
+    } catch (error) {
+      console.error("Unable to initialize public question intake", error);
+      setQuestionIntakeState(false, "تعذر التحقق من جاهزية الخدمة أو تحميل reCAPTCHA. أعد تحميل الصفحة لاحقاً.");
+    }
+
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       const submit = $("#question-submit");
@@ -1995,7 +2042,7 @@
       try {
         const captchaToken = await new Promise((resolve, reject) => {
           window.grecaptcha.ready(() => {
-            window.grecaptcha.execute("6Lev1NwtAAAAABjiN_30vDoEPXlFcZx7Y1byw6-p", { action: "submit_question" })
+            window.grecaptcha.execute(siteKey, { action: "submit_question" })
               .then(resolve, reject);
           });
         });

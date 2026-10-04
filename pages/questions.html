@@ -57,10 +57,10 @@
     </div>
   </header>
   <main id="main" class="site-main">
-    <div class="container qa-layout qa-layout--maintenance">
-      <section class="qa-maintenance-notice" role="alert" aria-live="assertive" aria-labelledby="qa-maintenance-title">
+    <div class="container qa-layout">
+      <section class="qa-maintenance-notice" id="qa-maintenance-notice" role="status" aria-live="polite" aria-labelledby="qa-maintenance-title" hidden>
         <h1 id="qa-maintenance-title">صفحة الأسئلة تحت الصيانة</h1>
-        <p>أوقفنا استقبال الأسئلة مؤقتاً حتى نحل مشكلة التحقق والحماية. نعتذر عن ذلك، وسنعيد فتح الخدمة بعد اكتمال الصيانة.</p>
+        <p id="qa-maintenance-message">نتحقق من جاهزية استقبال الأسئلة. ستظهر حالة الخدمة هنا.</p>
       </section>
       <header>
         <h1>الأسئلة والفتاوى</h1>
@@ -70,7 +70,7 @@
       <section class="card qa-form-card" aria-labelledby="ask-question-title">
         <h2 id="ask-question-title">أرسل سؤالك</h2>
         <p class="alert alert--info qa-privacy-note">اكتب سؤالك بوضوح، وتجنب ذكر الأسماء أو أي معلومات خاصة. إذا نُشرت الإجابة فسيكون السؤال والإجابة متاحين لجميع زوار الموقع.</p>
-        <form id="question-form" aria-disabled="true">
+        <form id="question-form" aria-disabled="true" data-recaptcha-site-key="6Lev1NwtAAAAABjiN_30vDoEPXlFcZx7Y1byw6-p">
           <div class="form-group">
             <label for="question-asker-name">اسم العرض (اختياري)</label>
             <input id="question-asker-name" class="field" maxlength="255" autocomplete="name" disabled>
@@ -114,7 +114,6 @@
     </div>
   </main>
   <footer class="site-footer"><div class="container"><p>&copy; 2026 موقع الشيخ محمد أحمد الهادي الكرار</p></div></footer>
-  <script src="https://www.google.com/recaptcha/api.js?render=6Lev1NwtAAAAABjiN_30vDoEPXlFcZx7Y1byw6-p&hl=ar" async defer></script>
-  <script src="../assets/js/main.js?v=20261004-premium-ui" defer></script>
+  <script src="../assets/js/main.js?v=20261004-questions-captcha" defer></script>
 </body>
 </html>
