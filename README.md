@@ -68,8 +68,6 @@ python3 -m http.server 5500
 ثم افتح `http://localhost:5500`. عنوان الـ API الافتراضي في الواجهة هو:
 `https://dsacms-backend.vercel.app/api`.
 
-للعمل مع Backend محلي، غيّر العنوان في إعدادات الواجهة إلى عنوان الخادم المحلي
-واستخدم مستودع [DSACMS-Backend](https://github.com/amarnasir632-bit/DSACMS-Backend).
 
 ## الصفحات
 
@@ -147,8 +145,6 @@ node --check assets/js/main.js
 git diff --check
 ```
 
-فحوص Backend وأوامر النشر موضحة في مستودع
-[DSACMS-Backend](https://github.com/amarnasir632-bit/DSACMS-Backend).
 سجل المشاكل والحلول التشغيلية موجود في
 [docs/OPERATIONS.md](./docs/OPERATIONS.md).
 
