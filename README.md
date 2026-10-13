@@ -7,7 +7,6 @@
 ## الحالة الحالية
 
 - الموقع منشور على: `https://www.mohamedalahadi.com`
-- الـ Backend منشور على: `https://dsacms-backend.vercel.app`
 - البيانات الأساسية تحفظ في PostgreSQL عبر الـ Backend، وليست في متصفح واحد فقط.
 - تحفظ روابط الوسائط العامة مباشرة في PostgreSQL. ويمكن رفع الصوت أو PDF إلى
   Internet Archive من محرر المادة عبر أداة الرفع المدمجة، مع تخزين مؤقت خاص
