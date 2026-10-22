@@ -1181,19 +1181,89 @@
     window.addEventListener("resize", updateScrollControls);
     updateScrollControls();
 
-    // زر قائمة الجوال
+   
+    
+    // القائمة الجانبية للتنقل
     const toggle = $(".nav-toggle");
     const nav = $("#site-nav");
+    const closeButton = $(".nav-close", nav);
+    const overlay = $(".nav-overlay");
+
     if (toggle && nav) {
-      toggle.addEventListener("click", () => {
-        const open = nav.classList.toggle("is-open");
+      function setMenuOpen(open) {
+        nav.classList.toggle("is-open", open);
         toggle.setAttribute("aria-expanded", String(open));
+        toggle.setAttribute(
+          "aria-label",
+          open ? "إغلاق قائمة التنقل" : "فتح قائمة التنقل"
+        );
+
+        document.body.classList.toggle("nav-menu-open", open);
+
+        if (overlay) {
+          overlay.setAttribute("aria-hidden", String(!open));
+        }
+
+        if (open && closeButton) {
+          closeButton.focus();
+        } else if (!open) {
+          toggle.focus();
+        }
+      }
+
+      toggle.addEventListener("click", () => {
+        const isOpen = nav.classList.contains("is-open");
+        setMenuOpen(!isOpen);
       });
-      // إغلاق القائمة عند اختيار رابط
-      nav.addEventListener("click", (e) => {
-        if (e.target.closest("a") && nav.classList.contains("is-open")) {
-          nav.classList.remove("is-open");
-          toggle.setAttribute("aria-expanded", "false");
+
+      if (closeButton) {
+        closeButton.addEventListener("click", () => {
+          setMenuOpen(false);
+        });
+      }
+
+      if (overlay) {
+        overlay.addEventListener("click", () => {
+          setMenuOpen(false);
+        });
+      }
+
+      // إغلاق القائمة بزر Escape
+      document.addEventListener("keydown", (event) => {
+        if (
+          event.key === "Escape" &&
+          nav.classList.contains("is-open")
+        ) {
+          setMenuOpen(false);
+        }
+      });
+
+      // فتح وإغلاق القائمة الفرعية لتصفح المحتوى
+      const dropdownToggle = $(".dropdown-toggle", nav);
+      const dropdownMenu = $(".dropdown-menu", nav);
+
+      if (dropdownToggle && dropdownMenu) {
+        dropdownToggle.addEventListener("click", (event) => {
+          event.preventDefault();
+
+          const expanded =
+            dropdownToggle.getAttribute("aria-expanded") === "true";
+
+          dropdownToggle.setAttribute(
+            "aria-expanded",
+            String(!expanded)
+          );
+
+          dropdownMenu.style.display = expanded ? "none" : "block";
+        });
+      }
+
+      // إغلاق القائمة الجانبية بعد اختيار رابط
+      nav.addEventListener("click", (event) => {
+        const link = event.target.closest("a");
+
+        if (link && !link.classList.contains("dropdown-toggle")) {
+          setMenuOpen(false);
         }
       });
     }
