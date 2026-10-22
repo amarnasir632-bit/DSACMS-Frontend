@@ -137,41 +137,86 @@
 
   <!-- ======================= الرأس والتنقل ======================= -->
   <header class="site-header">
-    <div class="container nav-wrap">
-      <a class="brand" href="index.html" aria-label="DSACMS – الصفحة الرئيسية">
-        <img src="assets/images/logo.png" alt="شعار نظام DSACMS" height="60" style="object-fit: contain;">
-        <span>الشيخ محمد أحمد الهادي الكرار<small>المكتبة العلمية والصوتية</small></span>
-      </a>
+ 
+<header class="site-header">
+  <div class="container nav-wrap">
 
-      <!-- زر قائمة الجوال -->
-      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="فتح أو إغلاق قائمة التنقل">
-        <span class="icon-menu" aria-hidden="true">☰</span>
-        <span class="icon-close" aria-hidden="true">✕</span>
-      </button>
+    <!-- زر فتح القائمة الجانبية -->
+    <button
+      class="nav-toggle"
+      type="button"
+      aria-expanded="false"
+      aria-controls="site-nav"
+      aria-label="فتح قائمة التنقل"
+    >
+      <span class="icon-menu" aria-hidden="true">☰</span>
+      <span class="icon-close" aria-hidden="true">✕</span>
+    </button>
 
-      <nav id="site-nav" class="site-nav" aria-label="القائمة الرئيسية">
-        <ul>
-          <li><a href="index.html" aria-current="page">الرئيسية</a></li>
-          
-          <!-- التعديل هنا: بداية القائمة المنسدلة -->
-          <li class="dropdown">
-            <a href="pages/search.html" class="dropdown-toggle" aria-haspopup="true" aria-expanded="false">تصفّح المحتوى</a>
-            <ul class="dropdown-menu" aria-label="قائمة تصفح المحتوى">
-              <li><a href="pages/search.html?media=audio">المحتوى الصوتي</a></li>
-              <li><a href="pages/questions.html">الأسئلة والفتاوى</a></li>
-              <li><a href="pages/lectures.html">جدول المحاضرات</a></li>
-            </ul>
-          </li>
-          <!-- نهاية القائمة المنسدلة -->
+    <!-- الشعار واسم الشيخ في منتصف الهيدر -->
+    <a class="brand" href="index.html" aria-label="DSACMS – الصفحة الرئيسية">
+      <img
+        src="assets/images/logo.png"
+        alt="شعار نظام DSACMS"
+        height="60"
+        style="object-fit: contain;"
+      >
+      <span>
+        الشيخ محمد أحمد الهادي الكرار
+        <small>المكتبة العلمية والصوتية</small>
+      </span>
+    </a>
 
-          <li><a href="pages/about.html">حول الشيخ</a></li>
-          
-          <!-- التعديل هنا: إضافة فئة خاصة لزر الإدارة لتمييزه -->
-          <li class="admin-link"><a href="pages/login.html">تسجيل الدخول للإدارة</a></li>
-        </ul>
-      </nav>
-    </div>
-  </header>
+    <!-- القائمة الجانبية -->
+    <nav id="site-nav" class="site-nav" aria-label="القائمة الرئيسية">
+      <button
+        class="nav-close"
+        type="button"
+        aria-label="إغلاق قائمة التنقل"
+      >✕</button>
+
+      <ul>
+        <li>
+          <a href="index.html" aria-current="page">الرئيسية</a>
+        </li>
+
+        <li class="dropdown">
+          <a
+            href="pages/search.html"
+            class="dropdown-toggle"
+            aria-haspopup="true"
+            aria-expanded="false"
+          >تصفّح المحتوى</a>
+
+          <ul class="dropdown-menu" aria-label="قائمة تصفح المحتوى">
+            <li>
+              <a href="pages/search.html?media=audio">المحتوى الصوتي</a>
+            </li>
+            <li>
+              <a href="pages/questions.html">الأسئلة والفتاوى</a>
+            </li>
+            <li>
+              <a href="pages/lectures.html">جدول المحاضرات</a>
+            </li>
+          </ul>
+        </li>
+
+        <li>
+          <a href="pages/about.html">حول الشيخ</a>
+        </li>
+
+        <li class="admin-link">
+          <a href="pages/login.html">تسجيل الدخول للإدارة</a>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- خلفية تظهر عند فتح القائمة -->
+    <div class="nav-overlay" aria-hidden="true"></div>
+
+  </div>
+</header>
+
 
   <main id="main" class="site-main">
 
