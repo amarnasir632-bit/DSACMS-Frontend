@@ -3034,3 +3034,238 @@ select.field:disabled {
   .toast--leaving { animation: none; }
   .download-trigger { transition: none; }
 }
+
+/* ==========================================================
+   DSACMS — تصميم الهيدر والقائمة الجانبية الجديدة
+   ========================================================== */
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  background: #14253e;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.site-header .nav-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 5rem;
+  height: auto;
+  padding-block: 0.5rem;
+}
+
+/* الشعار واسم الشيخ في المنتصف الهندسي */
+.site-header .brand {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  max-width: calc(100% - 5rem);
+  color: #fff;
+  text-align: center;
+  font-size: 1.05rem;
+  line-height: 1.4;
+}
+
+.site-header .brand img {
+  width: auto;
+  height: 3.5rem;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
+.site-header .brand small {
+  display: block;
+  margin-top: 0.15rem;
+  color: #e0e6ef;
+  font-size: 0.8rem;
+}
+
+.site-header .brand:hover {
+  color: #fff;
+  text-decoration: none;
+}
+
+/* زر القائمة ظاهر على جميع أحجام الشاشات */
+.site-header .nav-toggle {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1002;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.9rem;
+  height: 2.9rem;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 0.5rem;
+  background: transparent;
+  color: #fff;
+  font-size: 1.65rem;
+  line-height: 1;
+}
+
+.site-header .nav-toggle:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* القائمة الجانبية من اليمين */
+.site-header #site-nav {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1003;
+  display: block;
+  width: min(22rem, 88vw);
+  height: 100vh;
+  height: 100dvh;
+  padding: 5rem 1rem 2rem;
+  overflow-y: auto;
+  background: #14253e;
+  color: #fff;
+  box-shadow: -8px 0 30px rgba(0, 0, 0, 0.2);
+  transform: translateX(105%);
+  visibility: hidden;
+  pointer-events: none;
+  transition:
+    transform 220ms ease,
+    visibility 220ms ease;
+}
+
+.site-header #site-nav.is-open {
+  transform: translateX(0);
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* روابط القائمة */
+.site-header #site-nav ul {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0;
+}
+
+.site-header #site-nav li {
+  width: 100%;
+}
+
+.site-header #site-nav a {
+  display: block;
+  width: 100%;
+  padding: 0.85rem 1rem;
+  border-radius: 0.5rem;
+  color: #fff;
+  white-space: normal;
+  text-align: right;
+}
+
+.site-header #site-nav a:hover,
+.site-header #site-nav a[aria-current="page"] {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  text-decoration: none;
+}
+
+/* زر الإغلاق داخل القائمة */
+.site-header #site-nav .nav-close {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 0.5rem;
+  background: transparent;
+  color: #fff;
+  font-size: 1.5rem;
+}
+
+/* القائمة الفرعية */
+.site-header #site-nav .dropdown-menu {
+  display: none;
+  position: static;
+  width: 100%;
+  padding: 0 0.75rem 0.5rem;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.site-header #site-nav .dropdown-menu a {
+  padding-right: 1.75rem;
+  color: #e0e6ef;
+  font-size: 0.95rem;
+}
+
+/* الخلفية المعتمة خلف القائمة */
+.site-header .nav-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1001;
+  display: block;
+  background: rgba(5, 12, 22, 0.58);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 220ms ease, visibility 220ms ease;
+}
+
+.site-header #site-nav.is-open ~ .nav-overlay {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* منع تمرير الصفحة خلف القائمة عند فتحها */
+body.nav-menu-open {
+  overflow: hidden;
+}
+
+@media (max-width: 35rem) {
+  .site-header .nav-wrap {
+    min-height: 4.5rem;
+    padding-block: 0.4rem;
+  }
+
+  .site-header .brand {
+    gap: 0.4rem;
+    max-width: calc(100% - 3.5rem);
+    font-size: 0.85rem;
+  }
+
+  .site-header .brand img {
+    height: 2.8rem;
+  }
+
+  .site-header .brand small {
+    font-size: 0.7rem;
+  }
+
+  .site-header .nav-toggle {
+    width: 2.5rem;
+    height: 2.5rem;
+    font-size: 1.4rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-header #site-nav,
+  .site-header .nav-overlay {
+    transition: none;
+  }
+}
+
+
