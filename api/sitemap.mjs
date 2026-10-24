@@ -32,7 +32,7 @@ export async function GET() {
       if (!material?.id || String(material.status || "published").toLowerCase() !== "published") continue;
       const url = new URL("/pages/content-detail.html", SITE_ORIGIN);
       url.searchParams.set("id", String(material.id));
-      const date = material.updated_at || material.created_at;
+      const date = material.published_at || material.publishedAt || material.pub_date || material.pubDate || material.date || material.updated_at || material.created_at;
       const lastModified = date && !Number.isNaN(new Date(date).getTime())
         ? new Date(date).toISOString().slice(0, 10)
         : undefined;

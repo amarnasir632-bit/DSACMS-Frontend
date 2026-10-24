@@ -340,6 +340,7 @@
     audit: "dsacms_audit",
     contentSettings: "dsacms_content_reading_settings",
     readingPreferences: "dsacms_reading_preferences",
+    contentDates: "dsacms_content_dates",
   };
 
   const DEFAULT_READING_SETTINGS = { fontSize: 1.125, lineHeight: 2 };
@@ -365,6 +366,25 @@
     const all = loadContentSettings();
     all[id] = normalizeReadingSettings(settings);
     store.write(STORE.contentSettings, all);
+  }
+
+  function loadContentDates() {
+    const dates = store.read(STORE.contentDates, {});
+    return dates && typeof dates === "object" ? dates : {};
+  }
+
+  function saveContentDate(id, date) {
+    if (!id || !date) return;
+    const all = loadContentDates();
+    all[String(id)] = String(date).slice(0, 10);
+    store.write(STORE.contentDates, all);
+  }
+
+  function removeContentDate(id) {
+    if (!id) return;
+    const all = loadContentDates();
+    delete all[String(id)];
+    store.write(STORE.contentDates, all);
   }
 
   function loadReadingPreferences() {
@@ -640,11 +660,24 @@
   }
 
   function normalizeMaterial(row) {
+    if (!row) return null;
     const audio = row.audio_url || row.audioUrl || null;
     const pdf = row.document_url || row.documentUrl || null;
     const body = Array.isArray(row.body) ? row.body : [];
+    const materialId = String(row.id != null ? row.id : "");
+    const localDates = loadContentDates();
+    const candidateDate =
+      localDates[materialId] ||
+      row.pubDate ||
+      row.published_at ||
+      row.publishedAt ||
+      row.pub_date ||
+      row.date ||
+      row.created_at ||
+      new Date().toISOString();
+
     return {
-      id: String(row.id),
+      id: materialId,
       title: row.title,
       description: row.description || "",
       author: row.author || "غير محدد",
@@ -653,7 +686,7 @@
       keywords: Array.isArray(row.keywords) ? row.keywords : [],
       body,
       readingSettings: normalizeReadingSettings(row.reading_settings || row.readingSettings),
-      pubDate: row.created_at,
+      pubDate: candidateDate,
       duration: Number(row.duration_seconds) || 0,
       audio,
       pdf,
@@ -3033,6 +3066,7 @@
           if (!ok) return;
           try {
             await fetchApi(`/materials/${encodeURIComponent(id)}`, { method: "DELETE" });
+            removeContentDate(id);
             saveContents(loadContents().filter((x) => x.id !== id));
           } catch (error) {
             showToast(error.message || "تعذر حذف المادة من الخادم.", "error");
@@ -3215,6 +3249,9 @@
           .map((c) => `<option value="${escapeHTML(c.id)}">${escapeHTML(c.name)}</option>`)
           .join("");
     }
+    if (cfDate && !cfDate.value) {
+      cfDate.value = new Date().toISOString().slice(0, 10);
+    }
 
     function openEditor(content) {
       switchTab("editor");
@@ -3229,18 +3266,24 @@
       updateStatusDescription();
       if (cfDesc) cfDesc.value = content.description || "";
       if (cfKeywords) cfKeywords.value = (content.keywords || []).join("، ");
-      if (cfDate) cfDate.value = (content.pubDate || "").slice(0, 10);
+      if (cfDate) {
+        if (content.pubDate) {
+          const d = new Date(content.pubDate);
+          cfDate.value = !isNaN(d.getTime()) ? d.toISOString().slice(0, 10) : String(content.pubDate).slice(0, 10);
+        } else {
+          cfDate.value = new Date().toISOString().slice(0, 10);
+        }
+      }
       if (cfDuration) cfDuration.value = content.duration || "";
       if (cfType) cfType.value = content.type || (content.audio ? "audio" : "article");
       if (cfAudio) cfAudio.value = content.audio || "";
       if (cfPdf) cfPdf.value = content.pdf || "";
       if (cfBody) cfBody.value = (content.body || []).join("\n\n");
       const contentSettings = loadContentSettings()[content.id] || content.readingSettings;
-      if (cfFontSize) cfFontSize.value = String(normalizeReadingSettings(contentSettings).fontSize);
-      if (cfLineHeight) cfLineHeight.value = String(normalizeReadingSettings(contentSettings).lineHeight);
+      const normalizedSettings = normalizeReadingSettings(contentSettings);
+      if (cfFontSize) cfFontSize.value = String(normalizedSettings.fontSize);
+      if (cfLineHeight) cfLineHeight.value = String(normalizedSettings.lineHeight);
       if (editorAlert) editorAlert.hidden = true;
-      if (cfFontSize) cfFontSize.value = String(DEFAULT_READING_SETTINGS.fontSize);
-      if (cfLineHeight) cfLineHeight.value = String(DEFAULT_READING_SETTINGS.lineHeight);
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
 
@@ -3249,10 +3292,13 @@
       updateStatusDescription();
       showEditorStep(1);
       if ($("#cf-id")) $("#cf-id").value = "";
+      if (cfDate) cfDate.value = new Date().toISOString().slice(0, 10);
       if (editorTitle) editorTitle.textContent = "إضافة مادة جديدة";
       if (cfSubmit) cfSubmit.textContent = "حفظ المادة";
       if (cfReset) cfReset.textContent = "إلغاء / مسح النموذج";
       if (editorAlert) editorAlert.hidden = true;
+      if (cfFontSize) cfFontSize.value = String(DEFAULT_READING_SETTINGS.fontSize);
+      if (cfLineHeight) cfLineHeight.value = String(DEFAULT_READING_SETTINGS.lineHeight);
     }
 
     if (newContentBtn) {
@@ -3407,6 +3453,11 @@
           : loadContents().find((c) => c.title === cfTitle.value.trim());
 
         // بناء كائن المادة
+        const rawDate = cfDate ? cfDate.value.trim() : "";
+        const selectedDate = rawDate && !isNaN(new Date(rawDate).getTime())
+          ? rawDate
+          : new Date().toISOString().slice(0, 10);
+
         const item = {
           id: (existing && existing.id) || id,
           slug: (existing && existing.slug) || id,
@@ -3418,7 +3469,7 @@
           keywords: cfKeywords
             ? cfKeywords.value.split(/[،,]/).map((k) => k.trim()).filter(Boolean)
             : [],
-          pubDate: cfDate && cfDate.value ? cfDate.value : new Date().toISOString().slice(0, 10),
+          pubDate: selectedDate,
           duration: cfDuration ? Number(cfDuration.value) || 0 : 0,
           audio: cfAudio ? cfAudio.value.trim() : (existing && existing.audio) || null,
           type: cfType ? cfType.value : (existing && existing.type) || "audio",
@@ -3432,27 +3483,45 @@
           }),
         };
         saveContentSettings(item.id, item.readingSettings);
+        if (item.id) saveContentDate(item.id, item.pubDate);
 
         try {
+          const payload = {
+            title: item.title,
+            description: item.description,
+            author: item.author,
+            categoryId: item.category,
+            audioUrl: item.audio,
+            documentUrl: item.pdf || null,
+            contentType: item.type,
+            body: item.body,
+            readingSettings: item.readingSettings,
+            keywords: item.keywords,
+            durationSeconds: item.duration,
+            status: item.status,
+            pubDate: item.pubDate,
+            publishedAt: item.pubDate,
+            published_at: item.pubDate,
+            date: item.pubDate,
+            createdAt: item.pubDate,
+            created_at: item.pubDate,
+          };
           const saved = await fetchApi(existing ? `/materials/${encodeURIComponent(existing.id)}` : "/materials", {
             method: existing ? "PUT" : "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              title: item.title,
-              description: item.description,
-              author: item.author,
-              categoryId: item.category,
-              audioUrl: item.audio,
-              documentUrl: item.pdf || null,
-              contentType: item.type,
-              body: item.body,
-              readingSettings: item.readingSettings,
-              keywords: item.keywords,
-              durationSeconds: item.duration,
-              status: item.status,
-            }),
+            body: JSON.stringify(payload),
           });
-          const normalized = normalizeMaterial(saved.material);
+          const savedRow = (saved && saved.material) || saved || {};
+          const savedId = String(savedRow.id || item.id || "");
+          saveContentDate(savedId, item.pubDate);
+          const normalized = normalizeMaterial({
+            ...savedRow,
+            id: savedId,
+            pubDate: item.pubDate,
+            published_at: item.pubDate,
+            publishedAt: item.pubDate,
+          });
+          normalized.pubDate = item.pubDate;
           apiContents = [
             normalized,
             ...apiContents.filter((content) => content.id !== normalized.id),
