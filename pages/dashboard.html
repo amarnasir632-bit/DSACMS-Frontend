@@ -32,6 +32,16 @@
         </svg>
       </button>
       <nav id="site-nav" class="site-nav" aria-label="القائمة الرئيسية">
+        <button
+          class="nav-close"
+          type="button"
+          aria-label="إغلاق قائمة التنقل"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12"/>
+          </svg>
+        </button>
+
         <ul>
           <li><a href="../index.html">الرئيسية</a></li>
           <li><a href="search.html">المحتوى</a></li>
@@ -40,6 +50,9 @@
           <li><a href="search.html">العودة للموقع</a></li>
         </ul>
       </nav>
+
+      <!-- خلفية تظهر عند فتح القائمة -->
+      <div class="nav-overlay" aria-hidden="true"></div>
     </div>
   </header>
 

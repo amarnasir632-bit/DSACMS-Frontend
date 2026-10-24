@@ -1219,8 +1219,24 @@
     // القائمة الجانبية للتنقل
     const toggle = $(".nav-toggle");
     const nav = $("#site-nav");
-    const closeButton = $(".nav-close", nav);
-    const overlay = $(".nav-overlay");
+    let closeButton = nav ? $(".nav-close", nav) : null;
+    let overlay = $(".nav-overlay");
+
+    if (nav && !closeButton) {
+      closeButton = document.createElement("button");
+      closeButton.className = "nav-close";
+      closeButton.type = "button";
+      closeButton.setAttribute("aria-label", "إغلاق قائمة التنقل");
+      closeButton.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+      nav.insertBefore(closeButton, nav.firstChild);
+    }
+
+    if (!overlay && nav && nav.parentElement) {
+      overlay = document.createElement("div");
+      overlay.className = "nav-overlay";
+      overlay.setAttribute("aria-hidden", "true");
+      nav.parentElement.appendChild(overlay);
+    }
 
     if (toggle && nav) {
       function setMenuOpen(open) {

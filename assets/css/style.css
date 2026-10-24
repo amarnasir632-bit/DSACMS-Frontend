@@ -618,13 +618,13 @@ table {
   color: var(--color-text);
 }
 .nav-toggle[aria-expanded="true"] .icon-menu {
-  display: none;
+  display: none !important;
 }
 .nav-toggle .icon-close {
-  display: none;
+  display: none !important;
 }
 .nav-toggle[aria-expanded="true"] .icon-close {
-  display: inline;
+  display: inline-flex !important;
 }
 
 .site-nav ul {
@@ -3200,6 +3200,20 @@ select.field:disabled {
   background: transparent;
   color: #fff;
   font-size: 1.5rem;
+  cursor: pointer;
+  z-index: 1005;
+  transition: background var(--transition);
+}
+
+.site-header #site-nav .nav-close:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.site-header #site-nav .nav-close svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
 }
 
 /* القائمة الفرعية */
