@@ -42,7 +42,12 @@
         <span>الشيخ محمد أحمد الهادي الكرار<small>المكتبة العلمية والصوتية</small></span>
       </a>
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="فتح أو إغلاق قائمة التنقل">
-        <span class="icon-menu" aria-hidden="true">☰</span><span class="icon-close" aria-hidden="true">✕</span>
+        <svg class="icon-menu" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+        <svg class="icon-close" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M18 6 6 18M6 6l12 12"/>
+        </svg>
       </button>
       <nav id="site-nav" class="site-nav" aria-label="القائمة الرئيسية">
         <ul>
@@ -98,6 +103,7 @@
           </div>
           <button type="submit" class="btn btn--primary" id="question-submit" disabled>إرسال السؤال</button>
           <p class="hint" id="question-form-status" role="status" aria-live="polite"></p>
+          <p class="hint" style="margin-block-start:var(--space-2);font-size:var(--fs-xs);">للمشاكل التقنية يرجى مراسلة الدعم: <a href="mailto:support@mohamedalahadi.com">support@mohamedalahadi.com</a></p>
         </form>
       </section>
       <section aria-labelledby="answered-questions-title">
@@ -113,7 +119,49 @@
       </section>
     </div>
   </main>
-  <footer class="site-footer"><div class="container"><p>&copy; 2026 موقع الشيخ محمد أحمد الهادي الكرار</p></div></footer>
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <h3>عن النظام</h3>
+          <p style="font-size: var(--fs-sm); color: #c4d8d3;">نظام إدارة وأرشفة المحتوى العلمي والصوتي – الإصدار الأول يركز على المحتوى الصوتي مع إتاحة التوسع مستقبلاً.</p>
+        </div>
+        <nav aria-label="روابط سريعة">
+          <h3>روابط سريعة</h3>
+          <ul>
+            <li><a href="../index.html">الرئيسية</a></li>
+            <li><a href="search.html">تصفّح المحتوى</a></li>
+            <li><a href="questions.html">الأسئلة والفتاوى</a></li>
+            <li><a href="login.html">لوحة الإدارة</a></li>
+          </ul>
+        </nav>
+        <nav aria-label="تصنيفات شائعة">
+          <h3>تصنيفات شائعة</h3>
+          <ul id="footer-categories"></ul>
+        </nav>
+        <div>
+          <h3>التواصل والدعم</h3>
+          <ul class="footer-contact-list">
+            <li>
+              <svg class="svg-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+              <span><strong>للتواصل:</strong> <a href="mailto:info@mohamedalahadi.com">info@mohamedalahadi.com</a></span>
+            </li>
+            <li>
+              <svg class="svg-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span><strong>للدعم الفني:</strong> <a href="mailto:support@mohamedalahadi.com">support@mohamedalahadi.com</a></span>
+            </li>
+            <li>
+              <svg class="svg-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.333-6-10a6 6 0 0 1 12 0c0 4.667-6 10-6 10z"/><circle cx="12" cy="11" r="2.5"/></svg>
+              <span>الخرطوم – السودان</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; <span id="year">2026</span> موقع الشيخ محمد أحمد الهادي الكرار</p>
+      </div>
+    </div>
+  </footer>
   <script src="../assets/js/main.js?v=20261004-questions-captcha" defer></script>
 </body>
 </html>

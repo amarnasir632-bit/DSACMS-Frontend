@@ -24,8 +24,12 @@
         <span>الشيخ محمد أحمد الهادي الكرار<small>لوحة إدارة المحتوى</small></span>
       </a>
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="فتح أو إغلاق قائمة التنقل">
-        <span class="icon-menu" aria-hidden="true">☰</span>
-        <span class="icon-close" aria-hidden="true">✕</span>
+        <svg class="icon-menu" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+        <svg class="icon-close" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M18 6 6 18M6 6l12 12"/>
+        </svg>
       </button>
       <nav id="site-nav" class="site-nav" aria-label="القائمة الرئيسية">
         <ul>
@@ -59,14 +63,14 @@
             <span id="dash-user-role">—</span>
           </div>
           <ul id="dash-tabs">
-            <li><button type="button" data-tab="overview" aria-current="true">📊 نظرة عامة</button></li>
-            <li><button type="button" data-tab="content">📚 إدارة المحتوى</button></li>
-            <li><button type="button" data-tab="editor" id="editor-tab-btn">➕ إضافة / تعديل مادة</button></li>
-            <li><button type="button" data-tab="categories">🗂 التصنيفات</button></li>
-            <li><button type="button" data-tab="users" data-admin-only>👥 المستخدمون</button></li>
-            <li><button type="button" data-tab="audit" data-admin-only>🧾 سجل العمليات</button></li>
-            <li><button type="button" data-tab="questions" data-sheikh-only>🕌 الأسئلة والفتاوى</button></li>
-            <li><button type="button" data-tab="lectures" data-manager-only>🗓 جدول المحاضرات</button></li>
+            <li><button type="button" data-tab="overview" aria-current="true"><svg class="svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg> نظرة عامة</button></li>
+            <li><button type="button" data-tab="content"><svg class="svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> إدارة المحتوى</button></li>
+            <li><button type="button" data-tab="editor" id="editor-tab-btn"><svg class="svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> إضافة / تعديل مادة</button></li>
+            <li><button type="button" data-tab="categories"><svg class="svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg> التصنيفات</button></li>
+            <li><button type="button" data-tab="users" data-admin-only><svg class="svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> المستخدمون</button></li>
+            <li><button type="button" data-tab="audit" data-admin-only><svg class="svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg> سجل العمليات</button></li>
+            <li><button type="button" data-tab="questions" data-sheikh-only><svg class="svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg> الأسئلة والفتاوى</button></li>
+            <li><button type="button" data-tab="lectures" data-manager-only><svg class="svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> جدول المحاضرات</button></li>
           </ul>
         </nav>
 
@@ -450,8 +454,12 @@
   <!-- التسجيل لا يجب أن يكون متاحاً للجمهور -->
   <footer class="site-footer">
     <div class="container">
-      <div class="footer-bottom">
+      <div class="footer-bottom" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--space-2);">
         <p>© <span id="year">2026</span> DSACMS – لوحة الإدارة</p>
+        <p style="font-size:var(--fs-xs);color:#c4d8d3;">
+          للدعم الفني: <a href="mailto:support@mohamedalahadi.com" style="color:var(--accent-color);">support@mohamedalahadi.com</a> |
+          للتواصل: <a href="mailto:info@mohamedalahadi.com" style="color:var(--accent-color);">info@mohamedalahadi.com</a>
+        </p>
         <p style="direction:ltr;unicode-bidi:embed;font-size:var(--fs-xs);">Protected by RBAC · Audit Logging</p>
       </div>
     </div>

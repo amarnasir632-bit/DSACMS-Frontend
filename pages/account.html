@@ -19,8 +19,12 @@
         <span>الشيخ محمد أحمد الهادي الكرار<small>إعدادات الحساب</small></span>
       </a>
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="فتح أو إغلاق قائمة التنقل">
-        <span class="icon-menu" aria-hidden="true">☰</span>
-        <span class="icon-close" aria-hidden="true">✕</span>
+        <svg class="icon-menu" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+        <svg class="icon-close" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <path d="M18 6 6 18M6 6l12 12"/>
+        </svg>
       </button>
       <nav id="site-nav" class="site-nav" aria-label="القائمة الرئيسية">
         <ul>
@@ -59,8 +63,12 @@
   </main>
   <footer class="site-footer">
     <div class="container">
-      <div class="footer-bottom">
+      <div class="footer-bottom" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--space-2);">
         <p>© <span id="year">2026</span> موقع الشيخ محمد أحمد الهادي الكرار</p>
+        <p style="font-size:var(--fs-xs);color:#c4d8d3;">
+          للدعم: <a href="mailto:support@mohamedalahadi.com" style="color:var(--accent-color);">support@mohamedalahadi.com</a> |
+          للتواصل: <a href="mailto:info@mohamedalahadi.com" style="color:var(--accent-color);">info@mohamedalahadi.com</a>
+        </p>
         <p style="direction:ltr;unicode-bidi:embed;font-size:var(--fs-xs);">DSACMS</p>
       </div>
     </div>

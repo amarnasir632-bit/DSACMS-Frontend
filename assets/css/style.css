@@ -911,8 +911,17 @@ table {
   opacity: 0.6;
 }
 .category-card .cat-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: var(--fs-2xl);
   line-height: 1;
+  color: var(--color-primary);
+}
+.category-card .cat-emoji svg {
+  width: 2.25rem;
+  height: 2.25rem;
+  stroke: currentColor;
 }
 .category-card h3 {
   font-size: var(--fs-md);
@@ -3267,5 +3276,57 @@ body.nav-menu-open {
     transition: none;
   }
 }
+
+/* --------------------------------------------------------------------------
+   19) تحسينات أيقونات SVG وقوائم التواصل
+   -------------------------------------------------------------------------- */
+.svg-icon {
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.footer-contact-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.footer-contact-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-block-end: var(--space-2);
+}
+
+.footer-contact-list .svg-icon {
+  flex-shrink: 0;
+  color: var(--accent-color, #c5a059);
+}
+
+.dash-nav button .svg-icon {
+  margin-inline-end: 0.5rem;
+  vertical-align: middle;
+}
+
+.item-meta li .svg-icon,
+.meta-chip .svg-icon,
+.upcoming-lecture-mosque .svg-icon,
+.upcoming-lecture-time .svg-icon {
+  margin-inline-end: 0.35rem;
+  vertical-align: -0.15em;
+  color: var(--color-primary);
+}
+
+.empty-state .icon svg {
+  display: inline-block;
+  color: var(--color-primary);
+}
+
+.password-toggle svg {
+  vertical-align: middle;
+  color: var(--color-text-muted);
+}
+
 
 
