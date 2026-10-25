@@ -1,0 +1,8 @@
+# Clean redirects
+/home.html /index.html 301
+/index /index.html 301
+/about /pages/about.html 301
+/lectures /pages/lectures.html 301
+/questions /pages/questions.html 301
+/search /pages/search.html 301
+/dashboard /pages/dashboard.html 301

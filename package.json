@@ -1,0 +1,11 @@
+{
+  "name": "dsacms-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check assets/js/main.js && node --check _worker.js && node --check functions/api/sitemap.js && node --check functions/sitemap.xml.js",
+    "deploy:pages": "npx wrangler pages deploy . --project-name=dsacms-frontend",
+    "deploy:worker": "npx wrangler deploy"
+  }
+}

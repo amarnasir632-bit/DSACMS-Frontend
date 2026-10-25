@@ -81,15 +81,14 @@ Authorization: LOW ACCESS_KEY:SECRET_KEY
 لا تعيد استخدام المفاتيح التي ظهرت في محادثات أو سجلات اختبار؛ يجب تدويرها من
 Internet Archive.
 
-## 10. الملفات الكبيرة تفشل عبر Vercel
+## 10. الملفات الكبيرة والتخلص من حد الـ 90 MiB عبر Cloudflare R2
 
-**السبب:** Vercel Serverless ليس قناة تخزين ملفات كبيرة؛ توجد حدود للطلب ووقت
-التنفيذ والذاكرة.
+**السبب سابقاً:** كان الرفع يمر عبر Cloudflare Worker وسيط إلى أرشيف الإنترنت، وكان Worker في الخطة المجانية يفرض حداً أقصى لحجم الطلب (100 MB)، مما أجبر النظام على وضع حد 90 MiB للملفات الصوتية والكتب.
 
-**الحل المؤقت:** إبقاء proxy للملفات الصغيرة مع رسالة خطأ واضحة وحد حجم مؤقت.
-
-**الحل المستخدم:** رفع مباشر من المتصفح عبر Cloudflare Worker إلى Internet
-Archive، دون تمرير الملف عبر Vercel أو تخزينه في R2.
+**الحل الجذري المطبق:** اعتماد **Cloudflare R2** كخادم تشغيل وتخزين أساسي (Primary Storage) عبر روابط رفع موقعة مسبقاً (Presigned PUT URLs):
+- يولد Backend رابط رفع موقع مباشر إلى R2 صالح لمدة 30 دقيقة.
+- يرفع المتصفح الملف مباشرة إلى R2 دون المرور عبر أي خادم وسيط أو Worker، وبذلك تم التخلص نهائياً من حد الـ 90 MiB، مع دعم ملفات حتى 500 MiB وأكثر.
+- الملفات تُخدم عبر شبكة CDN عالمية فائقة السرعة وبدون أي رسوم استهلاك أو نقل بيانات (Zero Egress Fees).
 
 ## 11. حذف المادة ثم عودتها بعد إعادة التحميل
 
@@ -112,39 +111,30 @@ Archive، دون تمرير الملف عبر Vercel أو تخزينه في R2.
 1. افتح `GET /api/status`.
 2. تأكد أن عنوان الواجهة هو Backend المنشور.
 3. أضف أصل الواجهة إلى `FRONTEND_ORIGIN`.
-4. راجع Vercel Function Logs.
+4. راجع سجلات الخادم.
 5. استخدم رابط PostgreSQL صالحًا مع إعداد SSL المناسب.
 
-## 13. الرفع المجاني إلى Internet Archive
+## 13. المعمارية المزدوجة ومطابقة وثيقة الـ SRS (البند 23.2)
 
-يرفع المتصفح الملفات إلى Worker في Cloudflare، ويمررها الـWorker إلى IAS3
-باستخدام ترويسة `Authorization: LOW`. يحتفظ Worker بمفاتيح Archive، بينما
-يصدر Backend تصريح HMAC صالحًا لملف واحد لمدة 15 دقيقة.
+يحقق التصميم الجديد متطلب وثيقة الـ SRS (البند 23.2: Audio/File Backup في تخزين منفصل) أكاديمياً وعملياً:
 
 ```text
-Browser -> Vercel API (short-lived upload token)
-       -> Cloudflare Worker (streaming, no file buffering)
-       -> Internet Archive (public file URL)
+المتصفح (لوحة التحكم) ──── Presigned PUT ────> Cloudflare R2 (خادم التشغيل الأساسي)
+                                                      │
+                       مزامنة تلقائية عند النشر       │ (SRS 23.2 Backup)
+                                                      ▼
+                                            Internet Archive IAS3 (النسخة الاحتياطية الدائمة)
 ```
 
-Cloudflare Workers Free يحد الطلب الواحد إلى 100 MB؛ الواجهة والخادم يضعان
-حدًا أقل قدره 90 MiB. لا تضع مفاتيح IAS3 في JavaScript أو Vercel.
+1. **الرابط الأساسي (`audio_url` / `document_url`):** يشير إلى Cloudflare R2 لضمان أقصى سرعة تشغيل واستجابة للمستمعين والزوار.
+2. **الرابط الاحتياطي (`archive_url`):** يشير إلى Internet Archive لضمان الحفظ الدائم كنسخة احتياطية مجانية مستقلة تماماً عن خوادم التطبيق.
 
-## 14. إعداد Worker
+## 14. نظام التبديل التلقائي (Automatic Failover) في المشغل والتحميل
 
-من مجلد Worker:
-
-```bash
-cd backend/workers/archive-worker
-npx wrangler secret put IA_ACCESS_KEY
-npx wrangler secret put IA_SECRET_KEY
-npx wrangler secret put MEDIA_UPLOAD_SECRET
-npx wrangler deploy
-```
-
-أضف `ARCHIVE_WORKER_URL` و`MEDIA_UPLOAD_SECRET` إلى إعدادات Vercel Backend؛ يجب
-أن تتطابق قيمة السر بين الخدمتين. أصول الواجهة المسموح بها مضمنة في
-`wrangler.jsonc` تحت `FRONTEND_ORIGINS`.
+إذا تعطل الرابط الأساسي في R2 لأي سبب (انقطاع شبكة، حجب إقليمي، أو خطأ استجابة):
+- **المشغل الصوتي (`AudioPlayer` في `main.js`):** يلتقط حدث الخطأ فوراً وينتقل تلقائياً لتشغيل الرابط الاحتياطي من أرشيف الإنترنت مع استئناف الصوت من نفس الثانية التي وصل إليها المستمع، دون انقطاع ودون إزعاج الزائر بأي رسالة خطأ.
+- **أزرار التحميل وقارئ PDF:** تعتمد أيضاً نظام التبديل التلقائي؛ فإذا فشل الرابط الأساسي، يُعاد توجيه طلب التحميل تلقائياً إلى النسخة الاحتياطية في أرشيف الإنترنت.
+- راجع الدليل الكامل للإعداد والتشغيل في [docs/CLOUDFLARE_MIGRATION.md](file:///home/ammar/Documents/ChatGPT/%D9%85%D9%88%D9%82%D8%B9%20%D8%B4%D9%8A%D8%AE%20%D9%85%D8%AD%D9%85%D8%AF%20%D8%A3%D8%AD%D9%85%D8%AF%20%D8%A7%D9%84%D9%87%D8%A7%D8%AF%D9%8A/DSACMS-Frontend/docs/CLOUDFLARE_MIGRATION.md).
 
 ## 15. فحوص ما قبل النشر
 

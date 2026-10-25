@@ -46,44 +46,61 @@
   }
 
   function downloadWithProgress(button, status) {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open("GET", button.dataset.downloadUrl, true);
-      xhr.responseType = "blob";
-      button.disabled = true;
-      status.hidden = false;
-      status.textContent = "جارٍ تجهيز التحميل…";
-      xhr.addEventListener("progress", (event) => {
-        if (event.lengthComputable && event.total > 0) {
-          const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
-          status.textContent = `جاري التحميل: ${percent}%`;
-          status.style.setProperty("--download-progress", `${percent}%`);
-        } else {
-          status.textContent = "جاري التحميل… حجم الملف غير متاح من الخادم";
-          status.style.removeProperty("--download-progress");
-        }
+    const primaryUrl = button.dataset.downloadUrl;
+    const backupUrl = button.dataset.backupDownloadUrl;
+    const downloadName = button.dataset.downloadName || "dsacms-download";
+
+    function runDownload(targetUrl, isBackup = false) {
+      return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("GET", targetUrl, true);
+        xhr.responseType = "blob";
+        button.disabled = true;
+        status.hidden = false;
+        status.textContent = isBackup ? "جارٍ التحميل من الأرشيف الاحتياطي…" : "جارٍ تجهيز التحميل…";
+        xhr.addEventListener("progress", (event) => {
+          if (event.lengthComputable && event.total > 0) {
+            const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
+            status.textContent = `جاري التحميل: ${percent}%`;
+            status.style.setProperty("--download-progress", `${percent}%`);
+          } else {
+            status.textContent = "جاري التحميل… حجم الملف غير متاح من الخادم";
+            status.style.removeProperty("--download-progress");
+          }
+        });
+        xhr.addEventListener("load", () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            triggerBlobDownload(xhr.response, downloadName);
+            status.textContent = "اكتمل التحميل.";
+            status.style.setProperty("--download-progress", "100%");
+            resolve();
+          } else {
+            reject(new Error(`Download failed: ${xhr.status}`));
+          }
+        });
+        xhr.addEventListener("error", () => reject(new Error("Download connection failed")));
+        xhr.addEventListener("abort", () => reject(new Error("Download aborted")));
+        xhr.send();
       });
-      xhr.addEventListener("load", () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          triggerBlobDownload(xhr.response, button.dataset.downloadName || "dsacms-download");
-          status.textContent = "اكتمل التحميل.";
-          status.style.setProperty("--download-progress", "100%");
-          resolve();
-        } else {
-          reject(new Error(`Download failed: ${xhr.status}`));
+    }
+
+    return runDownload(primaryUrl)
+      .catch((error) => {
+        if (backupUrl && backupUrl !== primaryUrl) {
+          console.warn("[Download Failover] فشل التحميل من الرابط الأساسي؛ الانتقال التلقائي للرابط الاحتياطي:", backupUrl);
+          return runDownload(backupUrl, true);
         }
+        throw error;
+      })
+      .catch((error) => {
+        console.error("Unable to download file", error);
+        status.textContent = "تعذر التحميل. حاول مرة أخرى.";
+        status.style.removeProperty("--download-progress");
+        throw error;
+      })
+      .finally(() => {
+        button.disabled = false;
       });
-      xhr.addEventListener("error", () => reject(new Error("Download connection failed")));
-      xhr.addEventListener("abort", () => reject(new Error("Download aborted")));
-      xhr.send();
-    }).catch((error) => {
-      console.error("Unable to download file", error);
-      status.textContent = "تعذر التحميل. حاول مرة أخرى.";
-      status.style.removeProperty("--download-progress");
-      throw error;
-    }).finally(() => {
-      button.disabled = false;
-    });
   }
 
   /** تحديد الصفحة الحالية */
@@ -326,7 +343,7 @@
      1) مصدر البيانات (REST API)
      ---------------------------------------------------------------------- */
   const API_CONFIG = {
-    baseUrl: (window.DSACMS_API_BASE || "https://dsacms-backend.vercel.app/api").replace(/\/$/, ""),
+    baseUrl: (window.DSACMS_API_BASE || localStorage.getItem("dsacms_api_base") || "https://dsacms-backend.vercel.app/api").replace(/\/$/, ""),
   };
   let apiCategories = [];
   let apiContents = [];
@@ -663,6 +680,9 @@
     if (!row) return null;
     const audio = row.audio_url || row.audioUrl || null;
     const pdf = row.document_url || row.documentUrl || null;
+    const archiveUrl = row.archive_url || row.archiveUrl || null;
+    const storageKey = row.storage_key || row.storageKey || null;
+    const archiveStatus = row.archive_status || row.archiveStatus || "UPLOADED_TO_R2";
     const body = Array.isArray(row.body) ? row.body : [];
     const materialId = String(row.id != null ? row.id : "");
     const localDates = loadContentDates();
@@ -690,6 +710,11 @@
       duration: Number(row.duration_seconds) || 0,
       audio,
       pdf,
+      archiveUrl,
+      storageKey,
+      archiveStatus,
+      audioArchive: (audio && archiveUrl && (archiveUrl.endsWith(".mp3") || archiveUrl.includes("/audio") || !pdf)) ? archiveUrl : archiveUrl,
+      pdfArchive: (pdf && archiveUrl && (archiveUrl.endsWith(".pdf") || archiveUrl.includes(".pdf") || !audio)) ? archiveUrl : archiveUrl,
       type: normalizeContentType(row.content_type || row.contentType || row.type, { audio, pdf, body }),
       status: row.status || "published",
     };
@@ -898,9 +923,12 @@
     audio: new Audio(),
     widgets: {},        // id → { onState(fn), destroy() }
     activeId: null,
+    activeSources: [],  // [primaryUrl, backupUrl]
+    activeSourceIndex: 0,
     volume: 0.9,
     isMuted: false,
     rate: 1,
+    _failoverInProgress: false,
 
     /** تسجيل عنصر واجهة جديد يستقبل تحديثات الحالة */
     register(id, callbacks) {
@@ -928,15 +956,20 @@
       a.addEventListener("timeupdate", () => {
         this._notify("onTime", a.currentTime, a.duration);
       });
-      a.addEventListener("play", () => this._notify("onPlay"));
+      a.addEventListener("play", () => {
+        this._failoverInProgress = false;
+        this._notify("onPlay");
+      });
       a.addEventListener("loadstart", () => this._notify("onLoading"));
       a.addEventListener("waiting", () => this._notify("onBuffering"));
       a.addEventListener("stalled", () => this._notify("onBuffering"));
       a.addEventListener("canplay", () => this._notify("onReady"));
-      a.addEventListener("pause", () => this._notify("onPause"));
+      a.addEventListener("pause", () => {
+        if (!this._failoverInProgress) this._notify("onPause");
+      });
       a.addEventListener("ended", () => this._notify("onEnd"));
       a.addEventListener("error", () => {
-        this._notify("onError");
+        this._handleFailoverOrError();
       });
       a.volume = this.volume;
       a.loop = false;
@@ -947,21 +980,54 @@
       if (cb && typeof cb[name] === "function") cb[name](...args);
     },
 
-    /** بدء تشغيل مصدر معيّن من واجهة معيّنة */
-    play(id, src) {
+    _handleFailoverOrError() {
+      if (this.activeSourceIndex < this.activeSources.length - 1) {
+        const previousSrc = this.activeSources[this.activeSourceIndex];
+        this.activeSourceIndex++;
+        const nextSrc = this.activeSources[this.activeSourceIndex];
+        console.warn(`[AudioPlayer Failover] فشل المصدر الأساسي (${previousSrc})، يجري التبديل التلقائي إلى المصدر الاحتياطي (${nextSrc}) دون مقاطعة المستخدم.`);
+        this._failoverInProgress = true;
+        this._notify("onBuffering");
+        const a = this.audio;
+        const savedTime = a.currentTime || 0;
+        a.setAttribute("data-src", nextSrc);
+        a.src = nextSrc;
+        a.load();
+        if (savedTime > 0) {
+          const restoreTime = () => {
+            try { a.currentTime = savedTime; } catch (_) {}
+            a.removeEventListener("loadedmetadata", restoreTime);
+          };
+          a.addEventListener("loadedmetadata", restoreTime, { once: true });
+        }
+        const p = a.play();
+        if (p && p.catch) {
+          p.catch(() => this._handleFailoverOrError());
+        }
+        return;
+      }
+      this._failoverInProgress = false;
+      this._notify("onError");
+    },
+
+    /** بدء تشغيل مصدر معيّن من واجهة معيّنة مع دعم المصدر الاحتياطي Failover */
+    play(id, src, backupSrc = null) {
       if (this.activeId && this.activeId !== id && this.widgets[this.activeId]) {
         this.widgets[this.activeId].onPause();
       }
       this.activeId = id;
+      this.activeSources = [src, backupSrc].filter((s, idx, arr) => s && (!idx || s !== arr[0]));
+      this.activeSourceIndex = 0;
+      this._failoverInProgress = false;
 
       const a = this.audio;
       a.pause();
-      const sameSource = a.getAttribute("data-src") === src;
+      const currentSrc = this.activeSources[0];
+      const sameSource = a.getAttribute("data-src") === currentSrc;
       this._notify("onLoading");
-      // تفادي إعادة تحميل نفس الملف عند كل ضغطة
       if (!sameSource) {
-        a.setAttribute("data-src", src);
-        a.src = src;
+        a.setAttribute("data-src", currentSrc);
+        a.src = currentSrc;
         a.load();
       } else if (a.error || a.networkState === 3) {
         a.load();
@@ -970,11 +1036,12 @@
       a.playbackRate = this.rate;
       const p = a.play();
       if (p && p.catch) {
-        p.catch(() => this._notify("onError"));
+        p.catch(() => this._handleFailoverOrError());
       }
     },
 
     pause() {
+      this._failoverInProgress = false;
       this.audio.pause();
     },
 
@@ -999,12 +1066,12 @@
     },
 
     /** مبدّل التشغيل/الإيقاف لعنصر واجهة */
-    toggle(id, src) {
+    toggle(id, src, backupSrc = null) {
       if (this.activeId === id && !this.audio.paused) {
         this.pause();
         return;
       }
-      this.play(id, src);
+      this.play(id, src, backupSrc);
     },
   };
 
@@ -1019,6 +1086,9 @@
     }
     const id = "mini-" + content.id;
     const src = resolveMediaUrl(content.audio);
+    const backupSrc = (content.audioArchive || content.archiveUrl) && (content.audioArchive || content.archiveUrl) !== content.audio
+      ? resolveMediaUrl(content.audioArchive || content.archiveUrl)
+      : null;
     btn.setAttribute("aria-pressed", "false");
     btn.innerHTML = `<span class="icon" aria-hidden="true">${ICONS.play}</span><span data-label>تشغيل</span>`;
 
@@ -1044,7 +1114,7 @@
         AudioPlayer.pause();
         setLabel(false);
       } else {
-        AudioPlayer.play(id, src);
+        AudioPlayer.play(id, src, backupSrc);
       }
     });
   }
@@ -1101,6 +1171,9 @@
     const muteBtn = get('[data-role="mute"]');
     const volEl = get('[data-role="volume"]');
     const src = resolveContentUrl(config.src);
+    const backupSrc = config.backupSrc && config.backupSrc !== config.src
+      ? resolveContentUrl(config.backupSrc)
+      : null;
 
     AudioPlayer.register(id, {
       onPlay() {
@@ -1161,7 +1234,7 @@
       if (AudioPlayer.activeId === id && !AudioPlayer.audio.paused) {
         AudioPlayer.pause();
       } else {
-        AudioPlayer.play(id, src);
+        AudioPlayer.play(id, src, backupSrc);
       }
     });
 
@@ -1771,6 +1844,15 @@
       if (content.pdf && pdfReader && pdfFrame) {
         pdfReader.hidden = false;
         pdfFrame.src = resolveContentUrl(content.pdf);
+        const backupPdfUrl = (content.pdfArchive || content.archiveUrl) && (content.pdfArchive || content.archiveUrl) !== content.pdf
+          ? resolveContentUrl(content.pdfArchive || content.archiveUrl)
+          : null;
+        if (backupPdfUrl) {
+          pdfFrame.onerror = () => {
+            console.warn("[PDF Failover] فشل تحميل الرابط الأساسي، جاري التبديل للأرشيف الاحتياطي:", backupPdfUrl);
+            pdfFrame.src = backupPdfUrl;
+          };
+        }
       }
 
     }
@@ -1801,19 +1883,27 @@
     if (downloadsSection && downloadActions) {
       const downloads = [];
       if (content.audio) {
+        const backupAudio = (content.audioArchive || content.archiveUrl) && (content.audioArchive || content.archiveUrl) !== content.audio
+          ? `data-backup-download-url="${escapeHTML(resolveDownloadUrl(content.audioArchive || content.archiveUrl))}"`
+          : "";
         downloads.push(`
           <div class="download-item">
             <button type="button" class="btn btn--primary download-trigger"
               data-download-url="${escapeHTML(resolveDownloadUrl(content.audio))}"
+              ${backupAudio}
               data-download-name="${escapeHTML(content.title)}.mp3">تحميل الملف الصوتي</button>
             <div class="download-progress" id="download-progress-audio" role="status" aria-live="polite" hidden></div>
           </div>`);
       }
       if (content.pdf) {
+        const backupPdf = (content.pdfArchive || content.archiveUrl) && (content.pdfArchive || content.archiveUrl) !== content.pdf
+          ? `data-backup-download-url="${escapeHTML(resolveDownloadUrl(content.pdfArchive || content.archiveUrl))}"`
+          : "";
         downloads.push(`
           <div class="download-item">
             <button type="button" class="btn btn--accent download-trigger"
               data-download-url="${escapeHTML(resolveDownloadUrl(content.pdf))}"
+              ${backupPdf}
               data-download-name="${escapeHTML(content.title)}.pdf">تحميل الكتاب PDF</button>
             <div class="download-progress" id="download-progress-pdf" role="status" aria-live="polite" hidden></div>
           </div>`);
@@ -1982,7 +2072,12 @@
     const playerSection = $("#player-section");
     if (content.audio) {
       playerSection.hidden = false;
-      renderFullPlayer(playerSection, { id: content.id, title: content.title, src: content.audio });
+      renderFullPlayer(playerSection, {
+        id: content.id,
+        title: content.title,
+        src: content.audio,
+        backupSrc: content.audioArchive || content.archiveUrl,
+      });
     } else {
       playerSection.hidden = true;
       playerSection.innerHTML = "";
@@ -3126,28 +3221,37 @@
     function uploadErrorMessage(error) {
       if (error?.name === "AbortError") return "انتهت مهلة تجهيز الرفع. تحقق من الاتصال وحاول مرة أخرى.";
       if (error?.status === 401) return "انتهت جلستك. سجّل الدخول مجدداً ثم أعد الرفع.";
-      if (error?.status === 403) return "تعذر تصريح الرفع؛ تحقق من إعدادات نطاق الموقع وصلاحية التصريح ثم حاول مجدداً.";
-      if (error?.status === 404) return "خدمة الأرشيف غير متاحة حالياً. تحقق من رابط Worker.";
-      if (error?.status === 413) return "حجم الملف أكبر من الحد المسموح (90 ميغابايت).";
-      if (error?.status === 503) return "إعدادات الرفع غير مكتملة على الخادم. أبلغ مدير الموقع.";
-      if (error?.status === 502) return "رفض الأرشيف الملف أو تعذر إكمال التخزين. أعد المحاولة بعد قليل.";
-      return error?.message || "تعذر رفع الملف. تحقق من الاتصال وإعدادات خدمة الأرشيف.";
+      if (error?.status === 403) return "تعذر تصريح الرفع؛ تحقق من إعدادات نطاق الموقع وسياسة R2 CORS ثم حاول مجدداً.";
+      if (error?.status === 404) return "خدمة التخزين غير متاحة حالياً. تحقق من إعدادات الخادم وR2.";
+      if (error?.status === 413) return "حجم الملف أكبر من الحد المسموح (500 ميغابايت).";
+      if (error?.status === 503) return "إعدادات Cloudflare R2 غير مكتملة على الخادم. أبلغ مدير الموقع.";
+      if (error?.status === 502) return "تعذر إكمال التخزين في Cloudflare R2. أعد المحاولة بعد قليل.";
+      return error?.message || "تعذر رفع الملف. تحقق من الاتصال وإعدادات التخزين.";
     }
     function putFileWithProgress(url, file, target, contentType, uploadToken) {
       return new Promise((resolve, reject) => {
         const request = new XMLHttpRequest();
         request.open("PUT", url);
-        request.timeout = 20 * 60 * 1000;
-        request.setRequestHeader("Authorization", `Bearer ${uploadToken}`);
+        request.timeout = 30 * 60 * 1000;
+        if (uploadToken) {
+          request.setRequestHeader("Authorization", `Bearer ${uploadToken}`);
+        }
         request.setRequestHeader("Content-Type", contentType || file.type || "application/octet-stream");
         request.upload.addEventListener("progress", (event) => {
-          if (event.lengthComputable) setUploadStatus(target, `جارٍ رفع الملف… ${Math.round(event.loaded / event.total * 100)}٪`, "loading");
+          if (event.lengthComputable) setUploadStatus(target, `جارٍ رفع الملف إلى Cloudflare R2… ${Math.round(event.loaded / event.total * 100)}٪`, "loading");
         });
-        request.upload.addEventListener("load", () => setUploadStatus(target, "اكتمل النقل؛ جارٍ حفظ الملف في الأرشيف…", "loading"));
+        request.upload.addEventListener("load", () => setUploadStatus(target, "اكتمل النقل؛ جارٍ التحقق من الحفظ…", "loading"));
         request.addEventListener("load", () => {
           if (request.status >= 200 && request.status < 300) {
-            try { resolve(JSON.parse(request.responseText)); }
-            catch (_) { reject(new Error("اكتمل الرفع لكن لم يصل رابط الملف من خدمة الأرشيف.")); }
+            let data = {};
+            try {
+              if (request.responseText && request.responseText.trim()) {
+                data = JSON.parse(request.responseText);
+              }
+            } catch (_) {
+              data = {};
+            }
+            resolve(data);
             return;
           }
           let detail = "";
@@ -3158,7 +3262,7 @@
           error.status = request.status;
           reject(error);
         });
-        request.addEventListener("error", () => reject(new Error("تعذر الاتصال بالتخزين. تحقق من الاتصال وإعدادات السماح بالرفع من المتصفح.")));
+        request.addEventListener("error", () => reject(new Error("تعذر الاتصال بالتخزين. تحقق من الاتصال وإعدادات السماح بالرفع من المتصفح (R2 CORS).")));
         request.addEventListener("abort", () => reject(new Error("تم إلغاء رفع الملف.")));
         request.addEventListener("timeout", () => reject(new Error("استغرق الرفع وقتاً أطول من المسموح. تحقق من الاتصال ثم أعد المحاولة.")));
         request.send(file);
@@ -3179,14 +3283,15 @@
         const validAudioExtensions = ["mp3", "wav", "ogg", "oga", "m4a", "aac", "flac", "opus", "wma"];
         const valid = isPdf ? file.type === "application/pdf" || ext === "pdf" : file.type.startsWith("audio/") || validAudioExtensions.includes(ext);
         const target = isPdf ? "pdf" : "audio";
-        if (!valid || file.size > 90 * 1024 * 1024) {
-          setUploadStatus(target, isPdf ? "اختر ملف PDF صالحًا لا يتجاوز حجمه 90 ميغابايت." : "اختر ملفًا صوتيًا صالحًا لا يتجاوز حجمه 90 ميغابايت.", "error");
+        const maxAllowedBytes = 500 * 1024 * 1024; // 500 MiB on Cloudflare R2
+        if (!valid || file.size > maxAllowedBytes) {
+          setUploadStatus(target, isPdf ? "اختر ملف PDF صالحًا لا يتجاوز حجمه 500 ميغابايت." : "اختر ملفًا صوتيًا صالحًا لا يتجاوز حجمه 500 ميغابايت.", "error");
           return;
         }
         const button = archiveUploadButtons.find((item) => item.id === (isPdf ? "cf-archive-upload-pdf" : "cf-archive-upload"));
         const field = isPdf ? cfPdf : cfAudio;
         if (button) button.disabled = true;
-        setUploadStatus(target, "جارٍ تجهيز الرفع…", "loading");
+        setUploadStatus(target, "جارٍ تجهيز الرفع المباشر إلى Cloudflare R2…", "loading");
         try {
           const prepared = await fetchApi("/media-upload", {
             method: "POST", headers: { "Content-Type": "application/json" },
@@ -3198,14 +3303,16 @@
               description: cfDesc?.value.trim() || "",
             }),
           });
-          const uploaded = await putFileWithProgress(prepared.uploadUrl, file, target, prepared.contentType, prepared.uploadToken);
+          const uploadedResult = await putFileWithProgress(prepared.uploadUrl, file, target, prepared.contentType, prepared.uploadToken);
+          const resolvedFileUrl = uploadedResult?.fileUrl || prepared.fileUrl;
           if (field) {
-            field.value = uploaded.fileUrl;
+            field.value = resolvedFileUrl;
+            if (prepared.storageKey) field.dataset.storageKey = prepared.storageKey;
             field.dispatchEvent(new Event("input", { bubbles: true }));
           }
-          if (!isPdf && validateAudioUrl(uploaded.fileUrl)) loadAudioDuration(uploaded.fileUrl);
-          setUploadStatus(target, "تم رفع الملف وإضافة رابطه تلقائيًا إلى الحقل.", "success");
-          showToast("تم رفع الملف وإضافة رابطه إلى المادة.", "success");
+          if (!isPdf && validateAudioUrl(resolvedFileUrl)) loadAudioDuration(resolvedFileUrl);
+          setUploadStatus(target, "تم رفع الملف بنجاح إلى Cloudflare R2 وإدراج الرابط الأساسي تلقائيًا.", "success");
+          showToast("تم رفع الملف بنجاح إلى Cloudflare R2.", "success");
         } catch (error) {
           console.error("Media upload failed", error);
           setUploadStatus(target, uploadErrorMessage(error), "error");
@@ -3276,8 +3383,18 @@
       }
       if (cfDuration) cfDuration.value = content.duration || "";
       if (cfType) cfType.value = content.type || (content.audio ? "audio" : "article");
-      if (cfAudio) cfAudio.value = content.audio || "";
-      if (cfPdf) cfPdf.value = content.pdf || "";
+      if (cfAudio) {
+        cfAudio.value = content.audio || "";
+        if (content.storageKey) cfAudio.dataset.storageKey = content.storageKey;
+        else delete cfAudio.dataset.storageKey;
+      }
+      if (cfPdf) {
+        cfPdf.value = content.pdf || "";
+        if (content.storageKey) cfPdf.dataset.storageKey = content.storageKey;
+        else delete cfPdf.dataset.storageKey;
+      }
+      const cfArchiveInput = $("#cf-archive-url");
+      if (cfArchiveInput) cfArchiveInput.value = content.archiveUrl || "";
       if (cfBody) cfBody.value = (content.body || []).join("\n\n");
       const contentSettings = loadContentSettings()[content.id] || content.readingSettings;
       const normalizedSettings = normalizeReadingSettings(contentSettings);
@@ -3292,6 +3409,10 @@
       updateStatusDescription();
       showEditorStep(1);
       if ($("#cf-id")) $("#cf-id").value = "";
+      if (cfAudio) delete cfAudio.dataset.storageKey;
+      if (cfPdf) delete cfPdf.dataset.storageKey;
+      const cfArchiveInput = $("#cf-archive-url");
+      if (cfArchiveInput) cfArchiveInput.value = "";
       if (cfDate) cfDate.value = new Date().toISOString().slice(0, 10);
       if (editorTitle) editorTitle.textContent = "إضافة مادة جديدة";
       if (cfSubmit) cfSubmit.textContent = "حفظ المادة";
@@ -3458,6 +3579,9 @@
           ? rawDate
           : new Date().toISOString().slice(0, 10);
 
+        const storageKey = cfAudio?.dataset.storageKey || cfPdf?.dataset.storageKey || (existing && existing.storageKey) || null;
+        const archiveUrl = $("#cf-archive-url")?.value?.trim() || (existing && existing.archiveUrl) || null;
+
         const item = {
           id: (existing && existing.id) || id,
           slug: (existing && existing.slug) || id,
@@ -3474,6 +3598,8 @@
           audio: cfAudio ? cfAudio.value.trim() : (existing && existing.audio) || null,
           type: cfType ? cfType.value : (existing && existing.type) || "audio",
           pdf: cfPdf ? cfPdf.value.trim() : (existing && existing.pdf) || "",
+          archiveUrl,
+          storageKey,
           body: cfBody
             ? cfBody.value.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean)
             : (existing && existing.body) || [],
@@ -3494,6 +3620,9 @@
             audioUrl: item.audio,
             documentUrl: item.pdf || null,
             contentType: item.type,
+            storageKey: item.storageKey,
+            archiveUrl: item.archiveUrl,
+            archiveStatus: (existing && existing.archiveStatus) || (archiveUrl ? "ARCHIVED" : (storageKey ? "UPLOADED_TO_R2" : "ARCHIVED")),
             body: item.body,
             readingSettings: item.readingSettings,
             keywords: item.keywords,
