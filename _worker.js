@@ -81,9 +81,19 @@ export default {
       });
     }
 
-    // 3. تقديم الملفات الثابتة عبر binding ASSETS
+    // 3. تقديم الملفات الثابتة عبر binding ASSETS مع دعم الروابط النظيفة (.html fallback)
     if (env.ASSETS && typeof env.ASSETS.fetch === "function") {
-      return env.ASSETS.fetch(request);
+      let response = await env.ASSETS.fetch(request);
+      if (response.status === 404 && !url.pathname.includes(".") && url.pathname !== "/") {
+        const cleanUrl = new URL(request.url);
+        cleanUrl.pathname = `${url.pathname}.html`;
+        const retryRequest = new Request(cleanUrl.toString(), request);
+        const retryResponse = await env.ASSETS.fetch(retryRequest);
+        if (retryResponse.status !== 404) {
+          return retryResponse;
+        }
+      }
+      return response;
     }
 
     return new Response("Not Found", { status: 404 });

@@ -64,7 +64,7 @@ async function loadLatestAudio(storeData) {
     let contents = storeData.contents || [];
     if (!contents.length) {
       try {
-        const res = await apiRequest("/content");
+        const res = await apiRequest("/materials");
         contents = Array.isArray(res) ? res : res.items || [];
       } catch (_) {
         // Fallback to local storage if API is temporarily unavailable
@@ -75,8 +75,8 @@ async function loadLatestAudio(storeData) {
 
     const clean = filterPublicMaterials(contents);
     const audioItems = clean
-      .filter((c) => c.audio)
-      .sort((a, b) => new Date(b.pubDate || 0) - new Date(a.pubDate || 0))
+      .filter((c) => c.audio || c.audio_url)
+      .sort((a, b) => new Date(b.pubDate || b.published_at || b.created_at || 0) - new Date(a.pubDate || a.published_at || a.created_at || 0))
       .slice(0, 6);
 
     if (audioItems.length === 0) {
@@ -114,20 +114,23 @@ async function loadLatestAudio(storeData) {
 }
 
 function buildContentCard(c, categories = []) {
-  const cat = Array.isArray(categories) ? categories.find((x) => x.id === c.category) : null;
-  const hasAudio = !!c.audio;
-  const type = c.type || (hasAudio ? "audio" : "article");
+  const cat = Array.isArray(categories) ? categories.find((x) => String(x.id) === String(c.category || c.category_id)) : null;
+  const audioSrc = c.audio || c.audio_url || "";
+  const pdfSrc = c.pdf || c.document_url || "";
+  const hasAudio = !!audioSrc;
+  const type = c.type || c.content_type || (hasAudio ? "audio" : "article");
   const typeLabel = type === "book" ? "كتاب PDF" : type === "article" ? "مقال مكتوب" : "مادة صوتية";
   
   // Format duration or fallback to badge
-  const durationText = c.duration ? formatDuration(c.duration) : "";
+  const durSeconds = c.duration || c.duration_seconds;
+  const durationText = durSeconds ? formatDuration(durSeconds) : "";
   const durationChip = durationText
     ? ` · ${durationText}`
     : (hasAudio ? ` · <span class="badge--audio-chip">ملف صوتي</span>` : "");
 
   const detailUrl = `pages/content-detail.html?id=${encodeURIComponent(c.id)}`;
-  const downloadUrl = c.audio || c.pdf || "";
-  const downloadLabel = c.audio ? "تحميل الصوت" : c.pdf ? "تحميل PDF" : "";
+  const downloadUrl = audioSrc || pdfSrc || "";
+  const downloadLabel = audioSrc ? "تحميل الصوت" : pdfSrc ? "تحميل PDF" : "";
 
   return `
     <article class="card item-card">

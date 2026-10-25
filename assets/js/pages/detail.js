@@ -15,7 +15,7 @@ const ICONS = {
 };
 
 export async function initDetailPage(storeData = {}) {
-  const container = document.getElementById("detail-content");
+  const container = document.getElementById("detail-wrap") || document.getElementById("detail-content") || document.getElementById("main");
   if (!container) return;
 
   const urlParams = new URLSearchParams(window.location.search);
@@ -34,11 +34,13 @@ export async function initDetailPage(storeData = {}) {
   try {
     let item = null;
     const contents = storeData.contents || [];
-    item = contents.find((c) => String(c.id) === String(id));
+    item = contents.find((c) => String(c.id) === String(id) || String(c.slug || "") === String(id));
 
     if (!item) {
       try {
-        item = await apiRequest(`/content/${encodeURIComponent(id)}`);
+        const res = await apiRequest("/materials");
+        const list = Array.isArray(res) ? res : res.items || [];
+        item = list.find((c) => String(c.id) === String(id) || String(c.slug || "") === String(id));
       } catch (_) {}
     }
 

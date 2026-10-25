@@ -41,7 +41,7 @@ export async function initSearchPage(storeData = {}) {
 
   if (!allMaterials.length) {
     try {
-      const res = await apiRequest("/content");
+      const res = await apiRequest("/materials");
       const list = Array.isArray(res) ? res : res.items || [];
       allMaterials = filterPublicMaterials(list);
     } catch (_) {
@@ -83,22 +83,27 @@ export async function initSearchPage(storeData = {}) {
         if (!title.includes(q) && !author.includes(q) && !desc.includes(q)) return false;
       }
       // Category filter
-      if (cat && item.category !== cat) return false;
+      if (cat && String(item.category || item.category_id) !== String(cat)) return false;
       // Media filter
-      if (media === "audio" && !item.audio) return false;
-      if (media === "no-audio" && item.audio) return false;
-      if (media === "book" && item.type !== "book" && !item.pdf) return false;
-      if (media === "article" && item.type !== "article") return false;
+      const isAudio = !!(item.audio || item.audio_url || item.content_type === "audio");
+      const isBook = !!(item.pdf || item.document_url || item.type === "book" || item.content_type === "book");
+      const isArticle = (item.type === "article" || item.content_type === "article") && !isAudio && !isBook;
+      if (media === "audio" && !isAudio) return false;
+      if (media === "no-audio" && isAudio) return false;
+      if (media === "book" && !isBook) return false;
+      if (media === "article" && !isArticle) return false;
 
       return true;
     });
 
     // Sorting
     results.sort((a, b) => {
-      if (sort === "oldest") return new Date(a.pubDate || 0) - new Date(b.pubDate || 0);
+      const dateA = new Date(a.pubDate || a.published_at || a.created_at || 0);
+      const dateB = new Date(b.pubDate || b.published_at || b.created_at || 0);
+      if (sort === "oldest") return dateA - dateB;
       if (sort === "title-asc") return (a.title || "").localeCompare(b.title || "", "ar");
       if (sort === "title-desc") return (b.title || "").localeCompare(a.title || "", "ar");
-      return new Date(b.pubDate || 0) - new Date(a.pubDate || 0);
+      return dateB - dateA;
     });
 
     // Update count display smoothly
@@ -171,19 +176,22 @@ export async function initSearchPage(storeData = {}) {
 }
 
 function buildSearchCard(c, categories = []) {
-  const cat = Array.isArray(categories) ? categories.find((x) => x.id === c.category) : null;
-  const hasAudio = !!c.audio;
-  const type = c.type || (hasAudio ? "audio" : "article");
+  const cat = Array.isArray(categories) ? categories.find((x) => String(x.id) === String(c.category || c.category_id)) : null;
+  const audioSrc = c.audio || c.audio_url || "";
+  const pdfSrc = c.pdf || c.document_url || "";
+  const hasAudio = !!audioSrc;
+  const type = c.type || c.content_type || (hasAudio ? "audio" : "article");
   const typeLabel = type === "book" ? "كتاب PDF" : type === "article" ? "مقال مكتوب" : "مادة صوتية";
 
-  const durationText = c.duration ? formatDuration(c.duration) : "";
+  const durSeconds = c.duration || c.duration_seconds;
+  const durationText = durSeconds ? formatDuration(durSeconds) : "";
   const durationChip = durationText
     ? ` · ${durationText}`
     : (hasAudio ? ` · <span class="badge--audio-chip">ملف صوتي</span>` : "");
 
   const detailUrl = `content-detail.html?id=${encodeURIComponent(c.id)}`;
-  const downloadUrl = c.audio || c.pdf || "";
-  const downloadLabel = c.audio ? "تحميل الصوت" : c.pdf ? "تحميل PDF" : "";
+  const downloadUrl = audioSrc || pdfSrc || "";
+  const downloadLabel = audioSrc ? "تحميل الصوت" : pdfSrc ? "تحميل PDF" : "";
 
   return `
     <article class="card item-card">

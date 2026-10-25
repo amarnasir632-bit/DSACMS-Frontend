@@ -36,14 +36,21 @@ export const AudioPlayer = {
       this._notify("onPlay");
     });
 
+    this.audio.addEventListener("playing", () => {
+      this._setBuffering(false);
+      this._notify("onPlay");
+    });
+
     this.audio.addEventListener("pause", () => {
       this._setBuffering(false);
       this._notify("onPause");
     });
 
     this.audio.addEventListener("loadstart", () => {
-      this._setBuffering(true);
-      this._notify("onLoading");
+      if (this.audio.paused || this.audio.currentTime === 0) {
+        this._setBuffering(true);
+        this._notify("onLoading");
+      }
     });
 
     this.audio.addEventListener("waiting", () => {
@@ -53,11 +60,18 @@ export const AudioPlayer = {
 
     this.audio.addEventListener("canplay", () => {
       this._setBuffering(false);
-      this._notify("onReady");
+      if (!this.audio.paused) {
+        this._notify("onPlay");
+      } else {
+        this._notify("onReady");
+      }
     });
 
-    this.audio.addEventListener("playing", () => {
+    this.audio.addEventListener("canplaythrough", () => {
       this._setBuffering(false);
+      if (!this.audio.paused) {
+        this._notify("onPlay");
+      }
     });
 
     this.audio.addEventListener("timeupdate", () => {
@@ -221,10 +235,10 @@ export function renderMiniPlayer(btn, content) {
 
   const id = "mini-" + content.id;
   btn.setAttribute("data-player-id", id);
-  const src = resolveMediaUrl(content.audio);
-  const backupSrc = (content.audioArchive || content.archiveUrl) && (content.audioArchive || content.archiveUrl) !== content.audio
-    ? resolveMediaUrl(content.audioArchive || content.archiveUrl)
-    : null;
+  const audioFile = content.audio || content.audio_url || "";
+  const src = resolveMediaUrl(audioFile);
+  const archiveFile = content.audioArchive || content.archiveUrl || content.archive_url;
+  const backupSrc = archiveFile && archiveFile !== audioFile ? resolveMediaUrl(archiveFile) : null;
 
   btn.setAttribute("aria-pressed", "false");
   btn.classList.add("mini-player-btn");
@@ -232,6 +246,8 @@ export function renderMiniPlayer(btn, content) {
 
   const setLabel = (playing) => {
     btn.setAttribute("aria-pressed", String(playing));
+    btn.classList.toggle("is-playing", playing);
+    btn.classList.remove("is-buffering");
     const iconEl = btn.querySelector(".icon");
     const labelEl = btn.querySelector("[data-label]");
     if (iconEl) iconEl.innerHTML = playing ? ICONS.pause : ICONS.play;
@@ -242,14 +258,34 @@ export function renderMiniPlayer(btn, content) {
     onPlay: () => setLabel(true),
     onPause: () => setLabel(false),
     onLoading: () => {
-      const labelEl = btn.querySelector("[data-label]");
-      if (labelEl) labelEl.textContent = "جارٍ التحميل…";
+      if (AudioPlayer.activeId === id && (!AudioPlayer.audio || AudioPlayer.audio.paused || AudioPlayer.audio.currentTime === 0)) {
+        btn.classList.add("is-buffering");
+        const labelEl = btn.querySelector("[data-label]");
+        if (labelEl) labelEl.textContent = "جارٍ التحميل…";
+      } else if (AudioPlayer.activeId === id && AudioPlayer.audio && !AudioPlayer.audio.paused) {
+        setLabel(true);
+      }
+    },
+    onBuffering: () => {
+      if (AudioPlayer.activeId === id) {
+        btn.classList.add("is-buffering");
+      }
     },
     onReady: () => {
-      if (AudioPlayer.audio && AudioPlayer.audio.paused) setLabel(false);
+      btn.classList.remove("is-buffering");
+      if (AudioPlayer.activeId === id && AudioPlayer.audio) {
+        setLabel(!AudioPlayer.audio.paused);
+      }
     },
-    onTime: () => {},
-    onMeta: () => {},
+    onTime: () => {
+      if (AudioPlayer.activeId === id && AudioPlayer.audio && !AudioPlayer.audio.paused) {
+        btn.classList.remove("is-buffering");
+        const labelEl = btn.querySelector("[data-label]");
+        if (labelEl && labelEl.textContent !== "إيقاف") {
+          setLabel(true);
+        }
+      }
+    },
     onError: () => setLabel(false),
     onEnd: () => setLabel(false),
   });

@@ -14,7 +14,6 @@ import { initNavbar } from "./components/navbar.js";
 import { initHomePage } from "./pages/home.js";
 import { initSearchPage } from "./pages/search.js";
 import { initLecturesPage as initModularLectures } from "./pages/lectures.js";
-import { initDetailPage as initModularDetail } from "./pages/detail.js";
 
   /* ----------------------------------------------------------------------
      0) أدوات مساعدة (Utilities)
@@ -975,10 +974,24 @@ import { initDetailPage as initModularDetail } from "./pages/detail.js";
         this._failoverInProgress = false;
         this._notify("onPlay");
       });
-      a.addEventListener("loadstart", () => this._notify("onLoading"));
+      a.addEventListener("playing", () => {
+        this._failoverInProgress = false;
+        this._notify("onPlay");
+      });
+      a.addEventListener("loadstart", () => {
+        if (a.paused || a.currentTime === 0) {
+          this._notify("onLoading");
+        }
+      });
       a.addEventListener("waiting", () => this._notify("onBuffering"));
       a.addEventListener("stalled", () => this._notify("onBuffering"));
-      a.addEventListener("canplay", () => this._notify("onReady"));
+      a.addEventListener("canplay", () => {
+        if (!a.paused) this._notify("onPlay");
+        else this._notify("onReady");
+      });
+      a.addEventListener("canplaythrough", () => {
+        if (!a.paused) this._notify("onPlay");
+      });
       a.addEventListener("pause", () => {
         if (!this._failoverInProgress) this._notify("onPause");
       });
@@ -1112,17 +1125,42 @@ import { initDetailPage as initModularDetail } from "./pages/detail.js";
 
     const setLabel = (playing) => {
       btn.setAttribute("aria-pressed", String(playing));
-      btn.querySelector(".icon").innerHTML = playing ? ICONS.pause : ICONS.play;
-      btn.querySelector("[data-label]").textContent = playing ? "إيقاف" : "تشغيل";
+      btn.classList.toggle("is-playing", playing);
+      btn.classList.remove("is-buffering");
+      const icon = btn.querySelector(".icon");
+      if (icon) icon.innerHTML = playing ? ICONS.pause : ICONS.play;
+      const l = btn.querySelector("[data-label]");
+      if (l) l.textContent = playing ? "إيقاف" : "تشغيل";
     };
 
     AudioPlayer.register(id, {
       onPlay: () => setLabel(true),
       onPause: () => setLabel(false),
-      onLoading: () => { btn.querySelector("[data-label]").textContent = "جارٍ التحميل…"; },
-      onReady: () => { if (AudioPlayer.audio.paused) btn.querySelector("[data-label]").textContent = "تشغيل"; },
-      onTime: () => {},
-      onMeta: () => {},
+      onLoading: () => {
+        if (AudioPlayer.activeId === id && (!AudioPlayer.audio || AudioPlayer.audio.paused || AudioPlayer.audio.currentTime === 0)) {
+          btn.classList.add("is-buffering");
+          const l = btn.querySelector("[data-label]");
+          if (l) l.textContent = "جارٍ التحميل…";
+        } else if (AudioPlayer.activeId === id && AudioPlayer.audio && !AudioPlayer.audio.paused) {
+          setLabel(true);
+        }
+      },
+      onBuffering: () => {
+        if (AudioPlayer.activeId === id) btn.classList.add("is-buffering");
+      },
+      onReady: () => {
+        btn.classList.remove("is-buffering");
+        if (AudioPlayer.activeId === id && AudioPlayer.audio) {
+          setLabel(!AudioPlayer.audio.paused);
+        }
+      },
+      onTime: () => {
+        if (AudioPlayer.activeId === id && AudioPlayer.audio && !AudioPlayer.audio.paused) {
+          btn.classList.remove("is-buffering");
+          const l = btn.querySelector("[data-label]");
+          if (l && l.textContent !== "إيقاف") setLabel(true);
+        }
+      },
       onError: () => setLabel(false),
       onEnd: () => setLabel(false),
     });
@@ -1761,7 +1799,7 @@ import { initDetailPage as initModularDetail } from "./pages/detail.js";
   /* ======================================================================
      8) صفحة تفاصيل المادة (content-detail.html) – FR-006 / FR-007 / FR-024
      ====================================================================== */
-  function initDetail() {
+  async function initDetail() {
     const wrap = $("#detail-wrap");
     const notFound = $("#not-found");
     if (!wrap || !notFound) return;
@@ -1769,7 +1807,12 @@ import { initDetailPage as initModularDetail } from "./pages/detail.js";
     // جلب المعرّف من الرابط (SEO-001: رابط مستقل لكل مادة)
     const params = new URLSearchParams(window.location.search);
     const id = params.get("id") || "";
-    const content = loadContents().find((c) => c.id === id || c.slug === id);
+    let content = loadContents().find((c) => String(c.id) === String(id) || String(c.slug || "") === String(id));
+
+    if (!content && id) {
+      await loadRemoteData();
+      content = loadContents().find((c) => String(c.id) === String(id) || String(c.slug || "") === String(id));
+    }
 
     if (!content) {
       notFound.hidden = false;
@@ -1781,6 +1824,9 @@ import { initDetailPage as initModularDetail } from "./pages/detail.js";
       setJsonLd("content-structured-data", { "@context": "https://schema.org", "@graph": [] });
       return;
     }
+
+    notFound.hidden = true;
+    wrap.style.display = "";
 
     const cat = loadCategories().find((x) => x.id === content.category);
 
@@ -4066,7 +4112,7 @@ import { initDetailPage as initModularDetail } from "./pages/detail.js";
           await initSearchPage({ contents: loadContents(), categories: loadCategories() });
           break;
         case "detail":
-          await initModularDetail({ contents: loadContents(), categories: loadCategories() });
+          await initDetail();
           break;
         case "login":
           initLogin();
