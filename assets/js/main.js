@@ -871,6 +871,17 @@
   function clearSession() {
     store.remove(STORE.session);
   }
+  function performLogout() {
+    const session = getSession();
+    if (session) {
+      logAudit("LOGOUT", session.username, "OK");
+    }
+    clearSession();
+    showToast("تم تسجيل الخروج بنجاح.", "info");
+    setTimeout(() => {
+      window.location.href = BASE + "index.html";
+    }, 250);
+  }
   function requireRole(allowed) {
     const s = getSession();
     return !!(s && allowed.includes(s.role));
@@ -1423,6 +1434,15 @@
       });
     }
 
+    // معالج موحد لأزرار تسجيل الخروج في كل الصفحات (FR-022)
+    document.addEventListener("click", (event) => {
+      const logoutTarget = event.target.closest('[data-action="logout"], .btn-logout');
+      if (logoutTarget) {
+        event.preventDefault();
+        performLogout();
+      }
+    });
+
     // سنة الحقوق
     const yearEl = $("#year");
     if (yearEl) yearEl.textContent = new Date().getFullYear();
@@ -1442,25 +1462,23 @@
 
     // زر تسجيل الخروج في الواجهة للجلسات النشطة (FR-022)
     if (session && PAGE !== "login") {
-      const li = document.createElement("li");
-      const accountLink = document.createElement("a");
-      accountLink.href = BASE + "pages/account.html";
-      accountLink.textContent = "الحساب وكلمة المرور";
-      li.appendChild(accountLink);
-      const accountItem = document.createElement("li");
-      const logoutBtn = document.createElement("button");
-      logoutBtn.type = "button";
-      logoutBtn.className = "btn btn--ghost btn--sm";
-      logoutBtn.textContent = "تسجيل الخروج";
-      logoutBtn.setAttribute("aria-label", "تسجيل الخروج من الجلسة الحالية");
-      logoutBtn.addEventListener("click", () => {
-        logAudit("LOGOUT", session.username, "OK");
-        clearSession();
-        window.location.href = BASE + "index.html";
-      });
-      accountItem.appendChild(logoutBtn);
       const navUl = $(".site-nav ul");
-      if (navUl) navUl.append(li, accountItem);
+      if (navUl && !navUl.querySelector('[data-action="logout"]')) {
+        const li = document.createElement("li");
+        const accountLink = document.createElement("a");
+        accountLink.href = BASE + "pages/account.html";
+        accountLink.textContent = "الحساب وكلمة المرور";
+        li.appendChild(accountLink);
+        const accountItem = document.createElement("li");
+        const logoutBtn = document.createElement("button");
+        logoutBtn.type = "button";
+        logoutBtn.className = "btn btn--danger-outline btn--sm btn-logout";
+        logoutBtn.dataset.action = "logout";
+        logoutBtn.textContent = "تسجيل الخروج";
+        logoutBtn.setAttribute("aria-label", "تسجيل الخروج من الجلسة الحالية");
+        accountItem.appendChild(logoutBtn);
+        navUl.append(li, accountItem);
+      }
     }
 
     if (session && loginLink) {
