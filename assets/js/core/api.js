@@ -10,7 +10,13 @@ export function getApiBase() {
     if (window.DSACMS_API_BASE) return window.DSACMS_API_BASE;
     try {
       const stored = localStorage.getItem("dsacms_api_base");
-      if (stored) return stored;
+      if (stored) {
+        if (stored.includes("onrender.com") || stored.includes("localhost")) {
+          localStorage.removeItem("dsacms_api_base");
+        } else {
+          return stored;
+        }
+      }
     } catch (_) {}
   }
   return DEFAULT_PRODUCTION_API;
@@ -26,9 +32,9 @@ export function setApiBase(url) {
 }
 
 /**
- * Fetch wrapper with configurable AbortController timeout (default: 10s)
+ * Fetch wrapper with configurable AbortController timeout (default: 25s for serverless cold start)
  */
-export async function fetchWithTimeout(resource, options = {}, timeoutMs = 10000) {
+export async function fetchWithTimeout(resource, options = {}, timeoutMs = 25000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -62,7 +68,7 @@ export async function fetchWithTimeout(resource, options = {}, timeoutMs = 10000
 }
 
 /**
- * Unified API Request helper with cookie credentials and token fallback
+ * Unified API Request helper with token fallback and configurable credentials
  */
 export async function apiRequest(endpoint, options = {}) {
   const base = getApiBase().replace(/\/$/, "");
@@ -91,12 +97,16 @@ export async function apiRequest(endpoint, options = {}) {
     body = JSON.stringify(body);
   }
 
+  // Cross-origin API calls must default to same-origin credentials to avoid CORS failures
+  // when the backend does not return Access-Control-Allow-Credentials: true.
+  const credentials = options.credentials || "same-origin";
+
   const response = await fetchWithTimeout(url, {
     ...options,
     headers,
     body,
-    credentials: "include", // Supports secure HttpOnly cookies (SEC-004)
-  }, options.timeout || 10000);
+    credentials,
+  }, options.timeout || 25000);
 
   let data = null;
   const contentType = response.headers.get("content-type") || "";

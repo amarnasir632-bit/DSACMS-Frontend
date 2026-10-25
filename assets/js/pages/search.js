@@ -51,11 +51,19 @@ export async function initSearchPage(storeData = {}) {
   }
 
   // Populate category options
-  if (catSel && storeData.categories && storeData.categories.length) {
+  let categories = storeData.categories || [];
+  if (!categories.length) {
+    try {
+      const res = await apiRequest("/categories");
+      categories = Array.isArray(res) ? res : res.items || [];
+    } catch (_) {}
+  }
+
+  if (catSel && categories.length) {
     const currentVal = catSel.value;
     catSel.innerHTML =
       '<option value="">جميع التصنيفات</option>' +
-      storeData.categories
+      categories
         .map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`)
         .join("");
     if (currentVal) catSel.value = currentVal;
@@ -133,9 +141,9 @@ export async function initSearchPage(storeData = {}) {
     renderViewState(grid, "success", {
       data: results,
       render: (items) => {
-        grid.innerHTML = items.map((c) => buildSearchCard(c, storeData.categories)).join("");
+        grid.innerHTML = items.map((c) => buildSearchCard(c, categories)).join("");
         grid.querySelectorAll("[data-mini]").forEach((btn) => {
-          const item = items.find((x) => x.id === btn.dataset.contentId);
+          const item = items.find((x) => String(x.id) === String(btn.dataset.contentId));
           if (item) renderMiniPlayer(btn, item);
         });
       },
@@ -206,7 +214,7 @@ function buildSearchCard(c, categories = []) {
         <ul class="item-meta">
           <li>${ICONS.author} ${escapeHtml(c.author || "الشيخ محمد أحمد الهادي")}</li>
           <li>${ICONS.category} ${cat ? escapeHtml(cat.name) : "عام"}</li>
-          <li>${ICONS.calendar} ${formatDate(c.pubDate)}</li>
+          <li>${ICONS.calendar} ${formatDate(c.pubDate || c.published_at || c.created_at)}</li>
         </ul>
         <p class="item-excerpt">${escapeHtml(c.description || "")}</p>
         <div class="item-actions">

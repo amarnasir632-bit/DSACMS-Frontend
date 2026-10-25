@@ -44,9 +44,9 @@ function initHeroStats(storeData) {
 
   if (pub.length > 0 || cats.length > 0) {
     if (statContent) statContent.innerHTML = escapeHtml(pub.length);
-    if (statAudio) statAudio.innerHTML = escapeHtml(pub.filter((c) => c.audio).length);
-    if (statArticles) statArticles.innerHTML = escapeHtml(pub.filter((c) => c.type === "article").length);
-    if (statBooks) statBooks.innerHTML = escapeHtml(pub.filter((c) => c.type === "book").length);
+    if (statAudio) statAudio.innerHTML = escapeHtml(pub.filter((c) => c.audio || c.audio_url).length);
+    if (statArticles) statArticles.innerHTML = escapeHtml(pub.filter((c) => c.type === "article" || c.content_type === "article").length);
+    if (statBooks) statBooks.innerHTML = escapeHtml(pub.filter((c) => c.type === "book" || c.content_type === "book").length);
     if (statCats) statCats.innerHTML = escapeHtml(cats.length);
   }
 }
@@ -95,7 +95,7 @@ async function loadLatestAudio(storeData) {
         container.innerHTML = items.map((c) => buildContentCard(c, storeData.categories)).join("");
         // Connect mini players
         container.querySelectorAll("[data-mini]").forEach((btn) => {
-          const item = items.find((x) => x.id === btn.dataset.contentId);
+          const item = items.find((x) => String(x.id) === String(btn.dataset.contentId));
           if (item) renderMiniPlayer(btn, item);
         });
       },
@@ -145,7 +145,7 @@ function buildContentCard(c, categories = []) {
         <ul class="item-meta">
           <li>${ICONS.author} ${escapeHtml(c.author || "الشيخ محمد أحمد الهادي")}</li>
           <li>${ICONS.category} ${cat ? escapeHtml(cat.name) : "عام"}</li>
-          <li>${ICONS.calendar} ${formatDate(c.pubDate)}</li>
+          <li>${ICONS.calendar} ${formatDate(c.pubDate || c.published_at || c.created_at)}</li>
         </ul>
         <p class="item-excerpt">${escapeHtml(c.description || "")}</p>
         <div class="item-actions">
@@ -159,11 +159,18 @@ function buildContentCard(c, categories = []) {
   `;
 }
 
-function renderCategoriesGrid(storeData) {
+async function renderCategoriesGrid(storeData) {
   const grid = document.getElementById("categories-grid");
   if (!grid) return;
 
-  const cats = storeData.categories || [];
+  let cats = storeData.categories || [];
+  if (!cats.length) {
+    try {
+      const res = await apiRequest("/categories");
+      cats = Array.isArray(res) ? res : res.items || [];
+    } catch (_) {}
+  }
+
   const pub = filterPublicMaterials(storeData.contents || []);
 
   if (!cats.length) {
@@ -173,7 +180,7 @@ function renderCategoriesGrid(storeData) {
 
   grid.innerHTML = cats
     .map((c) => {
-      const count = pub.filter((x) => x.category === c.id).length;
+      const count = pub.filter((x) => String(x.category || x.category_id) === String(c.id)).length;
       return `
         <a class="card category-card" href="pages/search.html?category=${encodeURIComponent(c.id)}" aria-label="تصنيف ${escapeHtml(c.name)} — ${count} مادة">
           <span class="cat-emoji" aria-hidden="true">${c.icon || "📚"}</span>

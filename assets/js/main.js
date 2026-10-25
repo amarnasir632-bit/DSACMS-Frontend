@@ -346,7 +346,22 @@ import { initLecturesPage as initModularLectures } from "./pages/lectures.js";
      1) مصدر البيانات (REST API)
      ---------------------------------------------------------------------- */
   const API_CONFIG = {
-    baseUrl: (window.DSACMS_API_BASE || localStorage.getItem("dsacms_api_base") || "https://dsacms-backend.vercel.app/api").replace(/\/$/, ""),
+    baseUrl: (() => {
+      if (typeof window !== "undefined") {
+        if (window.DSACMS_API_BASE) return window.DSACMS_API_BASE;
+        try {
+          const stored = localStorage.getItem("dsacms_api_base");
+          if (stored) {
+            if (stored.includes("onrender.com") || stored.includes("localhost")) {
+              localStorage.removeItem("dsacms_api_base");
+            } else {
+              return stored;
+            }
+          }
+        } catch (_) {}
+      }
+      return "https://dsacms-backend.vercel.app/api";
+    })().replace(/\/$/, ""),
   };
   let apiCategories = [];
   let apiContents = [];
@@ -725,7 +740,7 @@ import { initLecturesPage as initModularLectures } from "./pages/lectures.js";
 
   async function fetchApi(path, options) {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
+    const timeout = setTimeout(() => controller.abort(), 25000);
     const session = store.read(STORE.session, null);
     const headers = new Headers((options && options.headers) || {});
     if (session?.token) headers.set("Authorization", `Bearer ${session.token}`);
@@ -1814,6 +1829,27 @@ import { initLecturesPage as initModularLectures } from "./pages/lectures.js";
       content = loadContents().find((c) => String(c.id) === String(id) || String(c.slug || "") === String(id));
     }
 
+    if (!content && id) {
+      try {
+        const rawMaterials = await fetchApi("/materials");
+        if (Array.isArray(rawMaterials)) {
+          apiContents = rawMaterials.map(normalizeMaterial).filter(Boolean);
+          content = loadContents().find((c) => String(c.id) === String(id) || String(c.slug || "") === String(id));
+        }
+      } catch (err) {
+        console.error("Direct fetch failed for material", id, err);
+      }
+    }
+
+    if (!loadCategories().length) {
+      try {
+        const rawCats = await fetchApi("/categories");
+        if (Array.isArray(rawCats)) {
+          apiCategories = rawCats.map(normalizeCategory).filter(Boolean);
+        }
+      } catch (_) {}
+    }
+
     if (!content) {
       notFound.hidden = false;
       wrap.style.display = "none";
@@ -1828,7 +1864,7 @@ import { initLecturesPage as initModularLectures } from "./pages/lectures.js";
     notFound.hidden = true;
     wrap.style.display = "";
 
-    const cat = loadCategories().find((x) => x.id === content.category);
+    const cat = loadCategories().find((x) => String(x.id) === String(content.category || content.category_id));
 
     // تحديث عنوان الصفحة وبيانات SEO + Open Graph (SEo-002/003 + مشاركة)
     const pageTitle = `${content.title} | الشيخ محمد أحمد الهادي الكرار`;
@@ -4096,7 +4132,7 @@ import { initLecturesPage as initModularLectures } from "./pages/lectures.js";
   /* ----------------------------------------------------------------------
      11) نقطة الانطلاق حسب الصفحة
      ---------------------------------------------------------------------- */
-  document.addEventListener("DOMContentLoaded", async () => {
+  const bootstrap = async () => {
     try {
       const pagesUsingContent = ["index", "search", "detail", "dashboard"];
       if (pagesUsingContent.includes(PAGE)) {
@@ -4124,8 +4160,8 @@ import { initLecturesPage as initModularLectures } from "./pages/lectures.js";
           initDashboard();
           break;
         case "questions":
-            await initQuestions();
-            break;
+          await initQuestions();
+          break;
         case "lectures":
           await initModularLectures();
           break;
@@ -4140,4 +4176,10 @@ import { initLecturesPage as initModularLectures } from "./pages/lectures.js";
         if (container) container.innerHTML = `<p class="alert alert--error" role="alert">${message}</p>`;
       });
     }
-  });
+  };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bootstrap);
+  } else {
+    bootstrap();
+  }
