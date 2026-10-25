@@ -32,16 +32,12 @@
   <header class="site-header">
     <div class="container nav-wrap">
       <a class="brand" href="../index.html" aria-label="DSACMS – الصفحة الرئيسية">
-        <img src="../assets/images/logo.png" alt="شعار نظام DSACMS" height="60" style="object-fit: contain;">
+        <img src="../assets/images/logo.png" alt="شعار الموقع الرسمي للشيخ محمد أحمد الهادي الكرار" height="60" style="object-fit: contain;">
         <span>الشيخ محمد أحمد الهادي الكرار<small>المكتبة العلمية والصوتية</small></span>
       </a>
-      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="فتح أو إغلاق قائمة التنقل">
-        <svg class="icon-menu" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          <path d="M4 6h16M4 12h16M4 18h16"/>
-        </svg>
-        <svg class="icon-close" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          <path d="M18 6 6 18M6 6l12 12"/>
-        </svg>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="فتح القائمة الرئيسية">
+        <span class="icon-menu" aria-hidden="true">☰</span>
+        <span class="icon-close" aria-hidden="true">✕</span>
       </button>
       <nav id="site-nav" class="site-nav" aria-label="القائمة الرئيسية">
         <button
@@ -49,9 +45,7 @@
           type="button"
           aria-label="إغلاق قائمة التنقل"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M18 6 6 18M6 6l12 12"/>
-          </svg>
+          <span aria-hidden="true">✕</span>
         </button>
 
         <ul>
@@ -60,7 +54,6 @@
           <li><a href="questions.html">الأسئلة والفتاوى</a></li>
           <li><a href="lectures.html">جدول المحاضرات</a></li>
           <li><a href="about.html">حول الشيخ</a></li>
-          <li><a href="login.html">تسجيل الدخول للإدارة</a></li>
         </ul>
       </nav>
 
@@ -267,6 +260,6 @@
     </div>
   </footer>
 
-  <script src="../assets/js/main.js?v=20261025-logout-ui" defer></script>
+  <script type="module" src="../assets/js/main.js?v=20261025-refactor-v2" defer></script>
 </body>
 </html>

@@ -10,8 +10,11 @@
      5) مشغّل الصوت الموحّد (Audio Player Controller)
      6) تهيئة كل صفحة بحسب data-page
    ========================================================================== */
-(function () {
-  "use strict";
+import { initNavbar } from "./components/navbar.js";
+import { initHomePage } from "./pages/home.js";
+import { initSearchPage } from "./pages/search.js";
+import { initLecturesPage as initModularLectures } from "./pages/lectures.js";
+import { initDetailPage as initModularDetail } from "./pages/detail.js";
 
   /* ----------------------------------------------------------------------
      0) أدوات مساعدة (Utilities)
@@ -169,6 +172,7 @@
   /** تنسيق المدة بالثواني إلى نص mm:ss أو h:mm:ss */
   function formatDuration(totalSeconds) {
     const s = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+    if (s <= 0) return "";
     const h = Math.floor(s / 3600);
     const m = Math.floor((s % 3600) / 60);
     const sec = s % 60;
@@ -651,9 +655,9 @@
     apiContents = Array.isArray(list) ? list : [];
   }
 
-  /** المحتوى العام: المواد المنشورة فقط (BR-002 / FR-027) */
+  /** المحتوى العام: المواد المنشورة فقط واستبعاد المواد غير الصالحة أو أحادية الحرف */
   function publicContents() {
-    return loadContents().filter((c) => c.status === "published");
+    return loadContents().filter((c) => c.status === "published" && String(c.title || "").trim().length >= 2);
   }
 
   function normalizeCategory(row) {
@@ -999,6 +1003,9 @@
         console.warn(`[AudioPlayer Failover] فشل المصدر الأساسي (${previousSrc})، يجري التبديل التلقائي إلى المصدر الاحتياطي (${nextSrc}) دون مقاطعة المستخدم.`);
         this._failoverInProgress = true;
         this._notify("onBuffering");
+        try {
+          showToast("تم الانتقال تلقائياً إلى خادم البث الاحتياطي لضمان استمرار الاستماع.", "info");
+        } catch (_) {}
         const a = this.audio;
         const savedTime = a.currentTime || 0;
         a.setAttribute("data-src", nextSrc);
@@ -1297,39 +1304,38 @@
       if (playing !== AudioPlayer.audio) AudioPlayer.pause();
     }, true);
 
-    // أزرار تنقّل ثابتة تساعد على الوصول إلى بداية الصفحة ونهايتها.
-    const scrollControls = document.createElement("div");
-    scrollControls.className = "scroll-controls";
-    scrollControls.setAttribute("aria-label", "أزرار التنقل داخل الصفحة");
-    scrollControls.innerHTML = `
-      <button type="button" class="scroll-control" data-scroll-target="top" aria-label="الانتقال إلى أعلى الصفحة">
-        <span aria-hidden="true">↑</span>
-        <span>للأعلى</span>
-      </button>
-      <button type="button" class="scroll-control" data-scroll-target="bottom" aria-label="الانتقال إلى أسفل الصفحة">
-        <span aria-hidden="true">↓</span>
-        <span>للأسفل</span>
-      </button>
-    `;
-    document.body.appendChild(scrollControls);
+    // إزالة أية عناصر تحكم تنقل قديمة
+    const oldScrollControls = $(".scroll-controls");
+    if (oldScrollControls) oldScrollControls.remove();
 
-    const updateScrollControls = () => {
-      const atTop = window.scrollY <= 8;
-      const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 8;
-      const topButton = $('[data-scroll-target="top"]', scrollControls);
-      const bottomButton = $('[data-scroll-target="bottom"]', scrollControls);
-      if (topButton) topButton.disabled = atTop;
-      if (bottomButton) bottomButton.disabled = atBottom;
+    // زر العودة إلى الأعلى الدائري العائم (44×44px) - يظهر فقط بعد التمرير > 400px
+    let backToTopBtn = document.getElementById("back-to-top");
+    if (!backToTopBtn) {
+      backToTopBtn = document.createElement("button");
+      backToTopBtn.type = "button";
+      backToTopBtn.id = "back-to-top";
+      backToTopBtn.className = "back-to-top";
+      backToTopBtn.setAttribute("aria-label", "الرجوع إلى أعلى الصفحة");
+      backToTopBtn.title = "الرجوع إلى أعلى الصفحة";
+      backToTopBtn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="18 15 12 9 6 15"/>
+        </svg>
+      `;
+      document.body.appendChild(backToTopBtn);
+    }
+    const updateBackToTop = () => {
+      if (window.scrollY > 400) {
+        backToTopBtn.classList.add("is-visible");
+      } else {
+        backToTopBtn.classList.remove("is-visible");
+      }
     };
-    $('[data-scroll-target="top"]', scrollControls)?.addEventListener("click", () => {
+    backToTopBtn.addEventListener("click", () => {
       window.scrollTo({ top: 0, behavior: "smooth" });
     });
-    $('[data-scroll-target="bottom"]', scrollControls)?.addEventListener("click", () => {
-      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
-    });
-    window.addEventListener("scroll", updateScrollControls, { passive: true });
-    window.addEventListener("resize", updateScrollControls);
-    updateScrollControls();
+    window.addEventListener("scroll", updateBackToTop, { passive: true });
+    updateBackToTop();
 
    
     
@@ -1586,8 +1592,9 @@
   /** بطاقة مادة علمية قابلة لإعادة الاستخدام */
   function contentCard(c) {
     const cat = loadCategories().find((x) => x.id === c.category);
-    const duration = c.duration ? formatDuration(c.duration) : "—";
+    const formattedDur = (c.duration && Number(c.duration) > 0) ? formatDuration(c.duration) : "";
     const hasAudio = !!c.audio;
+    const durationChip = formattedDur ? ` · ${formattedDur}` : (hasAudio ? ` · <span class="badge--audio-chip">ملف صوتي</span>` : "");
     const type = c.type || (hasAudio ? "audio" : "article");
     const typeLabel = type === "book" ? "كتاب PDF" : type === "article" ? "مقال مكتوب" : "مادة صوتية";
     const downloadPath = c.audio || c.pdf || "";
@@ -1598,7 +1605,7 @@
         ${hasAudio
           ? `<audio class="native-audio" controls preload="none" src="${escapeHTML(resolveContentUrl(c.audio))}" aria-label="تشغيل ${escapeHTML(c.title)}"></audio>`
           : ""}
-        <span class="duration">${typeLabel}${hasAudio ? ` · ${duration}` : ""}</span>
+        <span class="duration">${typeLabel}${durationChip}</span>
       </div>
       <div class="item-body">
         <h3><a href="${detailHref(c.id)}">${escapeHTML(c.title)}</a></h3>
@@ -4053,13 +4060,13 @@
 
       switch (PAGE) {
         case "index":
-          initHome();
+          await initHomePage({ contents: loadContents(), categories: loadCategories() });
           break;
         case "search":
-          initSearch();
+          await initSearchPage({ contents: loadContents(), categories: loadCategories() });
           break;
         case "detail":
-          initDetail();
+          await initModularDetail({ contents: loadContents(), categories: loadCategories() });
           break;
         case "login":
           initLogin();
@@ -4074,7 +4081,7 @@
             await initQuestions();
             break;
         case "lectures":
-          await initLecturesPage();
+          await initModularLectures();
           break;
         default:
           break;
@@ -4088,4 +4095,3 @@
       });
     }
   });
-})();

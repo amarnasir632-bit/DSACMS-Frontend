@@ -55,16 +55,12 @@
   <header class="site-header">
     <div class="container nav-wrap">
       <a class="brand" href="../index.html" aria-label="موقع الشيخ محمد أحمد الهادي الكرار – الصفحة الرئيسية">
-        <img src="../assets/images/logo.png" alt="شعار موقع الشيخ" height="60" style="object-fit: contain;">
+        <img src="../assets/images/logo.png" alt="شعار الموقع الرسمي للشيخ محمد أحمد الهادي الكرار" height="60" style="object-fit: contain;">
         <span>الشيخ محمد أحمد الهادي الكرار<small>المكتبة العلمية والصوتية</small></span>
       </a>
-      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="فتح أو إغلاق قائمة التنقل">
-        <svg class="icon-menu" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          <path d="M4 6h16M4 12h16M4 18h16"/>
-        </svg>
-        <svg class="icon-close" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          <path d="M18 6 6 18M6 6l12 12"/>
-        </svg>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="فتح القائمة الرئيسية">
+        <span class="icon-menu" aria-hidden="true">☰</span>
+        <span class="icon-close" aria-hidden="true">✕</span>
       </button>
       <nav id="site-nav" class="site-nav" aria-label="القائمة الرئيسية">
         <button
@@ -72,9 +68,7 @@
           type="button"
           aria-label="إغلاق قائمة التنقل"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M18 6 6 18M6 6l12 12"/>
-          </svg>
+          <span aria-hidden="true">✕</span>
         </button>
 
         <ul>
@@ -83,7 +77,6 @@
           <li><a href="questions.html">الأسئلة والفتاوى</a></li>
           <li><a href="lectures.html">جدول المحاضرات</a></li>
           <li><a href="about.html" aria-current="page">حول الشيخ</a></li>
-          <li><a href="login.html">تسجيل الدخول للإدارة</a></li>
         </ul>
       </nav>
 
@@ -99,7 +92,7 @@
       <article class="about-sheikh">
         <h1>حول الشيخ محمد أحمد الهادي الكرار</h1>
         <figure class="sheikh-portrait">
-          <img src="../assets/images/sheikh-placeholder.svg" alt="صورة الشيخ محمد أحمد الهادي الكرار" width="640" height="640" loading="lazy" decoding="async">
+          <img src="../assets/images/sheikh-placeholder.svg" alt="صورة الشيخ محمد أحمد الهادي الكرار" width="640" height="640" loading="lazy" decoding="async" onerror="this.onerror=null;this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 640 640\'><rect width=\'640\' height=\'640\' fill=\'%2314253e\'/><circle cx=\'320\' cy=\'260\' r=\'120\' fill=\'%23c4a259\' opacity=\'0.8\'/><path d=\'M160 520 C 160 400, 480 400, 480 520 Z\' fill=\'%23c4a259\' opacity=\'0.8\'/><text x=\'320\' y=\'580\' text-anchor=\'middle\' fill=\'%23ffffff\' font-family=\'sans-serif\' font-size=\'28\'>الشيخ محمد أحمد الهادي الكرار</text></svg>';">
           <figcaption>الشيخ محمد أحمد الهادي الكرار</figcaption>
         </figure>
         <div class="prose sheikh-bio">
@@ -188,6 +181,6 @@
       </div>
     </div>
   </footer>
-  <script src="../assets/js/main.js?v=20261025-logout-ui" defer></script>
+  <script type="module" src="../assets/js/main.js?v=20261025-refactor-v2" defer></script>
 </body>
 </html>
