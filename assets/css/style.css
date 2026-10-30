@@ -3554,4 +3554,430 @@ body.nav-menu-open {
 }
 
 
+/* ==========================================================================
+   تحديثات DSACMS: الوضع الداكن والفاتح + مكون الرفع والتحميل (.fu-04) بهوية الموقع
+   ========================================================================== */
+html[data-theme="dark"] {
+  --bg-color: #0b131e;
+  --bg-surface: #121d2b;
+  --color-surface-muted: #182638;
+  --text-primary: #f0f4f8;
+  --text-primary-dark: #ffffff;
+  --text-primary-light: #1e2f44;
+  --color-text: #f0f4f8;
+  --color-text-muted: #9fb0c4;
+  --text-secondary: #9fb0c4;
+
+  --accent-color: #c93b3b;
+  --accent-dark: #d4af37;
+  --accent-soft: rgba(212, 175, 55, 0.14);
+
+  --color-border: #26384d;
+  --color-border-strong: #3b5370;
+
+  --color-success: #4ade80;
+  --color-success-bg: rgba(74, 222, 128, 0.12);
+  --color-warning: #facc15;
+  --color-warning-bg: rgba(250, 204, 21, 0.12);
+  --color-danger: #f87171;
+  --color-danger-bg: rgba(248, 113, 113, 0.12);
+  --color-info: #60a5fa;
+  --color-info-bg: rgba(96, 165, 250, 0.12);
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.6);
+}
+
+/* تحسين ألوان العناصر الثابتة في الوضع الداكن */
+html[data-theme="dark"] body {
+  background-color: var(--bg-color);
+  color: var(--color-text);
+}
+
+html[data-theme="dark"] .site-header,
+html[data-theme="dark"] .card,
+html[data-theme="dark"] .panel,
+html[data-theme="dark"] .modal-content,
+html[data-theme="dark"] .field,
+html[data-theme="dark"] input,
+html[data-theme="dark"] textarea,
+html[data-theme="dark"] select {
+  background-color: var(--bg-surface);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+/* زر التبديل بين الوضع الداكن والفاتح في الهيدر (.fu-04__theme) */
+.fu-04__theme {
+  inline-size: 2.65rem;
+  block-size: 2.65rem;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-muted);
+  color: var(--color-text);
+  transition: background 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease, color 0.25s ease;
+  flex-shrink: 0;
+  margin-inline-start: 0.5rem;
+}
+
+.fu-04__theme:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent-dark);
+  color: var(--accent-color);
+  transform: translateY(-1px);
+}
+
+.fu-04__theme:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 3px;
+}
+
+.fu-04__theme svg {
+  grid-area: 1 / 1;
+  inline-size: 1.2rem;
+  block-size: 1.2rem;
+}
+
+.fu-04__sun {
+  display: none;
+  color: var(--accent-dark);
+}
+
+.fu-04__theme[aria-pressed="true"] .fu-04__sun {
+  display: block;
+}
+
+.fu-04__theme[aria-pressed="true"] .fu-04__moon {
+  display: none;
+}
+
+/* مكون الرفع والتحميل (.fu-04) بهوية الموقع */
+.fu-04 {
+  --bg: var(--color-bg, #f4f6f9);
+  --surface: var(--color-surface, #ffffff);
+  --raise: var(--color-surface-muted, #f0f2f5);
+  --ink: var(--color-text, #1a2d45);
+  --muted: var(--color-text-muted, #3d4f61);
+  --line: var(--color-border, #d5dce3);
+  --acc: var(--color-accent, #8b0000);
+  --acc-secondary: var(--color-accent-dark, #a68540);
+  --acc-ink: #ffffff;
+  --danger: var(--color-danger, #b3261e);
+  --rows: 14rem;
+  --sans: var(--font-body, "Tajawal", sans-serif);
+  --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  position: relative;
+  width: 100%;
+  margin-block: 0.75rem;
+  color: var(--ink);
+  font-family: var(--sans);
+  direction: rtl;
+  -webkit-font-smoothing: antialiased;
+}
+
+html[data-theme="dark"] .fu-04 {
+  --bg: #0b131e;
+  --surface: #121d2b;
+  --raise: #182638;
+  --ink: #f0f4f8;
+  --muted: #9fb0c4;
+  --line: #26384d;
+  --acc: #c93b3b;
+  --acc-secondary: #d4af37;
+  --acc-ink: #ffffff;
+  --danger: #ff6b6b;
+}
+
+.fu-04,
+.fu-04 *,
+.fu-04 *::before,
+.fu-04 *::after {
+  box-sizing: border-box;
+}
+
+.fu-04__panel {
+  inline-size: 100%;
+  display: grid;
+  gap: 0.9rem;
+  padding: clamp(1rem, 3vw, 1.35rem);
+  background: radial-gradient(80% 50% at 85% 0%, color-mix(in oklab, var(--acc) 8%, transparent), transparent 60%),
+              radial-gradient(70% 50% at 0% 100%, color-mix(in oklab, var(--acc-secondary) 10%, transparent), transparent 60%),
+              var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 1.15rem;
+  box-shadow: var(--shadow-md);
+}
+
+.fu-04__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.fu-04__h {
+  margin: 0;
+  font-family: var(--font-heading, "ZAIN", sans-serif);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.fu-04__sub {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.fu-04__count {
+  display: grid;
+  place-items: center;
+  min-inline-size: 2rem;
+  block-size: 2rem;
+  padding-inline: 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--acc) 15%, transparent);
+  border: 1px solid color-mix(in oklab, var(--acc) 35%, transparent);
+  font-family: var(--mono);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--acc);
+}
+
+.fu-04__input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  overflow: hidden;
+  opacity: 0;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.fu-04__label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  user-select: none;
+  min-block-size: 3rem;
+  border-radius: 0.85rem;
+  border: 1.5px dashed color-mix(in oklab, var(--acc) 45%, var(--line));
+  background: color-mix(in oklab, var(--acc) 7%, transparent);
+  color: var(--acc);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  transition: background 0.25s ease, border-color 0.25s ease, transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.fu-04__label svg {
+  inline-size: 1.1rem;
+  block-size: 1.1rem;
+}
+
+.fu-04__label:hover {
+  background: color-mix(in oklab, var(--acc) 14%, transparent);
+  border-style: solid;
+  transform: translateY(-1px);
+}
+
+.fu-04__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.5rem;
+  max-block-size: var(--rows);
+  overflow-y: auto;
+}
+
+.fu-04__list:empty {
+  display: none;
+}
+
+.fu-04__empty {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-align: center;
+  padding-block: 0.4rem;
+}
+
+.fu-04__panel:has(.fu-04__item) .fu-04__empty {
+  display: none;
+}
+
+.fu-04__item {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: 0.85rem;
+  background: var(--raise);
+  border: 1px solid var(--line);
+  transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+
+.fu-04__item::after {
+  content: "";
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-start: 0;
+  block-size: 3.5px;
+  inline-size: var(--item-progress, 0%);
+  background: linear-gradient(90deg, var(--acc), var(--acc-secondary));
+  transition: inline-size 0.2s ease;
+}
+
+.fu-04__chip {
+  display: grid;
+  place-items: center;
+  inline-size: 2.35rem;
+  block-size: 2.35rem;
+  border-radius: 0.6rem;
+  background: color-mix(in oklab, var(--acc) 12%, transparent);
+  color: var(--acc);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  direction: ltr;
+}
+
+.fu-04__meta {
+  display: grid;
+  gap: 0.12rem;
+  min-inline-size: 0;
+}
+
+.fu-04__name {
+  font-size: 0.875rem;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fu-04__size {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.fu-04__rm {
+  display: grid;
+  place-items: center;
+  inline-size: 2.4rem;
+  block-size: 2.4rem;
+  cursor: pointer;
+  border: 0;
+  border-radius: 0.6rem;
+  background: transparent;
+  color: var(--muted);
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.fu-04__rm svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+
+.fu-04__rm:hover {
+  background: color-mix(in oklab, var(--danger) 18%, transparent);
+  color: var(--danger);
+}
+
+.fu-04__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-block-start: 0.2rem;
+}
+
+.fu-04__total {
+  font-family: var(--mono);
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.fu-04__send {
+  min-block-size: 2.65rem;
+  padding: 0.55rem 1.25rem;
+  border: 0;
+  border-radius: 0.8rem;
+  cursor: pointer;
+  background: var(--acc);
+  color: var(--acc-ink);
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  font-weight: 700;
+  transition: filter 0.2s ease, transform 0.2s ease, opacity 0.2s ease;
+}
+
+.fu-04__send:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.fu-04__send:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.fu-04__status {
+  margin: 0;
+  min-block-size: 1.1rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--acc);
+}
+
+.fu-04__vh {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* شريط تقدم التحميل للمستخدم العادي في بطاقات وصفحات المواد */
+.dsacms-dl-progress-box {
+  position: relative;
+  overflow: hidden;
+  display: block !important;
+  margin-block-start: 0.55rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: 0.75rem;
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.dsacms-dl-progress-box::after {
+  content: "";
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-start: 0;
+  block-size: 3.5px;
+  inline-size: var(--download-progress, 0%);
+  background: linear-gradient(90deg, var(--color-accent), var(--color-accent-dark));
+  transition: inline-size 0.15s ease;
+}
 
