@@ -142,3 +142,92 @@ export function resolveMediaUrl(path) {
 export function resolveDownloadUrl(path) {
   return resolveMediaUrl(path);
 }
+
+export function triggerBlobDownload(blob, filename = "download") {
+  const safeName = String(filename || "download")
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, "")
+    .replace(/\s+/g, " ") || "download";
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = safeName;
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export function downloadWithProgress({
+  primaryUrl,
+  backupUrl,
+  filename,
+  button,
+  statusElement,
+}) {
+  const finalFilename = String(filename || "dsacms-download").trim() || "dsacms-download";
+
+  const updateStatus = (message, progress = null) => {
+    if (statusElement) {
+      statusElement.hidden = !message;
+      statusElement.textContent = message || "";
+      if (typeof progress === "number") {
+        statusElement.dataset.progress = String(progress);
+      } else {
+        delete statusElement.dataset.progress;
+      }
+    }
+  };
+
+  const runDownload = (targetUrl, isBackup = false) => new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", targetUrl, true);
+    xhr.responseType = "blob";
+
+    if (button) button.disabled = true;
+    updateStatus(isBackup ? "جارٍ التحميل من الأرشيف الاحتياطي…" : "جارٍ تجهيز التحميل…");
+
+    xhr.addEventListener("progress", (event) => {
+      if (event.lengthComputable && event.total > 0) {
+        const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
+        updateStatus(`جاري التحميل: ${percent}%`, percent);
+      } else {
+        updateStatus("جاري التحميل… حجم الملف غير متاح من الخادم");
+      }
+    });
+
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        triggerBlobDownload(xhr.response, finalFilename);
+        updateStatus("اكتمل التحميل.", 100);
+        resolve();
+        return;
+      }
+
+      reject(new Error(`Download failed: ${xhr.status}`));
+    });
+
+    xhr.addEventListener("error", () => reject(new Error("Download connection failed")));
+    xhr.addEventListener("abort", () => reject(new Error("Download aborted")));
+    xhr.send();
+  });
+
+  return runDownload(primaryUrl)
+    .catch((error) => {
+      if (backupUrl && backupUrl !== primaryUrl) {
+        console.warn("[Download Failover] فشل التحميل من الرابط الأساسي؛ الانتقال التلقائي للرابط الاحتياطي:", backupUrl);
+        return runDownload(backupUrl, true);
+      }
+      throw error;
+    })
+    .catch((error) => {
+      console.error("Unable to download file", error);
+      updateStatus("تعذر التحميل. حاول مرة أخرى.");
+      throw error;
+    })
+    .finally(() => {
+      if (button) button.disabled = false;
+    });
+}

@@ -4,7 +4,7 @@
  */
 
 import { renderViewState, filterPublicMaterials, escapeHtml, formatDuration, formatDate } from "../core/ui-states.js";
-import { apiRequest, resolveMediaUrl, resolveDownloadUrl } from "../core/api.js";
+import { apiRequest, resolveMediaUrl, resolveDownloadUrl, downloadWithProgress } from "../core/api.js";
 import { renderMiniPlayer } from "../components/audio-player.js";
 
 const ICONS = {
@@ -93,6 +93,20 @@ async function loadLatestAudio(storeData) {
       data: audioItems,
       render: (items) => {
         container.innerHTML = items.map((c) => buildContentCard(c, storeData.categories)).join("");
+        container.querySelectorAll(".card-download").forEach((button) => {
+          const status = button.parentElement?.querySelector(".download-progress");
+          if (status) {
+            button.addEventListener("click", () => {
+              downloadWithProgress({
+                primaryUrl: button.dataset.downloadUrl,
+                backupUrl: button.dataset.backupDownloadUrl,
+                filename: button.dataset.downloadName,
+                button,
+                statusElement: status,
+              }).catch(() => {});
+            });
+          }
+        });
         // Connect mini players
         container.querySelectorAll("[data-mini]").forEach((btn) => {
           const item = items.find((x) => String(x.id) === String(btn.dataset.contentId));
@@ -131,6 +145,9 @@ function buildContentCard(c, categories = []) {
   const detailUrl = `pages/content-detail.html?id=${encodeURIComponent(c.id)}`;
   const downloadUrl = audioSrc || pdfSrc || "";
   const downloadLabel = audioSrc ? "تحميل الصوت" : pdfSrc ? "تحميل PDF" : "";
+  const backupDownloadUrl = (c.audioArchive || c.archiveUrl || c.pdfArchive) && ((c.audioArchive || c.archiveUrl || c.pdfArchive) !== downloadUrl)
+    ? (c.audioArchive || c.archiveUrl || c.pdfArchive)
+    : "";
 
   return `
     <article class="card item-card">
@@ -151,7 +168,10 @@ function buildContentCard(c, categories = []) {
         <div class="item-actions">
           <a class="btn btn--outline btn--sm" href="${detailUrl}">تفاصيل المادة</a>
           ${downloadUrl
-            ? `<a class="btn btn--accent btn--sm card-download" href="${escapeHtml(resolveDownloadUrl(downloadUrl))}" download>${downloadLabel}</a>`
+            ? `<div class="download-item">
+                <button type="button" class="btn btn--accent btn--sm card-download" data-download-url="${escapeHtml(resolveDownloadUrl(downloadUrl))}" data-backup-download-url="${escapeHtml(resolveDownloadUrl(backupDownloadUrl))}" data-download-name="${escapeHtml((c.title || 'dsacms-download') + (audioSrc ? '.mp3' : '.pdf'))}">${downloadLabel}</button>
+                <div class="download-progress" role="status" aria-live="polite" hidden></div>
+              </div>`
             : ""}
         </div>
       </div>

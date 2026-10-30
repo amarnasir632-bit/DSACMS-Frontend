@@ -81,7 +81,17 @@ export default {
       });
     }
 
-    // 3. تقديم الملفات الثابتة عبر binding ASSETS مع دعم الروابط النظيفة (.html fallback)
+    // 3. توجيه لوحة التحكم مباشرة
+    if (url.pathname === "/dashboard" || url.pathname === "/dashboard.html") {
+      const dashUrl = new URL(request.url);
+      dashUrl.pathname = "/pages/dashboard.html";
+      if (env.ASSETS && typeof env.ASSETS.fetch === "function") {
+        return env.ASSETS.fetch(new Request(dashUrl.toString(), request));
+      }
+      return Response.redirect(dashUrl.toString(), 301);
+    }
+
+    // 4. تقديم الملفات الثابتة عبر binding ASSETS مع دعم الروابط النظيفة (.html fallback)
     if (env.ASSETS && typeof env.ASSETS.fetch === "function") {
       let response = await env.ASSETS.fetch(request);
       if (response.status === 404 && !url.pathname.includes(".") && url.pathname !== "/") {

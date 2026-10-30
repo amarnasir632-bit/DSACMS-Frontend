@@ -2433,10 +2433,16 @@ import { initLecturesPage as initModularLectures } from "./pages/lectures.js";
     const form = $("#login-form");
     if (!form) return;
 
+    const goToDashboard = (user) => {
+      const home = (user && ROLES[user.role] && ROLES[user.role].home) || "pages/dashboard.html";
+      const target = (PAGE === "login" && home.startsWith("pages/")) ? home.replace(/^pages\//, "") : (BASE + home);
+      window.location.href = target;
+    };
+
     // إذا كان المستخدم مسجلاً بالفعل، إعادة توجيه للوحة
     const session = getSession();
     if (session) {
-      window.location.href = BASE + "dashboard.html";
+      goToDashboard(session);
       return;
     }
 
@@ -2445,11 +2451,6 @@ import { initLecturesPage as initModularLectures } from "./pages/lectures.js";
     const attemptsHint = $("#attempts-hint");
     const toggleBtn = $("#password-toggle");
     const passwordModal = $("#password-setup-modal");
-
-    const goToDashboard = (user) => {
-      const home = (ROLES[user.role] && ROLES[user.role].home) || "pages/dashboard.html";
-      window.location.href = BASE + home;
-    };
 
     if (passwordModal) {
       const changeForm = $("#password-change-form", passwordModal);
@@ -3339,11 +3340,13 @@ import { initLecturesPage as initModularLectures } from "./pages/lectures.js";
       return new Promise((resolve, reject) => {
         const request = new XMLHttpRequest();
         request.open("PUT", url);
-        request.timeout = 30 * 60 * 1000;
-        if (uploadToken) {
+        const isR2 = /r2\.cloudflarestorage\.com/i.test(url);
+        if (uploadToken && !isR2) {
           request.setRequestHeader("Authorization", `Bearer ${uploadToken}`);
         }
-        request.setRequestHeader("Content-Type", contentType || file.type || "application/octet-stream");
+        if (contentType || file.type) {
+          request.setRequestHeader("Content-Type", contentType || file.type);
+        }
         request.upload.addEventListener("progress", (event) => {
           if (event.lengthComputable) setUploadStatus(target, `جارٍ رفع الملف إلى Cloudflare R2… ${Math.round(event.loaded / event.total * 100)}٪`, "loading");
         });
@@ -4291,10 +4294,13 @@ import { initLecturesPage as initModularLectures } from "./pages/lectures.js";
     document.addEventListener(
       "click",
       (event) => {
-        const button = event.target.closest("[data-download-btn], [data-download-url]");
-        if (!button || !button.dataset.downloadUrl) return;
+        const button = event.target.closest("[data-download-btn], [data-download-url], .card-download, .download-trigger");
+        if (!button) return;
 
-        // نوقف المعالج القديم حتى نستخدم المعالج المحسن الذي يبدأ برابط R2 المباشر أولاً
+        const rawUrl = button.dataset.downloadUrl || button.getAttribute("href") || "";
+        if (!rawUrl || rawUrl === "#" || rawUrl.startsWith("javascript:")) return;
+
+        // نوقف المعالج القديم حتى نستخدم المعالج المحسن الذي يبدأ بالتحميل المباشر أولاً
         event.preventDefault();
         event.stopImmediatePropagation();
 
@@ -4302,7 +4308,7 @@ import { initLecturesPage as initModularLectures } from "./pages/lectures.js";
 
         const cardOrWrap = button.closest(".card, .detail-actions, .material-actions, .content-detail, body");
         let status =
-          (cardOrWrap && cardOrWrap.querySelector("[data-download-status], .download-status")) ||
+          (cardOrWrap && cardOrWrap.querySelector("[data-download-status], .download-status, .download-progress")) ||
           button.nextElementSibling;
 
         if (!status || !status.classList) {
@@ -4313,9 +4319,9 @@ import { initLecturesPage as initModularLectures } from "./pages/lectures.js";
           status.classList.add("dsacms-dl-progress-box");
         }
 
-        const primaryUrl = button.dataset.downloadUrl;
+        const primaryUrl = rawUrl;
         const backupUrl = button.dataset.backupDownloadUrl;
-        const downloadName = button.dataset.downloadName || "dsacms-media";
+        const downloadName = button.dataset.downloadName || button.getAttribute("download") || "dsacms-media";
 
         // استخراج رابط R2 المباشر إذا كان مغلفاً داخل /api/download?url=...
         let directR2Url = backupUrl || primaryUrl;
@@ -4375,18 +4381,30 @@ import { initLecturesPage as initModularLectures } from "./pages/lectures.js";
           });
         }
 
-        // نبدأ بالتحميل المباشر من R2 (بعد تفعيل CORS) لتجنب فشل Vercel عند الملفات الأكبر من 4.5MB
+        // نبدأ بالتحميل المباشر كـ Blob لتشغيل الحفظ المحلي الفوري
         downloadViaXhr(directR2Url)
           .catch(() => {
             if (primaryUrl && primaryUrl !== directR2Url) {
               return downloadViaXhr(primaryUrl);
             }
-            throw new Error("Download failed");
+            throw new Error("Direct blob failed");
           })
           .catch((err) => {
-            console.error("Download error:", err);
+            console.warn("Direct blob download failed, falling back to browser attachment download:", err);
             status.style.removeProperty("--download-progress");
-            status.textContent = "تعذر التحميل المباشر. تأكد من حفظ إعدادات CORS في حاوية R2.";
+            status.textContent = "جارٍ بدء التحميل في المتصفح…";
+
+            // بديل موثوق: تحميل كملف مرفق عبر الخادم دون فتح نافذة جديدة
+            const apiBase = window.DSACMS_API_BASE || "https://dsacms-backend.vercel.app/api";
+            const downloadEndpoint = `${apiBase}/download?url=${encodeURIComponent(directR2Url)}`;
+            const hiddenFrame = document.createElement("iframe");
+            hiddenFrame.style.display = "none";
+            hiddenFrame.src = downloadEndpoint;
+            document.body.appendChild(hiddenFrame);
+            setTimeout(() => {
+              hiddenFrame.remove();
+              status.textContent = "تم إرسال طلب التحميل إلى المتصفح.";
+            }, 6000);
           })
           .finally(() => {
             button.disabled = false;

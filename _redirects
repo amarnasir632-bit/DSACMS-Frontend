@@ -6,3 +6,5 @@
 /questions /pages/questions.html 301
 /search /pages/search.html 301
 /dashboard /pages/dashboard.html 301
+/dashboard.html /pages/dashboard.html 301
+/pages/dashboard /pages/dashboard.html 301
