@@ -113,26 +113,32 @@ function renderMaterialDetail(container, m, categories = []) {
       ` : ""}
 
       <footer class="detail-actions" style="margin-block-start:var(--space-5);display:flex;gap:var(--space-3);flex-wrap:wrap;align-items:center;">
-        ${hasAudio ? `
+        ${hasAudio ? (() => {
+          const audioName = (m.title || 'dsacms-audio') + '.m4a';
+          return `
           <div class="download-item">
             <button type="button" class="btn btn--accent download-trigger"
               data-download-btn="1"
-              data-download-url="${escapeHtml(resolveDownloadUrl(primaryAudio))}"
-              data-backup-download-url="${escapeHtml(resolveDownloadUrl(backupAudio || ''))}"
-              data-download-name="${escapeHtml((m.title || 'dsacms-audio') + '.m4a')}">تحميل الملف الصوتي</button>
+              data-download-url="${escapeHtml(resolveDownloadUrl(primaryAudio, audioName))}"
+              data-backup-download-url="${escapeHtml(resolveDownloadUrl(backupAudio || '', audioName))}"
+              data-download-name="${escapeHtml(audioName)}">تحميل الملف الصوتي</button>
             <div class="download-progress" role="status" aria-live="polite" hidden></div>
           </div>
-        ` : ""}
-        ${hasPdf ? `
+        `;
+        })() : ""}
+        ${hasPdf ? (() => {
+          const pdfName = (m.title || 'dsacms-doc') + '.pdf';
+          return `
           <div class="download-item">
             <button type="button" class="btn btn--primary download-trigger"
               data-download-btn="1"
-              data-download-url="${escapeHtml(resolveDownloadUrl(primaryPdf))}"
-              data-backup-download-url="${escapeHtml(resolveDownloadUrl(backupPdf || ''))}"
-              data-download-name="${escapeHtml((m.title || 'dsacms-doc') + '.pdf')}">تحميل ملف PDF</button>
+              data-download-url="${escapeHtml(resolveDownloadUrl(primaryPdf, pdfName))}"
+              data-backup-download-url="${escapeHtml(resolveDownloadUrl(backupPdf || '', pdfName))}"
+              data-download-name="${escapeHtml(pdfName)}">تحميل ملف PDF</button>
             <div class="download-progress" role="status" aria-live="polite" hidden></div>
           </div>
-        ` : ""}
+        `;
+        })() : ""}
         <a class="btn btn--outline" href="search.html">← العودة لتصفّح المحتوى</a>
       </footer>
     </article>

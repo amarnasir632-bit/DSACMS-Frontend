@@ -83,6 +83,17 @@ export default {
 
     // 3. تنزيل الوسائط والملفات الصوتية كملف مرفق (حفظ مباشر على جهاز المستخدم)
     if (url.pathname === "/api/download" || url.pathname === "/download") {
+      if (request.method === "OPTIONS") {
+        return new Response(null, {
+          status: 204,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "86400",
+          },
+        });
+      }
       const target = String(url.searchParams.get("url") || "").trim();
       if (!target) {
         return new Response(JSON.stringify({ error: "missing target url" }), {
@@ -99,8 +110,14 @@ export default {
           });
         }
 
+        const fetchHeaders = { "User-Agent": "DSACMS-CloudflareWorker/1.0" };
+        const rangeHeader = request.headers.get("Range");
+        if (rangeHeader) {
+          fetchHeaders["Range"] = rangeHeader;
+        }
+
         const upstream = await fetch(mediaUrl.toString(), {
-          headers: { "User-Agent": "DSACMS-CloudflareWorker/1.0" },
+          headers: fetchHeaders,
         });
 
         if (!upstream.ok || !upstream.body) {
@@ -114,16 +131,18 @@ export default {
         const defaultFilename = rawPath.substring(rawPath.lastIndexOf("/") + 1) || "dsacms-download.mp3";
         const requestedName = url.searchParams.get("filename") || defaultFilename;
         const safeFilename = requestedName.replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").trim() || defaultFilename;
+        const asciiFallback = safeFilename.replace(/[^\x20-\x7E]/g, "_").replace(/["\\]/g, "") || "dsacms-download.mp3";
 
         const headers = new Headers(upstream.headers);
-        headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(safeFilename)}"; filename*=UTF-8''${encodeURIComponent(safeFilename)}`);
+        headers.set("Content-Disposition", `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(safeFilename)}`);
         headers.set("Access-Control-Allow-Origin", "*");
         headers.set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
         headers.set("Access-Control-Expose-Headers", "Content-Disposition, Content-Length, Content-Range");
+        headers.set("X-Content-Type-Options", "nosniff");
         headers.set("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
 
         return new Response(upstream.body, {
-          status: 200,
+          status: upstream.status || 200,
           headers,
         });
       } catch (err) {

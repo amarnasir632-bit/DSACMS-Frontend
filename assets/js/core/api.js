@@ -139,8 +139,14 @@ export function resolveMediaUrl(path) {
   return `${base}${path.startsWith("/") ? "" : "/"}${path}`;
 }
 
-export function resolveDownloadUrl(path) {
-  return resolveMediaUrl(path);
+export function resolveDownloadUrl(path, filename = "") {
+  if (!path) return "";
+  const resolved = resolveMediaUrl(path);
+  const fnParam = filename ? `&filename=${encodeURIComponent(filename)}` : "";
+  if (/^https?:\/\//i.test(resolved)) {
+    return `/api/download?url=${encodeURIComponent(resolved)}${fnParam}`;
+  }
+  return resolved;
 }
 
 export function triggerBlobDownload(blob, filename = "download") {
@@ -149,15 +155,19 @@ export function triggerBlobDownload(blob, filename = "download") {
     .replace(/[\\/:*?"<>|]/g, "")
     .replace(/\s+/g, " ") || "download";
 
-  const url = URL.createObjectURL(blob);
+  const binaryBlob = new Blob([blob], { type: "application/octet-stream" });
+  const url = URL.createObjectURL(binaryBlob);
   const link = document.createElement("a");
   link.href = url;
   link.download = safeName;
-  link.rel = "noopener";
+  link.dataset.internalTrigger = "true";
+  link.style.display = "none";
   document.body.appendChild(link);
   link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setTimeout(() => {
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, 3000);
 }
 
 export function downloadWithProgress({
@@ -181,6 +191,17 @@ export function downloadWithProgress({
     }
   };
 
+  const resolveTarget = (u) => {
+    if (!u) return "";
+    if (/^https?:\/\//i.test(u) && !u.includes("/api/download") && !u.includes("/download?url=")) {
+      return `/api/download?url=${encodeURIComponent(u)}&filename=${encodeURIComponent(finalFilename)}`;
+    }
+    return u;
+  };
+
+  const targetPrimary = resolveTarget(primaryUrl);
+  const targetBackup = resolveTarget(backupUrl);
+
   const runDownload = (targetUrl, isBackup = false) => new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("GET", targetUrl, true);
@@ -194,7 +215,7 @@ export function downloadWithProgress({
         const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
         updateStatus(`جاري التحميل: ${percent}%`, percent);
       } else {
-        updateStatus("جاري التحميل… حجم الملف غير متاح من الخادم");
+        updateStatus("جاري التحميل…");
       }
     });
 
@@ -214,18 +235,26 @@ export function downloadWithProgress({
     xhr.send();
   });
 
-  return runDownload(primaryUrl)
+  return runDownload(targetPrimary)
     .catch((error) => {
-      if (backupUrl && backupUrl !== primaryUrl) {
-        console.warn("[Download Failover] فشل التحميل من الرابط الأساسي؛ الانتقال التلقائي للرابط الاحتياطي:", backupUrl);
-        return runDownload(backupUrl, true);
+      if (targetBackup && targetBackup !== targetPrimary) {
+        console.warn("[Download Failover] فشل التحميل من الرابط الأساسي؛ الانتقال التلقائي للرابط الاحتياطي:", targetBackup);
+        return runDownload(targetBackup, true);
       }
       throw error;
     })
     .catch((error) => {
-      console.error("Unable to download file", error);
-      updateStatus("تعذر التحميل. حاول مرة أخرى.");
-      throw error;
+      console.warn("XHR blob download failed, triggering direct attachment download:", error);
+      updateStatus("جارٍ التحميل إلى جهازك…");
+      const fallbackUrl = targetPrimary || primaryUrl;
+      const link = document.createElement("a");
+      link.href = fallbackUrl;
+      link.download = finalFilename;
+      link.dataset.internalTrigger = "true";
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => link.remove(), 3000);
     })
     .finally(() => {
       if (button) button.disabled = false;

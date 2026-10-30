@@ -168,10 +168,18 @@ function buildContentCard(c, categories = []) {
         <div class="item-actions">
           <a class="btn btn--outline btn--sm" href="${detailUrl}">تفاصيل المادة</a>
           ${downloadUrl
-            ? `<div class="download-item">
-                <button type="button" class="btn btn--accent btn--sm card-download" data-download-url="${escapeHtml(resolveDownloadUrl(downloadUrl))}" data-backup-download-url="${escapeHtml(resolveDownloadUrl(backupDownloadUrl))}" data-download-name="${escapeHtml((c.title || 'dsacms-download') + (audioSrc ? '.mp3' : '.pdf'))}">${downloadLabel}</button>
-                <div class="download-progress" role="status" aria-live="polite" hidden></div>
-              </div>`
+            ? (() => {
+                const safeExt = audioSrc ? ".m4a" : ".pdf";
+                const dlName = (c.title || "dsacms-download") + safeExt;
+                return `<div class="download-item">
+                  <button type="button" class="btn btn--accent btn--sm card-download download-trigger"
+                    data-download-btn="1"
+                    data-download-url="${escapeHtml(resolveDownloadUrl(downloadUrl, dlName))}"
+                    data-backup-download-url="${escapeHtml(resolveDownloadUrl(backupDownloadUrl, dlName))}"
+                    data-download-name="${escapeHtml(dlName)}">${downloadLabel}</button>
+                  <div class="download-progress" role="status" aria-live="polite" hidden></div>
+                </div>`;
+              })()
             : ""}
         </div>
       </div>

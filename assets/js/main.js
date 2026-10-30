@@ -40,14 +40,23 @@ function resolveDownloadUrl(value, filename = "") {
 }
 
 function triggerBlobDownload(blob, filename) {
-  const url = URL.createObjectURL(blob);
+  const safeName = String(filename || "download")
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, "")
+    .replace(/\s+/g, " ") || "download";
+  const binaryBlob = new Blob([blob], { type: "application/octet-stream" });
+  const url = URL.createObjectURL(binaryBlob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = filename;
+  link.download = safeName;
+  link.dataset.internalTrigger = "true";
+  link.style.display = "none";
   document.body.appendChild(link);
   link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setTimeout(() => {
+    link.remove();
+    URL.revokeObjectURL(url);
+  }, 3000);
 }
 
 function downloadWithProgress(button, status) {
@@ -98,10 +107,19 @@ function downloadWithProgress(button, status) {
       throw error;
     })
     .catch((error) => {
-      console.error("Unable to download file", error);
-      status.textContent = "تعذر التحميل. حاول مرة أخرى.";
-      status.style.removeProperty("--download-progress");
-      throw error;
+      console.warn("XHR blob download failed, triggering direct attachment download:", error);
+      status.textContent = "جارٍ التحميل إلى جهازك…";
+      const fallbackUrl = primaryUrl || backupUrl;
+      if (fallbackUrl) {
+        const link = document.createElement("a");
+        link.href = fallbackUrl;
+        link.download = downloadName;
+        link.dataset.internalTrigger = "true";
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => link.remove(), 3000);
+      }
     })
     .finally(() => {
       button.disabled = false;
@@ -1674,13 +1692,16 @@ function contentCard(c) {
         <div class="item-actions">
           <a class="btn btn--outline btn--sm" href="${detailHref(c.id)}">تفاصيل المادة</a>
           ${downloadPath
-      ? `<div class="download-item">
-          <button type="button" class="btn btn--accent btn--sm card-download download-trigger"
-            data-download-btn="1"
-            data-download-url="${escapeHTML(resolveContentUrl(downloadPath))}"
-            data-download-name="${escapeHTML((c.title || 'dsacms-download') + (c.audio ? '.m4a' : '.pdf'))}">${downloadLabel}</button>
-          <div class="download-progress" role="status" aria-live="polite" hidden></div>
-        </div>`
+      ? (() => {
+          const dlName = (c.title || 'dsacms-download') + (c.audio ? '.m4a' : '.pdf');
+          return `<div class="download-item">
+            <button type="button" class="btn btn--accent btn--sm card-download download-trigger"
+              data-download-btn="1"
+              data-download-url="${escapeHTML(resolveDownloadUrl(downloadPath, dlName))}"
+              data-download-name="${escapeHTML(dlName)}">${downloadLabel}</button>
+            <div class="download-progress" role="status" aria-live="polite" hidden></div>
+          </div>`;
+        })()
       : ""}
         </div>
       </div>
@@ -1999,28 +2020,30 @@ async function initDetail() {
   if (downloadsSection && downloadActions) {
     const downloads = [];
     if (content.audio) {
+      const audioName = `${content.title || 'dsacms-audio'}.m4a`;
       const backupAudio = (content.audioArchive || content.archiveUrl) && (content.audioArchive || content.archiveUrl) !== content.audio
-        ? `data-backup-download-url="${escapeHTML(resolveDownloadUrl(content.audioArchive || content.archiveUrl))}"`
+        ? `data-backup-download-url="${escapeHTML(resolveDownloadUrl(content.audioArchive || content.archiveUrl, audioName))}"`
         : "";
       downloads.push(`
           <div class="download-item">
             <button type="button" class="btn btn--primary download-trigger"
-              data-download-url="${escapeHTML(resolveDownloadUrl(content.audio))}"
+              data-download-url="${escapeHTML(resolveDownloadUrl(content.audio, audioName))}"
               ${backupAudio}
-              data-download-name="${escapeHTML(content.title)}.mp3">تحميل الملف الصوتي</button>
+              data-download-name="${escapeHTML(audioName)}">تحميل الملف الصوتي</button>
             <div class="download-progress" id="download-progress-audio" role="status" aria-live="polite" hidden></div>
           </div>`);
     }
     if (content.pdf) {
+      const pdfName = `${content.title || 'dsacms-doc'}.pdf`;
       const backupPdf = (content.pdfArchive || content.archiveUrl) && (content.pdfArchive || content.archiveUrl) !== content.pdf
-        ? `data-backup-download-url="${escapeHTML(resolveDownloadUrl(content.pdfArchive || content.archiveUrl))}"`
+        ? `data-backup-download-url="${escapeHTML(resolveDownloadUrl(content.pdfArchive || content.archiveUrl, pdfName))}"`
         : "";
       downloads.push(`
           <div class="download-item">
             <button type="button" class="btn btn--accent download-trigger"
-              data-download-url="${escapeHTML(resolveDownloadUrl(content.pdf))}"
+              data-download-url="${escapeHTML(resolveDownloadUrl(content.pdf, pdfName))}"
               ${backupPdf}
-              data-download-name="${escapeHTML(content.title)}.pdf">تحميل الكتاب PDF</button>
+              data-download-name="${escapeHTML(pdfName)}">تحميل الكتاب PDF</button>
             <div class="download-progress" id="download-progress-pdf" role="status" aria-live="polite" hidden></div>
           </div>`);
     }
@@ -4329,6 +4352,7 @@ if (document.readyState === "loading") {
     document.addEventListener(
       "click",
       (event) => {
+        if (event.target.closest("[data-internal-trigger]")) return;
         const button = event.target.closest("[data-download-btn], [data-download-url], .card-download, .download-trigger, a[download]");
         if (!button) return;
 
@@ -4366,14 +4390,19 @@ if (document.readyState === "loading") {
         } catch (_) { }
 
         function saveBlobAsFile(blob, filename) {
-          const blobUrl = URL.createObjectURL(blob);
+          const binaryBlob = new Blob([blob], { type: "application/octet-stream" });
+          const blobUrl = URL.createObjectURL(binaryBlob);
           const a = document.createElement("a");
           a.href = blobUrl;
           a.download = filename;
+          a.dataset.internalTrigger = "true";
+          a.style.display = "none";
           document.body.appendChild(a);
           a.click();
-          a.remove();
-          setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
+          setTimeout(() => {
+            a.remove();
+            URL.revokeObjectURL(blobUrl);
+          }, 3000);
         }
 
         function downloadViaXhr(targetUrl) {
@@ -4440,6 +4469,7 @@ if (document.readyState === "loading") {
             const triggerLink = document.createElement("a");
             triggerLink.href = downloadEndpoint;
             triggerLink.download = downloadName;
+            triggerLink.dataset.internalTrigger = "true";
             triggerLink.style.display = "none";
             document.body.appendChild(triggerLink);
             triggerLink.click();
