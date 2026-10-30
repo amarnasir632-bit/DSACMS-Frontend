@@ -4183,3 +4183,445 @@ import { initLecturesPage as initModularLectures } from "./pages/lectures.js";
   } else {
     bootstrap();
   }
+/* ==========================================================================
+   تحديثات DSACMS الشاملة (تُلصق في نهاية assets/js/main.js مباشرة)
+   1. إصلاح فشل الرفع إلى R2 بعد 100%
+   2. إصلاح التحميل للملفات المرفوعة يدوياً وإظهار نسبة التحميل المئوية وحفظ الملف مباشرة
+   3. تحويل واجهة الرفع في لوحة التحكم إلى مكون .fu-04 بهوية الموقع
+   4. إضافة زر التبديل بين الوضع الداكن والفاتح في شريط التنقل لجميع الصفحات
+   ========================================================================== */
+(() => {
+  // 1. تنسيق الأحجام بالعربية (بايت / كيلوبايت / ميجابايت)
+  function formatBytesAr(bytes) {
+    const u = ["بايت", "كيلوبايت", "ميجابايت", "جيجابايت"];
+    let n = Number(bytes) || 0;
+    let i = 0;
+    while (n >= 1024 && i < u.length - 1) {
+      n /= 1024;
+      i++;
+    }
+    return (
+      new Intl.NumberFormat("ar-EG", {
+        maximumFractionDigits: n < 10 && i ? 1 : 0,
+      }).format(n) +
+      " " +
+      u[i]
+    );
+  }
+
+  // 2. منع إرسال ترويسة X-Upload-Token إلى روابط R2 الموقعة مباشرة (يحل مشكلة الفشل بعد 100%)
+  const origOpen = XMLHttpRequest.prototype.open;
+  const origSetHeader = XMLHttpRequest.prototype.setRequestHeader;
+  XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+    this._dsacmsMethod = String(method || "").toUpperCase();
+    this._dsacmsUrl = String(url || "");
+    return origOpen.call(this, method, url, ...rest);
+  };
+  XMLHttpRequest.prototype.setRequestHeader = function (name, value) {
+    if (
+      this._dsacmsMethod === "PUT" &&
+      /r2\.cloudflarestorage\.com/i.test(this._dsacmsUrl) &&
+      String(name).toLowerCase() === "x-upload-token"
+    ) {
+      return;
+    }
+    return origSetHeader.call(this, name, value);
+  };
+
+  // 3. تفعيل الوضع الداكن والفاتح (Dark / Light Theme Toggle) في الهيدر لكل الصفحات
+  function setupGlobalThemeToggle() {
+    const THEME_KEY = "dsacms-theme";
+    const rootEl = document.documentElement;
+
+    const isDark = () => {
+      const current = rootEl.dataset.theme || localStorage.getItem(THEME_KEY);
+      if (current === "dark" || current === "light") return current === "dark";
+      return window.matchMedia("(prefers-color-scheme: dark)").matches;
+    };
+
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved === "dark" || saved === "light") {
+      rootEl.dataset.theme = saved;
+    }
+
+    const headerContainer = document.querySelector(".site-header .header-container");
+    if (headerContainer && !headerContainer.querySelector(".fu-04__theme")) {
+      const btn = document.createElement("button");
+      btn.className = "fu-04__theme";
+      btn.type = "button";
+      btn.setAttribute("aria-pressed", "false");
+      btn.setAttribute("aria-label", "التبديل إلى الوضع الداكن");
+      btn.innerHTML = `
+        <svg class="fu-04__moon" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+          <path d="M20 14.2A8.2 8.2 0 0 1 9.8 4 8.4 8.4 0 1 0 20 14.2" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+        </svg>
+        <svg class="fu-04__sun" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+          <circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.7"/>
+          <path d="M12 3.2v2M12 18.8v2M3.2 12h2M18.8 12h2M5.9 5.9 7.3 7.3M16.7 16.7l1.4 1.4M18.1 5.9l-1.4 1.4M7.3 16.7l-1.4 1.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>
+      `;
+      headerContainer.appendChild(btn);
+    }
+
+    const syncButtons = () => {
+      const dark = isDark();
+      document.querySelectorAll(".fu-04__theme").forEach((b) => {
+        b.setAttribute("aria-pressed", String(dark));
+        b.setAttribute("aria-label", dark ? "التبديل إلى الوضع الفاتح" : "التبديل إلى الوضع الداكن");
+        b.title = dark ? "الوضع الفاتح" : "الوضع الداكن";
+      });
+    };
+
+    document.querySelectorAll(".fu-04__theme").forEach((b) => {
+      if (b.dataset.boundTheme) return;
+      b.dataset.boundTheme = "1";
+      b.addEventListener("click", () => {
+        const next = isDark() ? "light" : "dark";
+        rootEl.dataset.theme = next;
+        localStorage.setItem(THEME_KEY, next);
+        syncButtons();
+      });
+    });
+
+    syncButtons();
+  }
+
+  // 4. إصلاح أزرار التحميل: تجاوز سقف 4.5MB في Vercel، إظهار النسبة الحقيقية، وحفظ الملف دون فتحه في تبويب جديد
+  function setupEnhancedDownloads() {
+    document.addEventListener(
+      "click",
+      (event) => {
+        const button = event.target.closest("[data-download-btn], [data-download-url]");
+        if (!button || !button.dataset.downloadUrl) return;
+
+        // نوقف المعالج القديم حتى نستخدم المعالج المحسن الذي يبدأ برابط R2 المباشر أولاً
+        event.preventDefault();
+        event.stopImmediatePropagation();
+
+        if (button.disabled) return;
+
+        const cardOrWrap = button.closest(".card, .detail-actions, .material-actions, .content-detail, body");
+        let status =
+          (cardOrWrap && cardOrWrap.querySelector("[data-download-status], .download-status")) ||
+          button.nextElementSibling;
+
+        if (!status || !status.classList) {
+          status = document.createElement("p");
+          status.className = "download-status dsacms-dl-progress-box";
+          button.insertAdjacentElement("afterend", status);
+        } else {
+          status.classList.add("dsacms-dl-progress-box");
+        }
+
+        const primaryUrl = button.dataset.downloadUrl;
+        const backupUrl = button.dataset.backupDownloadUrl;
+        const downloadName = button.dataset.downloadName || "dsacms-media";
+
+        // استخراج رابط R2 المباشر إذا كان مغلفاً داخل /api/download?url=...
+        let directR2Url = backupUrl || primaryUrl;
+        try {
+          const u = new URL(primaryUrl, window.location.href);
+          if (u.pathname.endsWith("/download") && u.searchParams.get("url")) {
+            directR2Url = u.searchParams.get("url");
+          }
+        } catch (_) {}
+
+        function saveBlobAsFile(blob, filename) {
+          const blobUrl = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = blobUrl;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
+        }
+
+        function downloadViaXhr(targetUrl) {
+          return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open("GET", targetUrl, true);
+            xhr.responseType = "blob";
+
+            button.disabled = true;
+            status.hidden = false;
+            status.style.setProperty("--download-progress", "2%");
+            status.textContent = "جاري بدء التحميل: 0%...";
+
+            xhr.onprogress = (e) => {
+              if (e.lengthComputable && e.total > 0) {
+                const pct = Math.min(100, Math.round((e.loaded / e.total) * 100));
+                status.style.setProperty("--download-progress", `${pct}%`);
+                status.textContent = `جاري التحميل: ${pct}% (${formatBytesAr(e.loaded)} من ${formatBytesAr(e.total)})`;
+              } else {
+                status.style.setProperty("--download-progress", "60%");
+                status.textContent = `جاري التحميل: تم تنزيل ${formatBytesAr(e.loaded)}...`;
+              }
+            };
+
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300 && xhr.response) {
+                saveBlobAsFile(xhr.response, downloadName);
+                status.style.setProperty("--download-progress", "100%");
+                status.textContent = `اكتمل التحميل بنجاح (100% - ${formatBytesAr(xhr.response.size)})`;
+                resolve();
+              } else {
+                reject(new Error(`HTTP ${xhr.status}`));
+              }
+            };
+
+            xhr.onerror = () => reject(new Error("CORS / Network Error"));
+            xhr.send();
+          });
+        }
+
+        // نبدأ بالتحميل المباشر من R2 (بعد تفعيل CORS) لتجنب فشل Vercel عند الملفات الأكبر من 4.5MB
+        downloadViaXhr(directR2Url)
+          .catch(() => {
+            if (primaryUrl && primaryUrl !== directR2Url) {
+              return downloadViaXhr(primaryUrl);
+            }
+            throw new Error("Download failed");
+          })
+          .catch((err) => {
+            console.error("Download error:", err);
+            status.style.removeProperty("--download-progress");
+            status.textContent = "تعذر التحميل المباشر. تأكد من حفظ إعدادات CORS في حاوية R2.";
+          })
+          .finally(() => {
+            button.disabled = false;
+          });
+      },
+      true
+    );
+  }
+
+  // 5. تحويل أزرار الرفع في لوحة التحكم (#cf-archive-upload و #cf-archive-upload-pdf) تلقائياً إلى مكون .fu-04
+  function upgradeDashboardUploadersToFu04() {
+    const configs = [
+      {
+        btnSelector: "#cf-archive-upload",
+        inputSelector: "#cf-audio",
+        statusSelector: "#cf-audio-upload-status",
+        title: "رفع الملف الصوتي",
+        hint: "ملف صوتي واحد · حتى 500 ميجابايت",
+        accept: ".mp3,.wav,.ogg,.m4a,audio/*",
+        maxMb: 500,
+        targetType: "audio",
+      },
+      {
+        btnSelector: "#cf-archive-upload-pdf",
+        inputSelector: "#cf-pdf",
+        statusSelector: "#cf-pdf-upload-status",
+        title: "رفع ملف الكتاب (PDF)",
+        hint: "ملف PDF · حتى 500 ميجابايت",
+        accept: ".pdf,application/pdf",
+        maxMb: 500,
+        targetType: "pdf",
+      },
+    ];
+
+    configs.forEach((cfg) => {
+      const oldBtn = document.querySelector(cfg.btnSelector);
+      const targetUrlInput = document.querySelector(cfg.inputSelector);
+      if (!oldBtn || !targetUrlInput || oldBtn.dataset.fuUpgraded) return;
+      oldBtn.dataset.fuUpgraded = "1";
+
+      const uid = "fu04-" + cfg.targetType;
+      const wrapper = document.createElement("div");
+      wrapper.className = "fu-04";
+      wrapper.innerHTML = `
+        <section class="fu-04__panel" aria-labelledby="${uid}-h">
+          <header class="fu-04__head">
+            <div>
+              <h3 class="fu-04__h" id="${uid}-h">${cfg.title}</h3>
+              <p class="fu-04__sub" id="${uid}-hint">${cfg.hint}</p>
+            </div>
+            <span class="fu-04__count" id="${uid}-count">0</span>
+          </header>
+
+          <div class="fu-04__pick">
+            <input class="fu-04__input" id="${uid}-file" type="file" accept="${cfg.accept}" aria-describedby="${uid}-hint">
+            <label class="fu-04__label" for="${uid}-file">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M12 5.5v13M5.5 12h13" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+              اختيار ملف للرفع
+            </label>
+          </div>
+
+          <ul class="fu-04__list" id="${uid}-list"></ul>
+          <p class="fu-04__empty">لم يتم إرفاق أي ملف بعد</p>
+
+          <footer class="fu-04__foot">
+            <span class="fu-04__total" id="${uid}-total">0 بايت من ${cfg.maxMb} ميجابايت</span>
+            <button class="fu-04__send" id="${uid}-send" type="button" disabled>رفع إلى R2 وتوليد الرابط</button>
+          </footer>
+          <p class="fu-04__status" id="${uid}-status" role="status" aria-live="polite"></p>
+        </section>
+
+        <template id="${uid}-row">
+          <li class="fu-04__item">
+            <span class="fu-04__chip" data-ext aria-hidden="true"></span>
+            <span class="fu-04__meta">
+              <span class="fu-04__name" data-name></span>
+              <span class="fu-04__size" data-size></span>
+            </span>
+            <button class="fu-04__rm" type="button" data-rm title="إزالة الملف">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M6.5 6.5l11 11m0-11-11 11" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+              <span class="fu-04__vh" data-rmlabel>إزالة الملف</span>
+            </button>
+          </li>
+        </template>
+      `;
+
+      // إخفاء الزر القديم ووضع مكون fu-04 مكانه
+      const actionsWrap = oldBtn.closest(".archive-upload-actions") || oldBtn;
+      actionsWrap.style.display = "none";
+      actionsWrap.insertAdjacentElement("afterend", wrapper);
+
+      const fileInput = wrapper.querySelector(`#${uid}-file`);
+      const list = wrapper.querySelector(`#${uid}-list`);
+      const tpl = wrapper.querySelector(`#${uid}-row`);
+      const countEl = wrapper.querySelector(`#${uid}-count`);
+      const totalEl = wrapper.querySelector(`#${uid}-total`);
+      const sendBtn = wrapper.querySelector(`#${uid}-send`);
+      const statusEl = wrapper.querySelector(`#${uid}-status`);
+      const picked = [];
+
+      const sync = () => {
+        const dt = new DataTransfer();
+        picked.forEach((f) => dt.items.add(f));
+        fileInput.files = dt.files;
+      };
+
+      const render = () => {
+        list.replaceChildren(
+          ...picked.map((f, i) => {
+            const row = tpl.content.firstElementChild.cloneNode(true);
+            row.querySelector("[data-ext]").textContent = (f.name.split(".").pop() || "?").slice(0, 4).toUpperCase();
+            row.querySelector("[data-name]").textContent = f.name;
+            row.querySelector("[data-size]").textContent = formatBytesAr(f.size);
+            row.querySelector("[data-rmlabel]").textContent = "إزالة " + f.name;
+            row.querySelector("[data-rm]").dataset.rm = i;
+            return row;
+          })
+        );
+        countEl.textContent = picked.length;
+        totalEl.textContent = `${formatBytesAr(picked.reduce((s, f) => s + f.size, 0))} من ${cfg.maxMb} ميجابايت`;
+        sendBtn.disabled = !picked.length;
+      };
+
+      fileInput.addEventListener("change", () => {
+        picked.length = 0;
+        for (const f of fileInput.files) {
+          if (f.size > cfg.maxMb * 1024 * 1024) {
+            statusEl.textContent = `حجم الملف يتجاوز ${cfg.maxMb} ميجابايت.`;
+            continue;
+          }
+          picked.push(f);
+          break;
+        }
+        sync();
+        render();
+        if (picked.length) {
+          statusEl.textContent = `تم تجهيز "${picked[0].name}" — اضغط (رفع إلى R2 وتوليد الرابط)`;
+        }
+      });
+
+      list.addEventListener("click", (e) => {
+        const rmBtn = e.target.closest("[data-rm]");
+        if (!rmBtn) return;
+        const [gone] = picked.splice(Number(rmBtn.dataset.rm), 1);
+        if (!picked.length) fileInput.value = "";
+        sync();
+        render();
+        statusEl.textContent = gone ? `تمت إزالة "${gone.name}"` : "";
+      });
+
+      sendBtn.addEventListener("click", async () => {
+        if (!picked.length) return;
+        const file = picked[0];
+        sendBtn.disabled = true;
+        const rowItem = list.querySelector(".fu-04__item");
+        const sizeLabel = rowItem ? rowItem.querySelector("[data-size]") : null;
+
+        try {
+          statusEl.textContent = "جاري طلب تصريح الرفع من الخادم...";
+          const prepared = await fetchApi("/media-upload", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              filename: file.name,
+              contentType: file.type || "application/octet-stream",
+              size: file.size,
+              title: document.querySelector("#cf-title")?.value || "",
+              description: document.querySelector("#cf-description")?.value || "",
+            }),
+          });
+
+          const uploadUrl = prepared.uploadUrl;
+          const isDirectR2 = /r2\.cloudflarestorage\.com/i.test(uploadUrl);
+
+          const uploadedResult = await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open("PUT", uploadUrl, true);
+            if (prepared.contentType || file.type) {
+              xhr.setRequestHeader("Content-Type", prepared.contentType || file.type);
+            }
+            if (prepared.uploadToken && !isDirectR2) {
+              xhr.setRequestHeader("X-Upload-Token", prepared.uploadToken);
+            }
+
+            xhr.upload.onprogress = (ev) => {
+              if (ev.lengthComputable && ev.total > 0) {
+                const pct = Math.min(100, Math.round((ev.loaded / ev.total) * 100));
+                if (rowItem) rowItem.style.setProperty("--item-progress", `${pct}%`);
+                if (sizeLabel) sizeLabel.textContent = `${formatBytesAr(ev.loaded)} / ${formatBytesAr(ev.total)} (${pct}%)`;
+                statusEl.textContent = pct < 100 ? `جاري الرفع إلى R2: ${pct}%` : "اكتمل النقل (100%)، جاري تثبيت الملف في R2...";
+              }
+            };
+
+            xhr.onload = () => {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                let parsed = null;
+                try {
+                  parsed = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+                } catch (_) {}
+                resolve(parsed);
+              } else {
+                reject(new Error(`رفض الخادم حفظ الملف (كود ${xhr.status})`));
+              }
+            };
+
+            xhr.onerror = () => reject(new Error("تعذر الاتصال بـ R2 (تأكد من حفظ CORS Policy في حاوية R2)"));
+            xhr.send(file);
+          });
+
+          const finalUrl = (uploadedResult && uploadedResult.fileUrl) || prepared.fileUrl || prepared.publicUrl;
+          if (finalUrl) {
+            targetUrlInput.value = finalUrl;
+            targetUrlInput.dispatchEvent(new Event("input", { bubbles: true }));
+          }
+          if (rowItem) rowItem.style.setProperty("--item-progress", "100%");
+          statusEl.textContent = "تم رفع الملف إلى R2 وتوليد الرابط بنجاح (100%)!";
+        } catch (err) {
+          console.error(err);
+          statusEl.textContent = `تعذر الرفع: ${err.message || "حاول مجدداً"}`;
+        } finally {
+          sendBtn.disabled = false;
+        }
+      });
+    });
+  }
+
+  function initAllEnhancements() {
+    setupGlobalThemeToggle();
+    setupEnhancedDownloads();
+    upgradeDashboardUploadersToFu04();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initAllEnhancements);
+  } else {
+    initAllEnhancements();
+  }
+})();
