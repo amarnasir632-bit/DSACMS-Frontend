@@ -3595,17 +3595,231 @@ html[data-theme="dark"] body {
   color: var(--color-text);
 }
 
-html[data-theme="dark"] .site-header,
+html[data-theme="dark"] .site-header {
+  background-color: var(--bg-surface);
+  border-color: var(--color-border);
+}
+
+html[data-theme="dark"] .brand,
+html[data-theme="dark"] .brand span,
+html[data-theme="dark"] .navbar-brand {
+  color: var(--color-text);
+}
+
+html[data-theme="dark"] .brand small,
+html[data-theme="dark"] .navbar-brand small {
+  color: var(--color-text-muted);
+}
+
+html[data-theme="dark"] .site-nav {
+  background-color: var(--bg-surface);
+  border-color: var(--color-border);
+}
+
+html[data-theme="dark"] .site-nav a {
+  color: var(--color-text);
+}
+
+html[data-theme="dark"] .site-nav a:hover,
+html[data-theme="dark"] .site-nav a[aria-current="page"] {
+  background-color: var(--color-surface-muted);
+  color: var(--accent-dark);
+}
+
+html[data-theme="dark"] .site-nav li.dropdown .dropdown-menu,
+html[data-theme="dark"] .site-nav .dropdown-menu {
+  background-color: var(--bg-surface) !important;
+  border-color: var(--color-border) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+}
+
+html[data-theme="dark"] .site-nav li.dropdown .dropdown-menu li a,
+html[data-theme="dark"] .site-nav .dropdown-menu a {
+  color: var(--color-text) !important;
+}
+
+html[data-theme="dark"] .site-nav li.dropdown .dropdown-menu li a:hover,
+html[data-theme="dark"] .site-nav .dropdown-menu a:hover {
+  background-color: var(--color-surface-muted) !important;
+  color: var(--accent-dark) !important;
+}
+
 html[data-theme="dark"] .card,
+html[data-theme="dark"] .item-card,
+html[data-theme="dark"] .detail-card,
 html[data-theme="dark"] .panel,
 html[data-theme="dark"] .modal-content,
-html[data-theme="dark"] .field,
-html[data-theme="dark"] input,
-html[data-theme="dark"] textarea,
-html[data-theme="dark"] select {
+html[data-theme="dark"] .upcoming-lectures,
+html[data-theme="dark"] .lectures-board {
   background-color: var(--bg-surface);
   color: var(--color-text);
   border-color: var(--color-border);
+}
+
+html[data-theme="dark"] .item-card h3 a,
+html[data-theme="dark"] .card-title a,
+html[data-theme="dark"] .section-title,
+html[data-theme="dark"] h1,
+html[data-theme="dark"] h2,
+html[data-theme="dark"] h3,
+html[data-theme="dark"] h4 {
+  color: var(--color-text);
+}
+
+html[data-theme="dark"] .item-meta li,
+html[data-theme="dark"] .item-excerpt,
+html[data-theme="dark"] .card-desc,
+html[data-theme="dark"] .section-desc,
+html[data-theme="dark"] .lectures-week,
+html[data-theme="dark"] .lectures-eyebrow,
+html[data-theme="dark"] .meta-list li {
+  color: var(--color-text-muted);
+}
+
+html[data-theme="dark"] .field,
+html[data-theme="dark"] input,
+html[data-theme="dark"] textarea,
+html[data-theme="dark"] select,
+html[data-theme="dark"] .lectures-filters select,
+html[data-theme="dark"] .lectures-filters input {
+  background-color: var(--color-surface-muted);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+html[data-theme="dark"] .field:focus,
+html[data-theme="dark"] input:focus,
+html[data-theme="dark"] textarea:focus,
+html[data-theme="dark"] select:focus {
+  border-color: var(--accent-dark);
+}
+
+html[data-theme="dark"] .search-bar {
+  background-color: var(--bg-surface);
+  border-color: var(--color-border);
+}
+
+html[data-theme="dark"] .search-bar input {
+  color: var(--color-text);
+  caret-color: var(--accent-dark);
+}
+
+html[data-theme="dark"] .search-bar input::placeholder {
+  color: var(--color-text-muted);
+}
+
+html[data-theme="dark"] table,
+html[data-theme="dark"] .lectures-table,
+html[data-theme="dark"] .table {
+  background-color: var(--bg-surface);
+  border-color: var(--color-border);
+  color: var(--color-text);
+}
+
+html[data-theme="dark"] table thead,
+html[data-theme="dark"] .lectures-table thead,
+html[data-theme="dark"] .lectures-table thead tr {
+  background-color: var(--color-surface-muted);
+  border-bottom: 2px solid var(--color-border);
+}
+
+html[data-theme="dark"] table th,
+html[data-theme="dark"] .lectures-table th {
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+html[data-theme="dark"] table td,
+html[data-theme="dark"] .lectures-table td {
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+html[data-theme="dark"] table tbody tr:hover,
+html[data-theme="dark"] .lectures-table tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+html[data-theme="dark"] .lectures-empty {
+  color: var(--color-text-muted);
+}
+
+html[data-theme="dark"] .btn--outline {
+  border-color: var(--color-border-strong);
+  color: var(--color-text);
+  background-color: transparent;
+}
+
+html[data-theme="dark"] .btn--outline:hover {
+  background-color: var(--color-surface-muted);
+  border-color: var(--accent-dark);
+  color: var(--accent-dark);
+}
+
+html[data-theme="dark"] .btn--ghost {
+  color: var(--accent-dark);
+}
+
+html[data-theme="dark"] .btn--ghost:hover {
+  background-color: var(--accent-soft);
+}
+
+html[data-theme="dark"] .breadcrumbs,
+html[data-theme="dark"] .breadcrumbs a {
+  color: var(--color-text-muted);
+}
+
+html[data-theme="dark"] .breadcrumbs a:hover {
+  color: var(--accent-dark);
+}
+
+html[data-theme="dark"] .meta-chip,
+html[data-theme="dark"] .kw {
+  background-color: var(--color-surface-muted);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+html[data-theme="dark"] .site-footer {
+  background-color: #080e16;
+  border-top-color: var(--color-border);
+}
+
+html[data-theme="dark"] .site-footer h3 {
+  color: var(--accent-dark);
+}
+
+html[data-theme="dark"] .site-footer p,
+html[data-theme="dark"] .site-footer a {
+  color: var(--color-text-muted);
+}
+
+html[data-theme="dark"] .site-footer a:hover {
+  color: #ffffff;
+}
+
+html[data-theme="dark"] .footer-bottom {
+  border-top-color: var(--color-border);
+  color: var(--color-text-muted);
+}
+
+html[data-theme="dark"] .dash-sidebar {
+  background-color: var(--bg-surface);
+  border-color: var(--color-border);
+}
+
+html[data-theme="dark"] .dash-nav a {
+  color: var(--color-text);
+}
+
+html[data-theme="dark"] .dash-nav a:hover,
+html[data-theme="dark"] .dash-nav a[aria-selected="true"] {
+  background-color: var(--color-surface-muted);
+  color: var(--accent-dark);
+}
+
+html[data-theme="dark"] .lectures-filters label {
+  color: var(--color-text);
 }
 
 /* زر التبديل بين الوضع الداكن والفاتح في الهيدر (.fu-04__theme) */

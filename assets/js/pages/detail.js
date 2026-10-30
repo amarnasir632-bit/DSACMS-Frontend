@@ -4,7 +4,7 @@
  */
 
 import { renderViewState, escapeHtml, formatDuration, formatDate } from "../core/ui-states.js";
-import { apiRequest, resolveMediaUrl, resolveDownloadUrl } from "../core/api.js";
+import { apiRequest, resolveMediaUrl, resolveDownloadUrl, downloadWithProgress } from "../core/api.js";
 import { renderFullPlayer } from "../components/audio-player.js";
 
 const ICONS = {
@@ -112,12 +112,26 @@ function renderMaterialDetail(container, m, categories = []) {
         </div>
       ` : ""}
 
-      <footer class="detail-actions" style="margin-block-start:var(--space-5);display:flex;gap:var(--space-3);flex-wrap:wrap;">
+      <footer class="detail-actions" style="margin-block-start:var(--space-5);display:flex;gap:var(--space-3);flex-wrap:wrap;align-items:center;">
         ${hasAudio ? `
-          <a class="btn btn--accent" href="${escapeHtml(resolveDownloadUrl(m.audio))}" download>تحميل الملف الصوتي</a>
+          <div class="download-item">
+            <button type="button" class="btn btn--accent download-trigger"
+              data-download-btn="1"
+              data-download-url="${escapeHtml(resolveDownloadUrl(primaryAudio))}"
+              data-backup-download-url="${escapeHtml(resolveDownloadUrl(backupAudio || ''))}"
+              data-download-name="${escapeHtml((m.title || 'dsacms-audio') + '.m4a')}">تحميل الملف الصوتي</button>
+            <div class="download-progress" role="status" aria-live="polite" hidden></div>
+          </div>
         ` : ""}
         ${hasPdf ? `
-          <a class="btn btn--primary" href="${escapeHtml(resolveDownloadUrl(m.pdf))}" download>تحميل ملف PDF</a>
+          <div class="download-item">
+            <button type="button" class="btn btn--primary download-trigger"
+              data-download-btn="1"
+              data-download-url="${escapeHtml(resolveDownloadUrl(primaryPdf))}"
+              data-backup-download-url="${escapeHtml(resolveDownloadUrl(backupPdf || ''))}"
+              data-download-name="${escapeHtml((m.title || 'dsacms-doc') + '.pdf')}">تحميل ملف PDF</button>
+            <div class="download-progress" role="status" aria-live="polite" hidden></div>
+          </div>
         ` : ""}
         <a class="btn btn--outline" href="search.html">← العودة لتصفّح المحتوى</a>
       </footer>
@@ -133,4 +147,17 @@ function renderMaterialDetail(container, m, categories = []) {
       duration: m.duration,
     });
   }
+
+  container.querySelectorAll(".download-trigger").forEach((button) => {
+    const status = button.parentElement?.querySelector(".download-progress");
+    button.addEventListener("click", () => {
+      downloadWithProgress({
+        primaryUrl: button.dataset.downloadUrl,
+        backupUrl: button.dataset.backupDownloadUrl,
+        filename: button.dataset.downloadName,
+        button,
+        statusElement: status,
+      }).catch(() => { });
+    });
+  });
 }

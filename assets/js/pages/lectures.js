@@ -7,8 +7,8 @@ import { renderViewState, escapeHtml, formatDate } from "../core/ui-states.js";
 import { apiRequest } from "../core/api.js";
 
 export async function initLecturesPage() {
-  const tbody = document.getElementById("lectures-table-body");
-  const container = document.getElementById("lectures-container") || tbody?.closest(".card") || tbody;
+  const tbody = document.getElementById("lectures-list") || document.getElementById("lectures-table-body");
+  const container = document.getElementById("lectures-container") || tbody?.closest(".lectures-table-wrap") || tbody?.closest(".card") || tbody;
   if (!tbody) return;
 
   renderViewState(tbody, "loading", { count: 4, type: "rows" });

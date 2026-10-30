@@ -81,6 +81,59 @@ export default {
       });
     }
 
+    // 3. تنزيل الوسائط والملفات الصوتية كملف مرفق (حفظ مباشر على جهاز المستخدم)
+    if (url.pathname === "/api/download" || url.pathname === "/download") {
+      const target = String(url.searchParams.get("url") || "").trim();
+      if (!target) {
+        return new Response(JSON.stringify({ error: "missing target url" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+      try {
+        const mediaUrl = new URL(target);
+        if (!["http:", "https:"].includes(mediaUrl.protocol)) {
+          return new Response(JSON.stringify({ error: "invalid protocol" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+          });
+        }
+
+        const upstream = await fetch(mediaUrl.toString(), {
+          headers: { "User-Agent": "DSACMS-CloudflareWorker/1.0" },
+        });
+
+        if (!upstream.ok || !upstream.body) {
+          return new Response(`Unable to fetch media: ${upstream.status}`, {
+            status: upstream.status || 502,
+            headers: { "Access-Control-Allow-Origin": "*" },
+          });
+        }
+
+        const rawPath = mediaUrl.pathname;
+        const defaultFilename = rawPath.substring(rawPath.lastIndexOf("/") + 1) || "dsacms-download.mp3";
+        const requestedName = url.searchParams.get("filename") || defaultFilename;
+        const safeFilename = requestedName.replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").trim() || defaultFilename;
+
+        const headers = new Headers(upstream.headers);
+        headers.set("Content-Disposition", `attachment; filename="${encodeURIComponent(safeFilename)}"; filename*=UTF-8''${encodeURIComponent(safeFilename)}`);
+        headers.set("Access-Control-Allow-Origin", "*");
+        headers.set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+        headers.set("Access-Control-Expose-Headers", "Content-Disposition, Content-Length, Content-Range");
+        headers.set("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+
+        return new Response(upstream.body, {
+          status: 200,
+          headers,
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: err.message || "download error" }), {
+          status: 502,
+          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
+        });
+      }
+    }
+
     // 3. توجيه لوحة التحكم مباشرة
     if (url.pathname === "/dashboard" || url.pathname === "/dashboard.html") {
       const dashUrl = new URL(request.url);
