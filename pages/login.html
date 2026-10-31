@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -20,19 +21,17 @@
   <header class="site-header">
     <div class="container nav-wrap">
       <a class="brand" href="../index.html" aria-label="DSACMS – الصفحة الرئيسية">
-        <img src="../assets/images/logo.png" alt="شعار الموقع الرسمي للشيخ محمد أحمد الهادي الكرار" height="60" style="object-fit: contain;">
+        <img src="../assets/images/logo.png" alt="شعار الموقع الرسمي للشيخ محمد أحمد الهادي الكرار" height="60"
+          style="object-fit: contain;">
         <span>الشيخ محمد أحمد الهادي الكرار<small>لوحة الإدارة</small></span>
       </a>
-      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="فتح القائمة الرئيسية">
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav"
+        aria-label="فتح القائمة الرئيسية">
         <span class="icon-menu" aria-hidden="true">☰</span>
         <span class="icon-close" aria-hidden="true">✕</span>
       </button>
       <nav id="site-nav" class="site-nav" aria-label="القائمة الرئيسية">
-        <button
-          class="nav-close"
-          type="button"
-          aria-label="إغلاق قائمة التنقل"
-        >
+        <button class="nav-close" type="button" aria-label="إغلاق قائمة التنقل">
           <span aria-hidden="true">✕</span>
         </button>
 
@@ -62,27 +61,32 @@
       <!-- نموذج تسجيل الدخول (FR-021 / SEC-001 / SEC-004) -->
       <form id="login-form" novalidate aria-describedby="password-hint">
         <div class="form-group">
-          <label for="login-username">اسم المستخدم أو البريد الإلكتروني <span class="req" aria-label="مطلوب">*</span></label>
-          <input type="text" id="login-username" name="username" required
-                 class="field" autocomplete="username" placeholder="admin أو البريد الإلكتروني" aria-required="true">
+          <label for="login-username">اسم المستخدم أو البريد الإلكتروني <span class="req"
+              aria-label="مطلوب">*</span></label>
+          <input type="text" id="login-username" name="username" required class="field" autocomplete="username"
+            placeholder="admin أو البريد الإلكتروني" aria-required="true">
           <p class="field-error-msg" id="err-username">الرجاء إدخال اسم المستخدم أو البريد الإلكتروني.</p>
         </div>
 
         <div class="form-group password-wrap">
           <label for="login-password">كلمة المرور <span class="req" aria-label="مطلوب">*</span></label>
           <div class="password-control">
-            <input type="password" id="login-password" name="password" required
-                   class="field" autocomplete="current-password" placeholder="••••••••" aria-required="true"
-                   aria-describedby="password-hint">
+            <input type="password" id="login-password" name="password" required class="field"
+              autocomplete="current-password" placeholder="••••••••" aria-required="true"
+              aria-describedby="password-hint">
             <button type="button" class="password-toggle" id="password-toggle" aria-label="إظهار كلمة المرور">
               <span aria-hidden="true">
-                <svg class="svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg class="svg-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
               </span>
             </button>
           </div>
           <p class="field-error-msg" id="err-password">الرجاء إدخال كلمة المرور.</p>
         </div>
-
+        <!--
         <p class="password-policy" id="password-hint">
           سياسة كلمة المرور (لأغراض التحقق في هذا النموذج التجريبي):
           <ul>
@@ -92,18 +96,22 @@
             <li>يجب أن تحتوي على حرف كبير واحد على الأقل.</li>
           </ul>
         </p>
-
+       -->
         <div class="form-group">
-          <button type="submit" class="btn btn--primary" id="login-submit" style="width: 100%; margin-block-start: var(--space-3);">
+          <button type="submit" class="btn btn--primary" id="login-submit"
+            style="width: 100%; margin-block-start: var(--space-3);">
             تسجيل الدخول
           </button>
         </div>
 
-        <p class="hint" id="attempts-hint" style="text-align:center;color:var(--color-danger);font-weight:600;" hidden></p>
+        <p class="hint" id="attempts-hint" style="text-align:center;color:var(--color-danger);font-weight:600;" hidden>
+        </p>
       </form>
 
-      <p style="text-align:center;margin-block-start:var(--space-4);font-size:var(--fs-sm);color:var(--color-text-muted);">
-        نسيت كلمة المرور؟ يمكنك مراسلة الدعم الفني: <a href="mailto:support@mohamedalahadi.com">support@mohamedalahadi.com</a> أو للتواصل: <a href="mailto:info@mohamedalahadi.com">info@mohamedalahadi.com</a>
+      <p
+        style="text-align:center;margin-block-start:var(--space-4);font-size:var(--fs-sm);color:var(--color-text-muted);">
+        نسيت كلمة المرور؟ يمكنك مراسلة الدعم : <a href="mailto:support@mohamedalahadi.com">support</a> أو للتواصل: <a
+          href="mailto:info@mohamedalahadi.com">info</a>
       </p>
     </section>
 
@@ -112,7 +120,8 @@
   <div class="modal-backdrop" id="password-setup-modal" hidden>
     <section class="modal password-setup-modal" role="dialog" aria-modal="true" aria-labelledby="password-setup-title">
       <h3 id="password-setup-title">كلمة المرور مؤقتة</h3>
-      <p id="password-setup-message">هل ترغب في تغيير كلمة المرور الآن، أم تواصل باستخدامها؟ سيظهر هذا التنبيه عند تسجيل الدخول القادم حتى تغيّرها.</p>
+      <p id="password-setup-message">هل ترغب في تغيير كلمة المرور الآن، أم تواصل باستخدامها؟ سيظهر هذا التنبيه عند تسجيل
+        الدخول القادم حتى تغيّرها.</p>
       <div class="modal-actions" id="password-setup-actions">
         <button type="button" class="btn btn--outline" id="password-continue">المواصلة بنفس كلمة المرور</button>
         <button type="button" class="btn btn--primary" id="password-change-start">تغيير كلمة المرور</button>
@@ -137,17 +146,21 @@
 
   <footer class="site-footer">
     <div class="container">
-      <div class="footer-bottom" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--space-2);">
+      <div class="footer-bottom"
+        style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--space-2);">
         <p>&copy; <span id="year">2026</span> موقع الشيخ محمد أحمد الهادي الكرار</p>
         <p style="font-size:var(--fs-xs);color:#c4d8d3;">
-          للدعم: <a href="mailto:support@mohamedalahadi.com" style="color:var(--accent-color);">support@mohamedalahadi.com</a> |
-          للتواصل: <a href="mailto:info@mohamedalahadi.com" style="color:var(--accent-color);">info@mohamedalahadi.com</a>
+          للدعم: <a href="mailto:support@mohamedalahadi.com"
+            style="color:var(--accent-color);">support@mohamedalahadi.com</a> |
+          للتواصل: <a href="mailto:info@mohamedalahadi.com"
+            style="color:var(--accent-color);">info@mohamedalahadi.com</a>
         </p>
-        <p style="direction:ltr;unicode-bidi:embed;font-size:var(--fs-xs);">Built with HTML5 · CSS3 · Vanilla JS</p>
+        <!-- <p style="direction:ltr;unicode-bidi:embed;font-size:var(--fs-xs);">Built with HTML5 · CSS3 · Vanilla JS</p> -->
       </div>
     </div>
   </footer>
 
-  <script type="module" src="../assets/js/main.js?v=20261030-v4" defer></script>
+  <script type="module" src="../assets/js/main.js?v=20261031-v5" defer></script>
 </body>
+
 </html>

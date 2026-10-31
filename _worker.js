@@ -206,27 +206,83 @@ export default {
       }
     }
 
-    // 3. توجيه لوحة التحكم مباشرة
-    if (url.pathname === "/dashboard" || url.pathname === "/dashboard.html") {
-      const dashUrl = new URL(request.url);
-      dashUrl.pathname = "/pages/dashboard.html";
-      if (env.ASSETS && typeof env.ASSETS.fetch === "function") {
-        return env.ASSETS.fetch(new Request(dashUrl.toString(), request));
-      }
-      return Response.redirect(dashUrl.toString(), 301);
-    }
+    // خريطة المسارات المختصرة إلى ملفات HTML الفعلية
+    const PAGE_ALIASES = {
+      "/home.html": "/index.html",
+      "/index": "/index.html",
+      "/about": "/pages/about.html",
+      "/lectures": "/pages/lectures.html",
+      "/questions": "/pages/questions.html",
+      "/search": "/pages/search.html",
+      "/login": "/pages/login.html",
+      "/login.html": "/pages/login.html",
+      "/pages/login": "/pages/login.html",
+      "/dashboard": "/pages/dashboard.html",
+      "/dashboard.html": "/pages/dashboard.html",
+      "/pages/dashboard": "/pages/dashboard.html",
+      "/account": "/pages/account.html",
+      "/account.html": "/pages/account.html",
+      "/pages/account": "/pages/account.html",
+    };
 
-    // 4. تقديم الملفات الثابتة عبر binding ASSETS مع دعم الروابط النظيفة (.html fallback)
     if (env.ASSETS && typeof env.ASSETS.fetch === "function") {
+      const normalizedPath = url.pathname.replace(/\/+$/, "") || "/";
+      const mappedPath = PAGE_ALIASES[normalizedPath];
+
+      // دالة مساعدة تجلب الأصل من env.ASSETS وتتبع أي 301/308 داخلياً وترجع 200 OK بدون Redirect للمتصفح
+      const fetchAssetWithoutRedirectLoop = async (targetPathname) => {
+        const candidates = [
+          targetPathname,
+          targetPathname.replace(/\.html$/i, ""),
+          targetPathname.endsWith(".html") ? targetPathname : `${targetPathname}.html`,
+        ];
+
+        for (const candidate of candidates) {
+          const reqUrl = new URL(request.url);
+          reqUrl.pathname = candidate;
+          const res = await env.ASSETS.fetch(new Request(reqUrl.toString(), request), {
+            redirect: "manual",
+          });
+
+          if (res.status >= 200 && res.status < 300) {
+            const headers = new Headers(res.headers);
+            if (candidate.endsWith(".html") || mappedPath || normalizedPath.startsWith("/pages/")) {
+              headers.set("Content-Type", "text/html; charset=utf-8");
+              headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+            }
+            return new Response(res.body, { status: 200, headers });
+          }
+
+          // إذا حاول env.ASSETS عمل 301 أو 308، نتبع الـ Location داخلياً لمرة واحدة ونرجع 200 OK
+          if ([301, 302, 307, 308].includes(res.status)) {
+            const loc = res.headers.get("Location");
+            if (loc) {
+              const locUrl = new URL(loc, request.url);
+              const followed = await env.ASSETS.fetch(new Request(locUrl.toString(), request), {
+                redirect: "manual",
+              });
+              if (followed.status >= 200 && followed.status < 300) {
+                const headers = new Headers(followed.headers);
+                headers.set("Content-Type", "text/html; charset=utf-8");
+                headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
+                return new Response(followed.body, { status: 200, headers });
+              }
+            }
+          }
+        }
+        return null;
+      };
+
+      if (mappedPath || normalizedPath.startsWith("/pages/")) {
+        const target = mappedPath || normalizedPath;
+        const resolvedResponse = await fetchAssetWithoutRedirectLoop(target);
+        if (resolvedResponse) return resolvedResponse;
+      }
+
       let response = await env.ASSETS.fetch(request);
       if (response.status === 404 && !url.pathname.includes(".") && url.pathname !== "/") {
-        const cleanUrl = new URL(request.url);
-        cleanUrl.pathname = `${url.pathname}.html`;
-        const retryRequest = new Request(cleanUrl.toString(), request);
-        const retryResponse = await env.ASSETS.fetch(retryRequest);
-        if (retryResponse.status !== 404) {
-          return retryResponse;
-        }
+        const cleanResponse = await fetchAssetWithoutRedirectLoop(`${url.pathname}.html`);
+        if (cleanResponse) return cleanResponse;
       }
       return response;
     }

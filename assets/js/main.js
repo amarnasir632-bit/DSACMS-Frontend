@@ -1564,7 +1564,7 @@ function initShared() {
   if (session && loginLink) {
     // تحويل رابط «تسجيل الدخول» إلى «لوحة التحكم»
     loginLink.textContent = "لوحة التحكم";
-    loginLink.href = BASE + "pages/dashboard.html";
+    loginLink.href = "/pages/dashboard?auth=1";
   }
 }
 
@@ -2464,6 +2464,13 @@ async function initQuestions() {
   });
 }
 
+function hasValidDashboardSession(session) {
+  if (!session || typeof session !== "object") return false;
+  const validRoles = ["admin", "site_admin", "manager", "sheikh"];
+  const userRole = String(session.role || "").trim().toLowerCase();
+  return validRoles.includes(userRole);
+}
+
 /* ======================================================================
    9) صفحة تسجيل الدخول (login.html) – FR-021 / SEC-001 / SEC-004/006/011
    ====================================================================== */
@@ -2471,23 +2478,15 @@ function initLogin() {
   const form = $("#login-form");
   if (!form) return;
 
-  const goToDashboard = (user) => {
-    const roleKey = user && String(user.role || "").toUpperCase();
-    const roleConfig = ROLES[user?.role] || ROLES[roleKey];
-    const home = (roleConfig && roleConfig.home) || "pages/dashboard.html";
-    const target = (PAGE === "login" && home.startsWith("pages/")) ? home.replace(/^pages\//, "") : (BASE + home);
-    window.location.replace(target);
+  const goToDashboard = () => {
+    window.location.replace("/pages/dashboard?auth=1");
   };
 
-  // إذا كان المستخدم مسجلاً بالفعل وله صلاحية صحيحة، إعادة توجيه للوحة
-  const session = getSession();
-  const validRoles = ["admin", "site_admin", "manager", "sheikh"];
-  const userRole = session && String(session.role || "").toLowerCase();
-  if (session && validRoles.includes(userRole)) {
-    goToDashboard(session);
+  const currentSession = getSession();
+  if (hasValidDashboardSession(currentSession)) {
+    goToDashboard();
     return;
-  } else if (session) {
-    // جلسة غير صالحة أو منتهية الصلاحية؛ تنظيفها فوراً لمنع حلقة التوجيه اللانهائية في كروم
+  } else if (currentSession) {
     clearSession();
   }
 
@@ -2622,7 +2621,7 @@ function initLogin() {
 
 function initAccount() {
   if (!getSession()) {
-    window.location.href = BASE + "pages/login.html";
+    window.location.replace("/pages/login?reason=auth");
     return;
   }
   const form = $("#account-password-form");
@@ -3119,16 +3118,13 @@ async function initLecturesPage() {
 
 async function initDashboard() {
   const session = getSession();
-  const validRoles = ["admin", "site_admin", "manager", "sheikh"];
-  const userRole = session && String(session.role || "").toLowerCase();
-
-  // حاجز RBAC (SEC-002): غير مسموح بالدخول دون جلسة ذات دور معتمد
-  if (!session || !validRoles.includes(userRole)) {
+  if (!hasValidDashboardSession(session)) {
     clearSession();
-    window.location.replace(BASE === "../" ? "login.html" : "pages/login.html");
+    window.location.replace("/pages/login?reason=auth");
     return;
   }
 
+  const userRole = String(session.role || "").toLowerCase();
   const isAdmin = ["admin", "site_admin"].includes(userRole);
   const isSheikh = userRole === "sheikh";
 
