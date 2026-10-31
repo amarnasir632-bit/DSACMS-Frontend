@@ -1693,7 +1693,9 @@ function contentCard(c) {
           <a class="btn btn--outline btn--sm" href="${detailHref(c.id)}">تفاصيل المادة</a>
           ${downloadPath
       ? (() => {
-          const dlName = (c.title || 'dsacms-download') + (c.audio ? '.m4a' : '.pdf');
+          const audioExtMatch = String(c.audio || "").split("?")[0].match(/\.(mp3|m4a|wav|ogg|aac|flac)$/i);
+          const audioExt = audioExtMatch ? "." + audioExtMatch[1].toLowerCase() : ".mp3";
+          const dlName = `${(c.title || "مادة-صوتية").trim()}${c.audio ? audioExt : ".pdf"}`;
           return `<div class="download-item">
             <button type="button" class="btn btn--accent btn--sm card-download download-trigger"
               data-download-btn="1"
@@ -2020,7 +2022,9 @@ async function initDetail() {
   if (downloadsSection && downloadActions) {
     const downloads = [];
     if (content.audio) {
-      const audioName = `${content.title || 'dsacms-audio'}.m4a`;
+      const audioExtMatch = String(content.audio || "").split("?")[0].match(/\.(mp3|m4a|wav|ogg|aac|flac)$/i);
+      const audioExt = audioExtMatch ? "." + audioExtMatch[1].toLowerCase() : ".mp3";
+      const audioName = `${(content.title || "مادة-صوتية").trim()}${audioExt}`;
       const backupAudio = (content.audioArchive || content.archiveUrl) && (content.audioArchive || content.archiveUrl) !== content.audio
         ? `data-backup-download-url="${escapeHTML(resolveDownloadUrl(content.audioArchive || content.archiveUrl, audioName))}"`
         : "";
@@ -2034,7 +2038,9 @@ async function initDetail() {
           </div>`);
     }
     if (content.pdf) {
-      const pdfName = `${content.title || 'dsacms-doc'}.pdf`;
+      const pdfExtMatch = String(content.pdf || "").split("?")[0].match(/\.(pdf|docx?|zip)$/i);
+      const pdfExt = pdfExtMatch ? "." + pdfExtMatch[1].toLowerCase() : ".pdf";
+      const pdfName = `${(content.title || "كتاب-علمي").trim()}${pdfExt}`;
       const backupPdf = (content.pdfArchive || content.archiveUrl) && (content.pdfArchive || content.archiveUrl) !== content.pdf
         ? `data-backup-download-url="${escapeHTML(resolveDownloadUrl(content.pdfArchive || content.archiveUrl, pdfName))}"`
         : "";
@@ -4347,13 +4353,110 @@ if (document.readyState === "loading") {
     syncButtons();
   }
 
-  // 4. إصلاح أزرار التحميل: تجاوز سقف 4.5MB في Vercel، إظهار النسبة الحقيقية، وحفظ الملف دون فتحه في تبويب جديد
+  // دالة مساعدة لاستخراج الرابط المباشر الفعلي (من داخل /api/download?url=... إن وجد)
+  function unwrapDirectMediaUrl(rawUrl) {
+    if (!rawUrl) return "";
+    try {
+      const parsed = new URL(rawUrl, window.location.origin);
+      if (parsed.pathname.endsWith("/download") && parsed.searchParams.get("url")) {
+        return parsed.searchParams.get("url");
+      }
+    } catch (_) {}
+    return rawUrl;
+  }
+
+  // دالة مساعدة لتحديد الامتداد الحقيقي للملف من الرابط أو نوع الـ Blob
+  function getRealMediaExtension(mediaUrl, button, mimeType = "") {
+    const cleanUrl = unwrapDirectMediaUrl(mediaUrl);
+    try {
+      const pathname = new URL(cleanUrl, window.location.origin).pathname;
+      const match = pathname.match(/\.(mp3|m4a|wav|ogg|aac|flac|pdf|docx?|zip)$/i);
+      if (match) return "." + match[1].toLowerCase();
+    } catch (_) {}
+
+    const mime = String(mimeType || "").toLowerCase();
+    if (mime.includes("mpeg") || mime.includes("mp3")) return ".mp3";
+    if (mime.includes("mp4") || mime.includes("m4a")) return ".m4a";
+    if (mime.includes("ogg")) return ".ogg";
+    if (mime.includes("wav")) return ".wav";
+    if (mime.includes("pdf")) return ".pdf";
+
+    const btnText = (button?.textContent || "").toLowerCase();
+    if (btnText.includes("pdf") || btnText.includes("كتاب") || btnText.includes("ملف")) {
+      return ".pdf";
+    }
+    return ".mp3";
+  }
+
+  // دالة حاسمة لاستخراج اسم الخطبة/المادة الأصلي مع الامتداد الصحيح (تمنع dsacms-media نهائياً)
+  function resolveAccurateFilename(button, rawUrl, mimeType = "") {
+    const realExt = getRealMediaExtension(rawUrl, button, mimeType);
+    let candidate = "";
+
+    // 1. من data-download-name أو download إذا لم يكن اسماً افتراضياً عاماً
+    const attrName = (button.dataset.downloadName || button.getAttribute("download") || "").trim();
+    if (attrName && !/^dsacms-(media|download|audio|doc)(\.[a-z0-9]+)?$/i.test(attrName)) {
+      candidate = attrName;
+    }
+
+    // 2. من باراميتر ?filename= داخل الرابط إن وجد
+    if (!candidate && rawUrl) {
+      try {
+        const u = new URL(rawUrl, window.location.origin);
+        const fnParam = (u.searchParams.get("filename") || "").trim();
+        if (fnParam && !/^dsacms-(media|download|audio|doc)(\.[a-z0-9]+)?$/i.test(fnParam)) {
+          candidate = fnParam;
+        }
+      } catch (_) {}
+    }
+
+    // 3. من عنوان البطاقة في الصفحة (h3 a داخل .item-card أو .card)
+    if (!candidate) {
+      const card = button.closest(".item-card, .card, article, li");
+      if (card) {
+        const cardTitleEl = card.querySelector(".item-body h3 a, .item-body h3, .card-title, h3 a, h3, h2");
+        if (cardTitleEl && cardTitleEl.textContent.trim()) {
+          candidate = cardTitleEl.textContent.trim();
+        }
+      }
+    }
+
+    // 4. من عنوان صفحة التفاصيل (#detail-title أو h1)
+    if (!candidate) {
+      const detailTitleEl = document.querySelector("#detail-title, .detail-title, main h1, article h1, h1");
+      if (detailTitleEl && detailTitleEl.textContent.trim()) {
+        candidate = detailTitleEl.textContent.trim();
+      }
+    }
+
+    // 5. من اسم الملف في رابط R2 نفسه كملاذ أخير
+    if (!candidate) {
+      try {
+        const cleanUrl = unwrapDirectMediaUrl(rawUrl);
+        const lastSeg = decodeURIComponent(new URL(cleanUrl, window.location.origin).pathname.split("/").pop() || "");
+        candidate = lastSeg;
+      } catch (_) {}
+    }
+
+    // تنظيف الاسم من المحارف الممنوعة في أنظمة الملفات مع الحفاظ الكامل على الحروف العربية والمسافات
+    let cleanTitle = String(candidate || "مادة-علمية")
+      .replace(/[\/\\:*?"<>|\r\n]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    // إزالة أي امتداد قديم (مثل .m4a الخاطئ) وإلحاق الامتداد الحقيقي للملف (.mp3 أو .pdf إلخ)
+    cleanTitle = cleanTitle.replace(/\.(mp3|m4a|wav|ogg|aac|flac|pdf|docx?|zip)$/i, "").trim();
+
+    return `${cleanTitle || "مادة-علمية"}${realExt}`;
+  }
+
   function setupEnhancedDownloads() {
     document.addEventListener(
       "click",
       (event) => {
         if (event.target.closest("[data-internal-trigger]")) return;
-        const button = event.target.closest("[data-download-btn], [data-download-url], .card-download, .download-trigger, a[download]");
+
+        const button = event.target.closest("[data-download-btn], [data-download-url], .card-download, .download-trigger, .download-btn");
         if (!button) return;
 
         const rawUrl = button.dataset.downloadUrl || button.getAttribute("href") || "";
@@ -4364,37 +4467,34 @@ if (document.readyState === "loading") {
 
         if (button.disabled) return;
 
-        const cardOrWrap = button.closest(".card, .download-item, .detail-actions, .material-actions, .content-detail, body");
+        const container = button.closest(".download-item, .item-actions, .card, #downloads-section, .detail-actions, body");
         let status =
-          (cardOrWrap && cardOrWrap.querySelector("[data-download-status], .download-status, .download-progress")) ||
+          (container && container.querySelector(".download-progress, [data-download-status], .download-status")) ||
           button.nextElementSibling;
 
-        if (!status || !status.classList) {
-          status = document.createElement("p");
-          status.className = "download-status dsacms-dl-progress-box";
+        if (!status || (!status.classList.contains("download-progress") && !status.classList.contains("download-status"))) {
+          status = document.createElement("div");
+          status.className = "download-progress download-status dsacms-dl-progress-box";
+          status.setAttribute("role", "status");
+          status.setAttribute("aria-live", "polite");
           button.insertAdjacentElement("afterend", status);
         } else {
           status.classList.add("dsacms-dl-progress-box");
         }
 
-        const primaryUrl = rawUrl;
-        const backupUrl = button.dataset.backupDownloadUrl;
-        const downloadName = button.dataset.downloadName || button.getAttribute("download") || "dsacms-media";
+        const backupUrl = button.dataset.backupDownloadUrl || "";
+        const directR2Url = unwrapDirectMediaUrl(backupUrl || rawUrl);
+        let downloadName = resolveAccurateFilename(button, directR2Url);
 
-        let directR2Url = backupUrl || primaryUrl;
-        try {
-          const u = new URL(primaryUrl, window.location.href);
-          if (u.pathname.endsWith("/download") && u.searchParams.get("url")) {
-            directR2Url = u.searchParams.get("url");
-          }
-        } catch (_) { }
+        // بناء رابط الـ Edge Proxy على نفس النطاق (/api/download) الذي يجبر المتصفح على التحميل بالاسم العربي
+        const edgeDownloadUrl = `/api/download?url=${encodeURIComponent(directR2Url)}&filename=${encodeURIComponent(downloadName)}`;
 
-        function saveBlobAsFile(blob, filename) {
+        function saveBlobAsFile(blob, finalName) {
           const binaryBlob = new Blob([blob], { type: "application/octet-stream" });
           const blobUrl = URL.createObjectURL(binaryBlob);
           const a = document.createElement("a");
           a.href = blobUrl;
-          a.download = filename;
+          a.download = finalName;
           a.dataset.internalTrigger = "true";
           a.style.display = "none";
           document.body.appendChild(a);
@@ -4402,10 +4502,10 @@ if (document.readyState === "loading") {
           setTimeout(() => {
             a.remove();
             URL.revokeObjectURL(blobUrl);
-          }, 3000);
+          }, 5000);
         }
 
-        function downloadViaXhr(targetUrl) {
+        function downloadViaXhr(targetUrl, labelPrefix = "") {
           return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
             xhr.open("GET", targetUrl, true);
@@ -4414,7 +4514,7 @@ if (document.readyState === "loading") {
             button.disabled = true;
             status.hidden = false;
             status.style.setProperty("--download-progress", "2%");
-            status.textContent = "جاري بدء التحميل: 0%...";
+            status.textContent = `${labelPrefix}جاري بدء التحميل: 0%...`;
 
             xhr.onprogress = (e) => {
               if (e.lengthComputable && e.total > 0) {
@@ -4422,61 +4522,49 @@ if (document.readyState === "loading") {
                 status.style.setProperty("--download-progress", `${pct}%`);
                 status.textContent = `جاري التحميل: ${pct}% (${formatBytesAr(e.loaded)} من ${formatBytesAr(e.total)})`;
               } else {
-                status.style.setProperty("--download-progress", "60%");
+                status.style.setProperty("--download-progress", "65%");
                 status.textContent = `جاري التحميل: تم تنزيل ${formatBytesAr(e.loaded)}...`;
               }
             };
 
             xhr.onload = () => {
-              if (xhr.status >= 200 && xhr.status < 300 && xhr.response) {
+              if (xhr.status >= 200 && xhr.status < 300 && xhr.response && xhr.response.size > 0) {
+                const respType = xhr.getResponseHeader("Content-Type") || xhr.response.type || "";
+                // التحقق من عدم حفظ صفحة خطأ HTML بالخطأ
+                if (respType.includes("text/html")) {
+                  reject(new Error("Received HTML instead of media file"));
+                  return;
+                }
+                downloadName = resolveAccurateFilename(button, directR2Url, respType);
                 saveBlobAsFile(xhr.response, downloadName);
                 status.style.setProperty("--download-progress", "100%");
-                status.textContent = `اكتمل التحميل بنجاح (100% - ${formatBytesAr(xhr.response.size)})`;
+                status.textContent = `تم التحميل بنجاح: ${downloadName} (${formatBytesAr(xhr.response.size)})`;
                 resolve();
               } else {
                 reject(new Error(`HTTP ${xhr.status}`));
               }
             };
 
-            xhr.onerror = () => reject(new Error("CORS / Network Error"));
+            xhr.onerror = () => reject(new Error("XHR Network/CORS Error"));
+            xhr.ontimeout = () => reject(new Error("XHR Timeout"));
             xhr.send();
           });
         }
 
-        // 1. نبدأ بالتحميل المباشر كـ Blob لتشغيل الحفظ الفوري ونسبة التقدم
+        // المحاولة 1: التحميل المباشر من R2 عبر XHR مع شريط النسبة المئوية
         downloadViaXhr(directR2Url)
-          .catch(() => {
-            // محاولة التحميل عبر مسار الـ Worker بنفس النطاق لتفادي CORS
-            const workerDownload = `/api/download?url=${encodeURIComponent(directR2Url)}&filename=${encodeURIComponent(downloadName)}`;
-            return downloadViaXhr(workerDownload);
+          .catch((err1) => {
+            console.warn("[Download] Direct R2 XHR failed, trying Edge /api/download via XHR...", err1);
+            // المحاولة 2: التحميل عبر /api/download (Edge Function) مع شريط النسبة المئوية
+            return downloadViaXhr(edgeDownloadUrl);
           })
-          .catch(() => {
-            if (primaryUrl && primaryUrl !== directR2Url) {
-              return downloadViaXhr(primaryUrl);
-            }
-            throw new Error("Direct blob failed");
-          })
-          .catch((err) => {
-            console.warn("Direct blob download failed, falling back to browser native download:", err);
-            status.style.removeProperty("--download-progress");
-            status.textContent = "جارٍ بدء التحميل في المتصفح…";
-
-            // بديل موثوق: إطلاق التحميل عبر مسار المرفقات المباشر بحيث ينزل في مجلد التنزيلات ولا يفتح نافذة جديدة أبداً
-            const downloadEndpoint = (typeof window !== "undefined" && window.location.origin)
-              ? `/api/download?url=${encodeURIComponent(directR2Url)}&filename=${encodeURIComponent(downloadName)}`
-              : `${window.DSACMS_API_BASE || "https://dsacms-backend.vercel.app/api"}/download?url=${encodeURIComponent(directR2Url)}`;
-
-            const triggerLink = document.createElement("a");
-            triggerLink.href = downloadEndpoint;
-            triggerLink.download = downloadName;
-            triggerLink.dataset.internalTrigger = "true";
-            triggerLink.style.display = "none";
-            document.body.appendChild(triggerLink);
-            triggerLink.click();
-            setTimeout(() => {
-              triggerLink.remove();
-              status.textContent = "تم إرسال طلب التحميل إلى المتصفح.";
-            }, 3000);
+          .catch((err2) => {
+            console.warn("[Download] XHR fallback to native browser attachment download:", err2);
+            // المحاولة 3 (خاصة للهواتف): توجيه المتصفح مباشرة إلى /api/download الذي يرسل Content-Disposition: attachment
+            // ملاحظة: استخدام window.location.assign مع Content-Disposition: attachment يبدأ التنزيل في الهاتف فوراً دون مغادرة الصفحة!
+            status.style.setProperty("--download-progress", "100%");
+            status.textContent = `جاري تنزيل "${downloadName}" في مدير تنزيلات الجهاز...`;
+            window.location.assign(edgeDownloadUrl);
           })
           .finally(() => {
             button.disabled = false;

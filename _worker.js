@@ -64,6 +64,43 @@ async function handleSitemap(env) {
   });
 }
 
+function detectExtension(targetUrl, contentType = "") {
+  try {
+    const pathname = new URL(targetUrl).pathname;
+    const match = pathname.match(/\.(mp3|m4a|wav|ogg|aac|flac|pdf|docx?|zip)$/i);
+    if (match) return "." + match[1].toLowerCase();
+  } catch (_) {}
+  const ct = String(contentType).toLowerCase();
+  if (ct.includes("mpeg") || ct.includes("mp3")) return ".mp3";
+  if (ct.includes("mp4") || ct.includes("m4a")) return ".m4a";
+  if (ct.includes("ogg")) return ".ogg";
+  if (ct.includes("wav")) return ".wav";
+  if (ct.includes("pdf")) return ".pdf";
+  return ".mp3";
+}
+
+function sanitizeDownloadFilename(rawName, targetUrl, contentType = "") {
+  const realExt = detectExtension(targetUrl, contentType);
+  let base = String(rawName || "")
+    .trim()
+    .replace(/[\/\\:*?"<>|\r\n]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!base || /^dsacms-(media|download|audio|doc)$/i.test(base.replace(/\.[a-z0-9]+$/i, ""))) {
+    try {
+      const urlFile = decodeURIComponent(new URL(targetUrl).pathname.split("/").pop() || "");
+      base = urlFile || "ملف-صوتي";
+    } catch (_) {
+      base = "ملف-صوتي";
+    }
+  }
+
+  // إزالة أي امتداد قديم ووضع الامتداد الحقيقي للملف
+  base = base.replace(/\.(mp3|m4a|wav|ogg|aac|flac|pdf|docx?|zip)$/i, "").trim();
+  return `${base || "ملف-صوتي"}${realExt}`;
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -90,6 +127,7 @@ export default {
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
             "Access-Control-Allow-Headers": "*",
+            "Access-Control-Expose-Headers": "Content-Length, Content-Type, Content-Disposition, Accept-Ranges, Content-Range",
             "Access-Control-Max-Age": "86400",
           },
         });
@@ -110,46 +148,61 @@ export default {
           });
         }
 
-        const fetchHeaders = { "User-Agent": "DSACMS-CloudflareWorker/1.0" };
+        const fetchHeaders = new Headers();
+        fetchHeaders.set("User-Agent", "DSACMS-CloudflareWorker/2.0");
         const rangeHeader = request.headers.get("Range");
         if (rangeHeader) {
-          fetchHeaders["Range"] = rangeHeader;
+          fetchHeaders.set("Range", rangeHeader);
         }
 
         const upstream = await fetch(mediaUrl.toString(), {
+          method: request.method === "HEAD" ? "HEAD" : "GET",
           headers: fetchHeaders,
+          redirect: "follow",
         });
 
-        if (!upstream.ok || !upstream.body) {
-          return new Response(`Unable to fetch media: ${upstream.status}`, {
-            status: upstream.status || 502,
-            headers: { "Access-Control-Allow-Origin": "*" },
-          });
+        if (!upstream.ok && upstream.status !== 206) {
+          return Response.redirect(target, 302);
         }
 
-        const rawPath = mediaUrl.pathname;
-        const defaultFilename = rawPath.substring(rawPath.lastIndexOf("/") + 1) || "dsacms-download.mp3";
-        const requestedName = url.searchParams.get("filename") || defaultFilename;
-        const safeFilename = requestedName.replace(/[\\/:*?"<>|]/g, "").replace(/\s+/g, " ").trim() || defaultFilename;
-        const asciiFallback = safeFilename.replace(/[^\x20-\x7E]/g, "_").replace(/["\\]/g, "") || "dsacms-download.mp3";
+        const upstreamType = upstream.headers.get("content-type") || "application/octet-stream";
+        const requestedName = url.searchParams.get("filename") || "";
+        const finalFilename = sanitizeDownloadFilename(requestedName, target, upstreamType);
+        const asciiFallback = finalFilename.replace(/[^\x20-\x7E]/g, "_") || "download" + detectExtension(target, upstreamType);
+        const encodedUTF8 = encodeURIComponent(finalFilename);
 
-        const headers = new Headers(upstream.headers);
-        headers.set("Content-Disposition", `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(safeFilename)}`);
-        headers.set("Access-Control-Allow-Origin", "*");
-        headers.set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
-        headers.set("Access-Control-Expose-Headers", "Content-Disposition, Content-Length, Content-Range");
-        headers.set("X-Content-Type-Options", "nosniff");
-        headers.set("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+        const resHeaders = new Headers();
+        resHeaders.set("Content-Type", "application/octet-stream");
+        resHeaders.set("Access-Control-Allow-Origin", "*");
+        resHeaders.set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+        resHeaders.set("Access-Control-Allow-Headers", "*");
+        resHeaders.set(
+          "Access-Control-Expose-Headers",
+          "Content-Length, Content-Type, Content-Disposition, Accept-Ranges, Content-Range"
+        );
+        resHeaders.set(
+          "Content-Disposition",
+          `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodedUTF8}`
+        );
+
+        const contentLength = upstream.headers.get("content-length");
+        if (contentLength) resHeaders.set("Content-Length", contentLength);
+
+        const contentRange = upstream.headers.get("content-range");
+        if (contentRange) resHeaders.set("Content-Range", contentRange);
+
+        const acceptRanges = upstream.headers.get("accept-ranges");
+        if (acceptRanges) resHeaders.set("Accept-Ranges", acceptRanges);
+
+        resHeaders.set("X-Content-Type-Options", "nosniff");
+        resHeaders.set("Cache-Control", "public, max-age=3600");
 
         return new Response(upstream.body, {
-          status: upstream.status || 200,
-          headers,
+          status: upstream.status,
+          headers: resHeaders,
         });
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message || "download error" }), {
-          status: 502,
-          headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        });
+        return Response.redirect(target, 302);
       }
     }
 

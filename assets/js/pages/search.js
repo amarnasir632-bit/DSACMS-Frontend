@@ -238,8 +238,9 @@ function buildSearchCard(c, categories = []) {
           <a class="btn btn--outline btn--sm" href="${detailUrl}">تفاصيل المادة</a>
           ${downloadUrl
             ? (() => {
-                const safeExt = audioSrc ? ".m4a" : ".pdf";
-                const dlName = (c.title || "dsacms-download") + safeExt;
+                const audioExtMatch = String(audioSrc || downloadUrl || "").split("?")[0].match(/\.(mp3|m4a|wav|ogg|aac|flac)$/i);
+                const audioExt = audioExtMatch ? "." + audioExtMatch[1].toLowerCase() : ".mp3";
+                const dlName = `${(c.title || "مادة-علمية").trim()}${audioSrc ? audioExt : ".pdf"}`;
                 return `<div class="download-item">
                   <button type="button" class="btn btn--accent btn--sm card-download download-trigger"
                     data-download-btn="1"

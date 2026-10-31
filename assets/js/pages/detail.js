@@ -114,7 +114,9 @@ function renderMaterialDetail(container, m, categories = []) {
 
       <footer class="detail-actions" style="margin-block-start:var(--space-5);display:flex;gap:var(--space-3);flex-wrap:wrap;align-items:center;">
         ${hasAudio ? (() => {
-          const audioName = (m.title || 'dsacms-audio') + '.m4a';
+          const audioExtMatch = String(m.audio || primaryAudio || "").split("?")[0].match(/\.(mp3|m4a|wav|ogg|aac|flac)$/i);
+          const audioExt = audioExtMatch ? "." + audioExtMatch[1].toLowerCase() : ".mp3";
+          const audioName = `${(m.title || "مادة-صوتية").trim()}${audioExt}`;
           return `
           <div class="download-item">
             <button type="button" class="btn btn--accent download-trigger"
@@ -127,7 +129,9 @@ function renderMaterialDetail(container, m, categories = []) {
         `;
         })() : ""}
         ${hasPdf ? (() => {
-          const pdfName = (m.title || 'dsacms-doc') + '.pdf';
+          const pdfExtMatch = String(m.pdf || primaryPdf || "").split("?")[0].match(/\.(pdf|docx?|zip)$/i);
+          const pdfExt = pdfExtMatch ? "." + pdfExtMatch[1].toLowerCase() : ".pdf";
+          const pdfName = `${(m.title || "كتاب-علمي").trim()}${pdfExt}`;
           return `
           <div class="download-item">
             <button type="button" class="btn btn--primary download-trigger"
