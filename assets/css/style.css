@@ -4195,3 +4195,22 @@ html[data-theme="dark"] .fu-04 {
   transition: inline-size 0.15s ease;
 }
 
+/* إصلاح تموضع زر الوضع الداكن (.fu-04__theme) في الهيدر على الهاتف لمنع تداخله مع زر القائمة */
+.site-header .header-container .fu-04__theme,
+.site-header .nav-wrap .fu-04__theme {
+  position: relative !important;
+  inset: auto !important;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  margin-inline-start: auto;
+  margin-inline-end: 0.5rem;
+  z-index: 15;
+}
+
+@media (max-width: 900px) {
+  .site-header .header-container .fu-04__theme,
+  .site-header .nav-wrap .fu-04__theme {
+    margin-inline-start: 0.5rem !important;
+    margin-inline-end: 3.25rem !important;
+  }
+}
