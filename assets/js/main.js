@@ -3390,11 +3390,15 @@ async function initDashboard() {
     return new Promise((resolve, reject) => {
       const request = new XMLHttpRequest();
       request.open("PUT", url);
-      const isR2 = /r2\.cloudflarestorage\.com/i.test(url);
+      const isR2 = /r2\.cloudflarestorage\.com/i.test(url) || /X-Amz-Signature=/i.test(url);
       if (uploadToken && !isR2) {
         request.setRequestHeader("Authorization", `Bearer ${uploadToken}`);
       }
-      if (contentType || file.type) {
+      if (!isR2) {
+        if (contentType || file.type) {
+          request.setRequestHeader("Content-Type", contentType || file.type);
+        }
+      } else if (file.type) {
         request.setRequestHeader("Content-Type", contentType || file.type);
       }
       request.upload.addEventListener("progress", (event) => {
@@ -4187,7 +4191,7 @@ async function initDashboard() {
    ---------------------------------------------------------------------- */
 const bootstrap = async () => {
   try {
-    const pagesUsingContent = ["index", "search", "detail", "dashboard"];
+    const pagesUsingContent = ["index", "search", "detail", "dashboard", "lectures"];
     if (pagesUsingContent.includes(PAGE)) {
       await loadRemoteData();
     }
@@ -4695,18 +4699,24 @@ if (document.readyState === "loading") {
 
           const uploadUrl = prepared.uploadUrl;
           const isDirectSignedR2 =
+            prepared.provider === "r2" ||
             /r2\.cloudflarestorage\.com/i.test(uploadUrl) ||
-            /X-Amz-Signature=/i.test(uploadUrl) ||
-            prepared.isDirectR2 === true;
+            /X-Amz-Signature=/i.test(uploadUrl);
 
           const uploadedResult = await new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
             xhr.open("PUT", uploadUrl, true);
-            const signedType = prepared.contentType || file.type || "application/octet-stream";
-            xhr.setRequestHeader("Content-Type", signedType);
 
-            if (prepared.uploadToken && !isDirectSignedR2) {
-              xhr.setRequestHeader("X-Upload-Token", prepared.uploadToken);
+            // إذا كان الرفع عبر الـ Worker نرسل Content-Type وترويسة Authorization: Bearer كما يتوقع الـ Worker الأصلي
+            if (!isDirectSignedR2) {
+              const signedType = prepared.contentType || file.type || "application/octet-stream";
+              xhr.setRequestHeader("Content-Type", signedType);
+              if (prepared.uploadToken) {
+                xhr.setRequestHeader("Authorization", `Bearer ${prepared.uploadToken}`);
+              }
+            } else if (file.type) {
+              // لروابط R2 المباشرة الموقعة بدون ContentType مقيد في التوقيع
+              xhr.setRequestHeader("Content-Type", prepared.contentType || file.type);
             }
 
             xhr.upload.onprogress = (ev) => {
@@ -4715,7 +4725,7 @@ if (document.readyState === "loading") {
                 if (rowItem) rowItem.style.setProperty("--item-progress", `${pct}%`);
                 if (sizeLabel) sizeLabel.textContent = `${formatBytesAr(ev.loaded)} / ${formatBytesAr(ev.total)} (${pct}%)`;
                 statusEl.textContent =
-                  pct < 100 ? `جاري الرفع إلى R2: ${pct}%` : "اكتمل النقل (100%)، جاري تثبيت الحفظ في R2...";
+                  pct < 100 ? `جاري الرفع: ${pct}%` : "اكتمل النقل (100%)، جاري تثبيت الحفظ...";
               }
             };
 
@@ -4738,11 +4748,25 @@ if (document.readyState === "loading") {
                     serverMsg = `${codeMatch ? codeMatch[1] : ""} ${msgMatch ? "- " + msgMatch[1] : ""}`.trim();
                   }
                 }
-                reject(new Error(serverMsg || `تعذر الحفظ في R2 (HTTP ${xhr.status})`));
+                const hostHint = (() => {
+                  try { return new URL(uploadUrl).hostname; } catch (_) { return ""; }
+                })();
+                reject(
+                  new Error(
+                    serverMsg
+                      ? `${serverMsg} (HTTP ${xhr.status} - ${hostHint})`
+                      : `فشل الحفظ بكود HTTP ${xhr.status} من (${hostHint})`
+                  )
+                );
               }
             };
 
-            xhr.onerror = () => reject(new Error("تعذر الاتصال بـ R2 (تأكد من إعدادات CORS في حاوية R2)"));
+            xhr.onerror = () => {
+              const hostHint = (() => {
+                try { return new URL(uploadUrl).hostname; } catch (_) { return uploadUrl; }
+              })();
+              reject(new Error(`رفض المتصفح الاتصال بـ (${hostHint}) - تأكد من إعدادات CORS على هذه الحاوية`));
+            };
             xhr.send(file);
           });
 
