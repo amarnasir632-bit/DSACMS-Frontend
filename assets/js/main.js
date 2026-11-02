@@ -4237,32 +4237,27 @@ if (document.readyState === "loading") {
   bootstrap();
 }
 /* ==========================================================================
-   تحديثات DSACMS الشاملة (تُلصق في نهاية assets/js/main.js مباشرة)
-   1. إصلاح فشل الرفع إلى R2 بعد 100%
-   2. إصلاح التحميل للملفات المرفوعة يدوياً وإظهار نسبة التحميل المئوية وحفظ الملف مباشرة
-   3. تحويل واجهة الرفع في لوحة التحكم إلى مكون .fu-04 بهوية الموقع
-   4. إضافة زر التبديل بين الوضع الداكن والفاتح في شريط التنقل لجميع الصفحات
+   تحديثات DSACMS الشاملة الموحدة (الرفع إلى R2 + التحميل بالاسم الأصلي + الوضع الداكن)
    ========================================================================== */
 (() => {
-  // 1. تنسيق الأحجام بالعربية (بايت / كيلوبايت / ميجابايت)
   function formatBytesAr(bytes) {
-    const u = ["بايت", "كيلوبايت", "ميجابايت", "جيجابايت"];
-    let n = Number(bytes) || 0;
+    const units = ["بايت", "كيلوبايت", "ميجابايت", "جيجابايت"];
+    let val = Number(bytes) || 0;
     let i = 0;
-    while (n >= 1024 && i < u.length - 1) {
-      n /= 1024;
+    while (val >= 1024 && i < units.length - 1) {
+      val /= 1024;
       i++;
     }
     return (
       new Intl.NumberFormat("ar-EG", {
-        maximumFractionDigits: n < 10 && i ? 1 : 0,
-      }).format(n) +
+        maximumFractionDigits: val < 10 && i > 0 ? 1 : 0,
+      }).format(val) +
       " " +
-      u[i]
+      units[i]
     );
   }
 
-  // 2. منع إرسال ترويسة X-Upload-Token إلى روابط R2 الموقعة مباشرة (يحل مشكلة الفشل بعد 100%)
+  // منع إرسال X-Upload-Token لروابط R2 الموقعة مباشرة (X-Amz-Signature) مع إرسالها للـ Worker فقط
   const origOpen = XMLHttpRequest.prototype.open;
   const origSetHeader = XMLHttpRequest.prototype.setRequestHeader;
   XMLHttpRequest.prototype.open = function (method, url, ...rest) {
@@ -4271,9 +4266,12 @@ if (document.readyState === "loading") {
     return origOpen.call(this, method, url, ...rest);
   };
   XMLHttpRequest.prototype.setRequestHeader = function (name, value) {
+    const isDirectSignedR2 =
+      /r2\.cloudflarestorage\.com/i.test(this._dsacmsUrl) ||
+      /X-Amz-Signature=/i.test(this._dsacmsUrl);
     if (
       this._dsacmsMethod === "PUT" &&
-      /r2\.cloudflarestorage\.com/i.test(this._dsacmsUrl) &&
+      isDirectSignedR2 &&
       String(name).toLowerCase() === "x-upload-token"
     ) {
       return;
@@ -4281,7 +4279,6 @@ if (document.readyState === "loading") {
     return origSetHeader.call(this, name, value);
   };
 
-  // 3. تفعيل الوضع الداكن والفاتح (Dark / Light Theme Toggle) في الهيدر لكل الصفحات
   function setupGlobalThemeToggle() {
     const THEME_KEY = "dsacms-theme";
     const rootEl = document.documentElement;
@@ -4297,17 +4294,14 @@ if (document.readyState === "loading") {
       rootEl.dataset.theme = saved;
     }
 
-    const navWrap = document.querySelector(".site-header .nav-wrap, .site-header .container, .site-header");
-    let themeBtn = document.querySelector(".fu-04__theme, #theme-toggle, .theme-toggle");
-
-    if (navWrap && !themeBtn) {
-      themeBtn = document.createElement("button");
-      themeBtn.className = "fu-04__theme";
-      themeBtn.id = "theme-toggle";
-      themeBtn.type = "button";
-      themeBtn.setAttribute("aria-pressed", "false");
-      themeBtn.setAttribute("aria-label", "التبديل إلى الوضع الداكن");
-      themeBtn.innerHTML = `
+    const headerContainer = document.querySelector(".site-header .header-container");
+    if (headerContainer && !headerContainer.querySelector(".fu-04__theme")) {
+      const btn = document.createElement("button");
+      btn.className = "fu-04__theme";
+      btn.type = "button";
+      btn.setAttribute("aria-pressed", "false");
+      btn.setAttribute("aria-label", "التبديل إلى الوضع الداكن");
+      btn.innerHTML = `
         <svg class="fu-04__moon" viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
           <path d="M20 14.2A8.2 8.2 0 0 1 9.8 4 8.4 8.4 0 1 0 20 14.2" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
         </svg>
@@ -4316,26 +4310,19 @@ if (document.readyState === "loading") {
           <path d="M12 3.2v2M12 18.8v2M3.2 12h2M18.8 12h2M5.9 5.9 7.3 7.3M16.7 16.7l1.4 1.4M18.1 5.9l-1.4 1.4M7.3 16.7l-1.4 1.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
         </svg>
       `;
-
-      const navToggle = navWrap.querySelector(".nav-toggle");
-      if (navToggle) {
-        navWrap.insertBefore(themeBtn, navToggle);
-      } else {
-        navWrap.appendChild(themeBtn);
-      }
+      headerContainer.appendChild(btn);
     }
 
     const syncButtons = () => {
       const dark = isDark();
-      rootEl.dataset.theme = dark ? "dark" : "light";
-      document.querySelectorAll(".fu-04__theme, #theme-toggle, .theme-toggle").forEach((b) => {
+      document.querySelectorAll(".fu-04__theme").forEach((b) => {
         b.setAttribute("aria-pressed", String(dark));
         b.setAttribute("aria-label", dark ? "التبديل إلى الوضع الفاتح" : "التبديل إلى الوضع الداكن");
         b.title = dark ? "الوضع الفاتح" : "الوضع الداكن";
       });
     };
 
-    document.querySelectorAll(".fu-04__theme, #theme-toggle, .theme-toggle").forEach((b) => {
+    document.querySelectorAll(".fu-04__theme").forEach((b) => {
       if (b.dataset.boundTheme) return;
       b.dataset.boundTheme = "1";
       b.addEventListener("click", () => {
@@ -4349,7 +4336,6 @@ if (document.readyState === "loading") {
     syncButtons();
   }
 
-  // دالة مساعدة لاستخراج الرابط المباشر الفعلي (من داخل /api/download?url=... إن وجد)
   function unwrapDirectMediaUrl(rawUrl) {
     if (!rawUrl) return "";
     try {
@@ -4361,7 +4347,6 @@ if (document.readyState === "loading") {
     return rawUrl;
   }
 
-  // دالة مساعدة لتحديد الامتداد الحقيقي للملف من الرابط أو نوع الـ Blob
   function getRealMediaExtension(mediaUrl, button, mimeType = "") {
     const cleanUrl = unwrapDirectMediaUrl(mediaUrl);
     try {
@@ -4378,24 +4363,19 @@ if (document.readyState === "loading") {
     if (mime.includes("pdf")) return ".pdf";
 
     const btnText = (button?.textContent || "").toLowerCase();
-    if (btnText.includes("pdf") || btnText.includes("كتاب") || btnText.includes("ملف")) {
-      return ".pdf";
-    }
+    if (btnText.includes("pdf") || btnText.includes("كتاب")) return ".pdf";
     return ".mp3";
   }
 
-  // دالة حاسمة لاستخراج اسم الخطبة/المادة الأصلي مع الامتداد الصحيح (تمنع dsacms-media نهائياً)
   function resolveAccurateFilename(button, rawUrl, mimeType = "") {
     const realExt = getRealMediaExtension(rawUrl, button, mimeType);
     let candidate = "";
 
-    // 1. من data-download-name أو download إذا لم يكن اسماً افتراضياً عاماً
     const attrName = (button.dataset.downloadName || button.getAttribute("download") || "").trim();
     if (attrName && !/^dsacms-(media|download|audio|doc)(\.[a-z0-9]+)?$/i.test(attrName)) {
       candidate = attrName;
     }
 
-    // 2. من باراميتر ?filename= داخل الرابط إن وجد
     if (!candidate && rawUrl) {
       try {
         const u = new URL(rawUrl, window.location.origin);
@@ -4406,43 +4386,36 @@ if (document.readyState === "loading") {
       } catch (_) {}
     }
 
-    // 3. من عنوان البطاقة في الصفحة (h3 a داخل .item-card أو .card)
     if (!candidate) {
       const card = button.closest(".item-card, .card, article, li");
       if (card) {
-        const cardTitleEl = card.querySelector(".item-body h3 a, .item-body h3, .card-title, h3 a, h3, h2");
-        if (cardTitleEl && cardTitleEl.textContent.trim()) {
-          candidate = cardTitleEl.textContent.trim();
+        const titleEl = card.querySelector(".item-body h3 a, .item-body h3, .card-title, h3 a, h3, h2");
+        if (titleEl && titleEl.textContent.trim()) {
+          candidate = titleEl.textContent.trim();
         }
       }
     }
 
-    // 4. من عنوان صفحة التفاصيل (#detail-title أو h1)
     if (!candidate) {
-      const detailTitleEl = document.querySelector("#detail-title, .detail-title, main h1, article h1, h1");
-      if (detailTitleEl && detailTitleEl.textContent.trim()) {
-        candidate = detailTitleEl.textContent.trim();
+      const detailEl = document.querySelector("#detail-title, .detail-title, main h1, article h1, h1");
+      if (detailEl && detailEl.textContent.trim()) {
+        candidate = detailEl.textContent.trim();
       }
     }
 
-    // 5. من اسم الملف في رابط R2 نفسه كملاذ أخير
     if (!candidate) {
       try {
         const cleanUrl = unwrapDirectMediaUrl(rawUrl);
-        const lastSeg = decodeURIComponent(new URL(cleanUrl, window.location.origin).pathname.split("/").pop() || "");
-        candidate = lastSeg;
+        candidate = decodeURIComponent(new URL(cleanUrl, window.location.origin).pathname.split("/").pop() || "");
       } catch (_) {}
     }
 
-    // تنظيف الاسم من المحارف الممنوعة في أنظمة الملفات مع الحفاظ الكامل على الحروف العربية والمسافات
     let cleanTitle = String(candidate || "مادة-علمية")
       .replace(/[\/\\:*?"<>|\r\n]+/g, " ")
       .replace(/\s+/g, " ")
       .trim();
 
-    // إزالة أي امتداد قديم (مثل .m4a الخاطئ) وإلحاق الامتداد الحقيقي للملف (.mp3 أو .pdf إلخ)
     cleanTitle = cleanTitle.replace(/\.(mp3|m4a|wav|ogg|aac|flac|pdf|docx?|zip)$/i, "").trim();
-
     return `${cleanTitle || "مادة-علمية"}${realExt}`;
   }
 
@@ -4452,7 +4425,9 @@ if (document.readyState === "loading") {
       (event) => {
         if (event.target.closest("[data-internal-trigger]")) return;
 
-        const button = event.target.closest("[data-download-btn], [data-download-url], .card-download, .download-trigger, .download-btn");
+        const button = event.target.closest(
+          "[data-download-btn], [data-download-url], .card-download, .download-trigger, .download-btn"
+        );
         if (!button) return;
 
         const rawUrl = button.dataset.downloadUrl || button.getAttribute("href") || "";
@@ -4463,7 +4438,9 @@ if (document.readyState === "loading") {
 
         if (button.disabled) return;
 
-        const container = button.closest(".download-item, .item-actions, .card, #downloads-section, .detail-actions, body");
+        const container = button.closest(
+          ".download-item, .item-actions, .card, #downloads-section, .detail-actions, body"
+        );
         let status =
           (container && container.querySelector(".download-progress, [data-download-status], .download-status")) ||
           button.nextElementSibling;
@@ -4480,9 +4457,7 @@ if (document.readyState === "loading") {
 
         const backupUrl = button.dataset.backupDownloadUrl || "";
         const directR2Url = unwrapDirectMediaUrl(backupUrl || rawUrl);
-        let downloadName = resolveAccurateFilename(button, directR2Url);
-
-        // بناء رابط الـ Edge Proxy على نفس النطاق (/api/download) الذي يجبر المتصفح على التحميل بالاسم العربي
+        let downloadName = resolveAccurateFilename(button, rawUrl || directR2Url);
         const edgeDownloadUrl = `/api/download?url=${encodeURIComponent(directR2Url)}&filename=${encodeURIComponent(downloadName)}`;
 
         function saveBlobAsFile(blob, finalName) {
@@ -4501,7 +4476,7 @@ if (document.readyState === "loading") {
           }, 5000);
         }
 
-        function downloadViaXhr(targetUrl, labelPrefix = "") {
+        function downloadViaXhr(targetUrl) {
           return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
             xhr.open("GET", targetUrl, true);
@@ -4510,7 +4485,7 @@ if (document.readyState === "loading") {
             button.disabled = true;
             status.hidden = false;
             status.style.setProperty("--download-progress", "2%");
-            status.textContent = `${labelPrefix}جاري بدء التحميل: 0%...`;
+            status.textContent = "جاري بدء التحميل: 0%...";
 
             xhr.onprogress = (e) => {
               if (e.lengthComputable && e.total > 0) {
@@ -4526,12 +4501,11 @@ if (document.readyState === "loading") {
             xhr.onload = () => {
               if (xhr.status >= 200 && xhr.status < 300 && xhr.response && xhr.response.size > 0) {
                 const respType = xhr.getResponseHeader("Content-Type") || xhr.response.type || "";
-                // التحقق من عدم حفظ صفحة خطأ HTML بالخطأ
                 if (respType.includes("text/html")) {
-                  reject(new Error("Received HTML instead of media file"));
+                  reject(new Error("HTML response instead of media"));
                   return;
                 }
-                downloadName = resolveAccurateFilename(button, directR2Url, respType);
+                downloadName = resolveAccurateFilename(button, rawUrl || directR2Url, respType);
                 saveBlobAsFile(xhr.response, downloadName);
                 status.style.setProperty("--download-progress", "100%");
                 status.textContent = `تم التحميل بنجاح: ${downloadName} (${formatBytesAr(xhr.response.size)})`;
@@ -4541,25 +4515,16 @@ if (document.readyState === "loading") {
               }
             };
 
-            xhr.onerror = () => reject(new Error("XHR Network/CORS Error"));
-            xhr.ontimeout = () => reject(new Error("XHR Timeout"));
+            xhr.onerror = () => reject(new Error("XHR Network Error"));
             xhr.send();
           });
         }
 
-        // المحاولة 1: التحميل المباشر من R2 عبر XHR مع شريط النسبة المئوية
         downloadViaXhr(directR2Url)
-          .catch((err1) => {
-            console.warn("[Download] Direct R2 XHR failed, trying Edge /api/download via XHR...", err1);
-            // المحاولة 2: التحميل عبر /api/download (Edge Function) مع شريط النسبة المئوية
-            return downloadViaXhr(edgeDownloadUrl);
-          })
-          .catch((err2) => {
-            console.warn("[Download] XHR fallback to native browser attachment download:", err2);
-            // المحاولة 3 (خاصة للهواتف): توجيه المتصفح مباشرة إلى /api/download الذي يرسل Content-Disposition: attachment
-            // ملاحظة: استخدام window.location.assign مع Content-Disposition: attachment يبدأ التنزيل في الهاتف فوراً دون مغادرة الصفحة!
+          .catch(() => downloadViaXhr(edgeDownloadUrl))
+          .catch(() => {
             status.style.setProperty("--download-progress", "100%");
-            status.textContent = `جاري تنزيل "${downloadName}" في مدير تنزيلات الجهاز...`;
+            status.textContent = `بدأ تنزيل "${downloadName}" في مدير تنزيلات الجهاز...`;
             window.location.assign(edgeDownloadUrl);
           })
           .finally(() => {
@@ -4570,13 +4535,11 @@ if (document.readyState === "loading") {
     );
   }
 
-  // 5. تحويل أزرار الرفع في لوحة التحكم (#cf-archive-upload و #cf-archive-upload-pdf) تلقائياً إلى مكون .fu-04
   function upgradeDashboardUploadersToFu04() {
     const configs = [
       {
         btnSelector: "#cf-archive-upload",
         inputSelector: "#cf-audio",
-        statusSelector: "#cf-audio-upload-status",
         title: "رفع الملف الصوتي",
         hint: "ملف صوتي واحد · حتى 500 ميجابايت",
         accept: ".mp3,.wav,.ogg,.m4a,audio/*",
@@ -4586,7 +4549,6 @@ if (document.readyState === "loading") {
       {
         btnSelector: "#cf-archive-upload-pdf",
         inputSelector: "#cf-pdf",
-        statusSelector: "#cf-pdf-upload-status",
         title: "رفع ملف الكتاب (PDF)",
         hint: "ملف PDF · حتى 500 ميجابايت",
         accept: ".pdf,application/pdf",
@@ -4647,7 +4609,6 @@ if (document.readyState === "loading") {
         </template>
       `;
 
-      // إخفاء الزر القديم ووضع مكون fu-04 مكانه
       const actionsWrap = oldBtn.closest(".archive-upload-actions") || oldBtn;
       actionsWrap.style.display = "none";
       actionsWrap.insertAdjacentElement("afterend", wrapper);
@@ -4733,15 +4694,18 @@ if (document.readyState === "loading") {
           });
 
           const uploadUrl = prepared.uploadUrl;
-          const isDirectR2 = /r2\.cloudflarestorage\.com/i.test(uploadUrl);
+          const isDirectSignedR2 =
+            /r2\.cloudflarestorage\.com/i.test(uploadUrl) ||
+            /X-Amz-Signature=/i.test(uploadUrl) ||
+            prepared.isDirectR2 === true;
 
           const uploadedResult = await new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
             xhr.open("PUT", uploadUrl, true);
-            if (prepared.contentType || file.type) {
-              xhr.setRequestHeader("Content-Type", prepared.contentType || file.type);
-            }
-            if (prepared.uploadToken && !isDirectR2) {
+            const signedType = prepared.contentType || file.type || "application/octet-stream";
+            xhr.setRequestHeader("Content-Type", signedType);
+
+            if (prepared.uploadToken && !isDirectSignedR2) {
               xhr.setRequestHeader("X-Upload-Token", prepared.uploadToken);
             }
 
@@ -4750,7 +4714,8 @@ if (document.readyState === "loading") {
                 const pct = Math.min(100, Math.round((ev.loaded / ev.total) * 100));
                 if (rowItem) rowItem.style.setProperty("--item-progress", `${pct}%`);
                 if (sizeLabel) sizeLabel.textContent = `${formatBytesAr(ev.loaded)} / ${formatBytesAr(ev.total)} (${pct}%)`;
-                statusEl.textContent = pct < 100 ? `جاري الرفع إلى R2: ${pct}%` : "اكتمل النقل (100%)، جاري تثبيت الملف في R2...";
+                statusEl.textContent =
+                  pct < 100 ? `جاري الرفع إلى R2: ${pct}%` : "اكتمل النقل (100%)، جاري تثبيت الحفظ في R2...";
               }
             };
 
@@ -4759,14 +4724,25 @@ if (document.readyState === "loading") {
                 let parsed = null;
                 try {
                   parsed = xhr.responseText ? JSON.parse(xhr.responseText) : null;
-                } catch (_) { }
+                } catch (_) {}
                 resolve(parsed);
               } else {
-                reject(new Error(`رفض الخادم حفظ الملف (كود ${xhr.status})`));
+                let serverMsg = "";
+                try {
+                  const errObj = JSON.parse(xhr.responseText);
+                  serverMsg = errObj.details || errObj.error || errObj.message || "";
+                } catch (_) {
+                  const codeMatch = String(xhr.responseText || "").match(/<Code>([^<]+)<\/Code>/i);
+                  const msgMatch = String(xhr.responseText || "").match(/<Message>([^<]+)<\/Message>/i);
+                  if (codeMatch || msgMatch) {
+                    serverMsg = `${codeMatch ? codeMatch[1] : ""} ${msgMatch ? "- " + msgMatch[1] : ""}`.trim();
+                  }
+                }
+                reject(new Error(serverMsg || `تعذر الحفظ في R2 (HTTP ${xhr.status})`));
               }
             };
 
-            xhr.onerror = () => reject(new Error("تعذر الاتصال بـ R2 (تأكد من حفظ CORS Policy في حاوية R2)"));
+            xhr.onerror = () => reject(new Error("تعذر الاتصال بـ R2 (تأكد من إعدادات CORS في حاوية R2)"));
             xhr.send(file);
           });
 
@@ -4779,7 +4755,7 @@ if (document.readyState === "loading") {
           statusEl.textContent = "تم رفع الملف إلى R2 وتوليد الرابط بنجاح (100%)!";
         } catch (err) {
           console.error(err);
-          statusEl.textContent = `تعذر الرفع: ${err.message || "حاول مجدداً"}`;
+          statusEl.textContent = `${err.message || "تعذر إكمال التخزين في Cloudflare R2"}`;
         } finally {
           sendBtn.disabled = false;
         }

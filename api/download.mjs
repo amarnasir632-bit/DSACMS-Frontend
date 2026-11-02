@@ -32,25 +32,21 @@ function sanitizeDownloadFilename(rawName, targetUrl, contentType = "") {
     .replace(/\s+/g, " ")
     .trim();
 
-  if (!base || /^dsacms-(media|download|audio|doc)$/i.test(base.replace(/\.[a-z0-9]+$/i, ""))) {
+  if (!base || /^dsacms-(media|download|audio|doc)(\.[a-z0-9]+)?$/i.test(base)) {
     try {
       const urlFile = decodeURIComponent(new URL(targetUrl).pathname.split("/").pop() || "");
-      base = urlFile || "ملف-صوتي";
+      base = urlFile || "مادة-علمية";
     } catch (_) {
-      base = "ملف-صوتي";
+      base = "مادة-علمية";
     }
   }
 
   // إزالة أي امتداد قديم ووضع الامتداد الحقيقي للملف
   base = base.replace(/\.(mp3|m4a|wav|ogg|aac|flac|pdf|docx?|zip)$/i, "").trim();
-  return `${base || "ملف-صوتي"}${realExt}`;
+  return `${base || "مادة-علمية"}${realExt}`;
 }
 
-export default async function handler(req) {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: CORS_HEADERS });
-  }
-
+export async function GET(req) {
   const reqUrl = new URL(req.url);
   const targetUrl = reqUrl.searchParams.get("url");
   const requestedName = reqUrl.searchParams.get("filename") || "";
@@ -80,7 +76,7 @@ export default async function handler(req) {
 
     const upstreamType = upstream.headers.get("content-type") || "application/octet-stream";
     const finalFilename = sanitizeDownloadFilename(requestedName, targetUrl, upstreamType);
-    const asciiFallback = finalFilename.replace(/[^\x20-\x7E]/g, "_") || "download" + detectExtension(targetUrl, upstreamType);
+    const asciiFallback = finalFilename.replace(/[^\x20-\x7E]/g, "_") || ("download" + detectExtension(targetUrl, upstreamType));
     const encodedUTF8 = encodeURIComponent(finalFilename);
 
     const resHeaders = new Headers(CORS_HEADERS);
@@ -108,4 +104,11 @@ export default async function handler(req) {
   } catch (err) {
     return Response.redirect(targetUrl, 302);
   }
+}
+
+export default async function handler(req) {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: CORS_HEADERS });
+  }
+  return GET(req);
 }

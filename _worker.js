@@ -87,18 +87,18 @@ function sanitizeDownloadFilename(rawName, targetUrl, contentType = "") {
     .replace(/\s+/g, " ")
     .trim();
 
-  if (!base || /^dsacms-(media|download|audio|doc)$/i.test(base.replace(/\.[a-z0-9]+$/i, ""))) {
+  if (!base || /^dsacms-(media|download|audio|doc)(\.[a-z0-9]+)?$/i.test(base)) {
     try {
       const urlFile = decodeURIComponent(new URL(targetUrl).pathname.split("/").pop() || "");
-      base = urlFile || "ملف-صوتي";
+      base = urlFile || "مادة-علمية";
     } catch (_) {
-      base = "ملف-صوتي";
+      base = "مادة-علمية";
     }
   }
 
   // إزالة أي امتداد قديم ووضع الامتداد الحقيقي للملف
   base = base.replace(/\.(mp3|m4a|wav|ogg|aac|flac|pdf|docx?|zip)$/i, "").trim();
-  return `${base || "ملف-صوتي"}${realExt}`;
+  return `${base || "مادة-علمية"}${realExt}`;
 }
 
 export default {
@@ -206,7 +206,6 @@ export default {
       }
     }
 
-    // خريطة المسارات المختصرة إلى ملفات HTML الفعلية
     const PAGE_ALIASES = {
       "/home.html": "/index.html",
       "/index": "/index.html",
@@ -229,7 +228,6 @@ export default {
       const normalizedPath = url.pathname.replace(/\/+$/, "") || "/";
       const mappedPath = PAGE_ALIASES[normalizedPath];
 
-      // دالة مساعدة تجلب الأصل من env.ASSETS وتتبع أي 301/308 داخلياً وترجع 200 OK بدون Redirect للمتصفح
       const fetchAssetWithoutRedirectLoop = async (targetPathname) => {
         const candidates = [
           targetPathname,
@@ -253,7 +251,6 @@ export default {
             return new Response(res.body, { status: 200, headers });
           }
 
-          // إذا حاول env.ASSETS عمل 301 أو 308، نتبع الـ Location داخلياً لمرة واحدة ونرجع 200 OK
           if ([301, 302, 307, 308].includes(res.status)) {
             const loc = res.headers.get("Location");
             if (loc) {
@@ -274,8 +271,7 @@ export default {
       };
 
       if (mappedPath || normalizedPath.startsWith("/pages/")) {
-        const target = mappedPath || normalizedPath;
-        const resolvedResponse = await fetchAssetWithoutRedirectLoop(target);
+        const resolvedResponse = await fetchAssetWithoutRedirectLoop(mappedPath || normalizedPath);
         if (resolvedResponse) return resolvedResponse;
       }
 
