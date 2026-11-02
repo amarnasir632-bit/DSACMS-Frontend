@@ -755,7 +755,8 @@ function normalizeMaterial(row) {
     audioArchive: (audio && archiveUrl && (archiveUrl.endsWith(".mp3") || archiveUrl.includes("/audio") || !pdf)) ? archiveUrl : archiveUrl,
     pdfArchive: (pdf && archiveUrl && (archiveUrl.endsWith(".pdf") || archiveUrl.includes(".pdf") || !audio)) ? archiveUrl : archiveUrl,
     type: normalizeContentType(row.content_type || row.contentType || row.type, { audio, pdf, body }),
-    status: row.status || "published",
+     status: String(row.status || "published").trim().toLowerCase(),
+
   };
 }
 
@@ -802,21 +803,82 @@ async function fetchApi(path, options) {
 }
 
 async function loadRemoteData() {
-  const results = await Promise.allSettled([
-    fetchApi("/categories"),
-    fetchApi("/materials"),
-  ]);
-  if (results[0].status === "fulfilled") {
-    apiCategories = results[0].value.map(normalizeCategory);
+async function fetchApiWithRetry(path, options = {}, retries = 3, delayMs = 500) {
+  let lastError;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fetchApi(path, options);
+    } catch (err) {
+      lastError = err;
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, delayMs * (attempt + 1)));
+      }
+    }
+  }
+  throw lastError;
+}
+
+async function loadRemoteData() {
+  const CAT_CACHE_KEY = "dsacms_categories_cache_v1";
+  const MAT_CACHE_KEY = "dsacms_materials_cache_v1";
+
+  const extractArray = (val) => {
+    if (Array.isArray(val)) return val;
+    if (val && typeof val === "object") {
+      if (Array.isArray(val.materials)) return val.materials;
+      if (Array.isArray(val.categories)) return val.categories;
+      if (Array.isArray(val.data)) return val.data;
+      if (Array.isArray(val.items)) return val.items;
+    }
+    return [];
+  };
+
+  // جلب التصنيفات أولاً ثم المواد مع إعادة المحاولة التلقائية لمنع تصادم الاتصالات في قاعدة البيانات
+  const catResult = await Promise.allSettled([fetchApiWithRetry("/categories", {}, 2, 400)]);
+  const matResult = await Promise.allSettled([fetchApiWithRetry("/materials", {}, 3, 500)]);
+
+  if (catResult[0].status === "fulfilled") {
+    const rawCats = extractArray(catResult[0].value);
+    apiCategories = rawCats.map(normalizeCategory).filter(Boolean);
+    try {
+      if (apiCategories.length > 0) {
+        localStorage.setItem(CAT_CACHE_KEY, JSON.stringify(apiCategories));
+      }
+    } catch (_) {}
+  } else {
+    try {
+      const cachedCats = JSON.parse(localStorage.getItem(CAT_CACHE_KEY) || "[]");
+      if (Array.isArray(cachedCats) && cachedCats.length > 0) {
+        apiCategories = cachedCats;
+      }
+    } catch (_) {}
   }
 
-  if (results[1].status === "fulfilled") {
-    apiContents = results[1].value.map(normalizeMaterial);
+  if (matResult[0].status === "fulfilled") {
+    const rawMats = extractArray(matResult[0].value);
+    apiContents = rawMats.map(normalizeMaterial).filter(Boolean);
+    try {
+      if (apiContents.length > 0) {
+        localStorage.setItem(MAT_CACHE_KEY, JSON.stringify(apiContents));
+      }
+    } catch (_) {}
+  } else {
+    console.warn("Failed to load /materials after retries, using cached copy:", matResult[0].reason);
+    try {
+      const cachedMats = JSON.parse(localStorage.getItem(MAT_CACHE_KEY) || "[]");
+      if (Array.isArray(cachedMats) && cachedMats.length > 0) {
+        apiContents = cachedMats;
+      }
+    } catch (_) {}
   }
-  if (results.every((result) => result.status === "rejected")) {
+
+  if (catResult[0].status === "rejected" && matResult[0].status === "rejected") {
     console.warn("DSACMS API unavailable; continuing with locally available data.");
-    return false;
+    return apiCategories.length > 0 || apiContents.length > 0;
   }
+  return true;
+}
+
   return true;
 }
 
