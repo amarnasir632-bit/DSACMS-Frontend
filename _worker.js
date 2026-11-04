@@ -371,6 +371,38 @@ async function handleApiRoute(request, env, url) {
     return jsonResponse({ ok: true, fileUrl, storageKey: key }, 200, origin);
   }
 
+    // قراءة وتشغيل الملفات الصوتية والـ PDF مباشرة من حاوية R2 على نفس نطاق الموقع
+  if (path.startsWith("/media/") && (method === "GET" || method === "HEAD")) {
+    if (!r2) return jsonResponse({ error: "R2 not bound" }, 404, origin);
+    const key = decodeURIComponent(path.replace(/^\/+/, ""));
+    const obj = await r2.get(key);
+    if (!obj) return jsonResponse({ error: "الملف غير موجود في R2" }, 404, origin);
+    const headers = new Headers(corsHeaders(origin));
+    const ext = getRealExt(key, ".mp3");
+    const mime =
+      obj.httpMetadata?.contentType ||
+      (ext === ".pdf" ? "application/pdf" : ext === ".m4a" ? "audio/mp4" : "audio/mpeg");
+    headers.set("Content-Type", mime);
+    headers.set("Accept-Ranges", "bytes");
+    headers.set("Cache-Control", "public, max-age=31536000");
+    if (obj.size) headers.set("Content-Length", String(obj.size));
+    return new Response(method === "HEAD" ? null : obj.body, { status: 200, headers });
+  }
+
+  // 1. الرفع المباشر إلى حاوية R2 المربوطة بالـ Worker
+  if (path === "/r2-upload" && method === "PUT") {
+    if (!r2) {
+      return jsonResponse({ error: "حاوية R2 غير مربوطة بعد في إعدادات Cloudflare Bindings" }, 503, origin);
+    }
+    const key = url.searchParams.get("key") || `media/audio/${Date.now()}.mp3`;
+    const contentType = request.headers.get("Content-Type") || "application/octet-stream";
+    await r2.put(key, request.body, {
+      httpMetadata: { contentType },
+    });
+    const fileUrl = `${url.origin}/api/media/${key.replace(/^\/+/, "")}`;
+    return jsonResponse({ ok: true, fileUrl, storageKey: key }, 200, origin);
+  }
+
   if ((path === "/media-upload" || path === "/uploads/presigned-url") && method === "POST") {
     if (r2) {
       const body = await request.json().catch(() => ({}));
@@ -382,8 +414,7 @@ async function handleApiRoute(request, env, url) {
       const randomId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const key = `media/${folder}/${randomId}.${ext}`;
       const uploadUrl = `${url.origin}/api/r2-upload?key=${encodeURIComponent(key)}`;
-      const publicBase = String(env.R2_PUBLIC_URL || R2_PUBLIC_BASE).replace(/\/+$/, "");
-      const fileUrl = `${publicBase}/${key}`;
+      const fileUrl = `${url.origin}/api/media/${key}`;
       return jsonResponse(
         {
           provider: "cloudflare-r2-direct",
@@ -399,6 +430,7 @@ async function handleApiRoute(request, env, url) {
       );
     }
   }
+
 
   // 2. تشغيل جميع مسارات الموقع من قاعدة بيانات Cloudflare D1 مباشرة
   if (db) {
