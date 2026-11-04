@@ -607,27 +607,4 @@ export default {
                 const headers = new Headers(followed.headers);
                 headers.set("Content-Type", "text/html; charset=utf-8");
                 headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
-                return new Response(followed.body, { status: 200, headers });
-              }
-            }
-          }
-        }
-        return null;
-      };
-
-      if (mappedPath || normalizedPath.startsWith("/pages/")) {
-        const resolvedResponse = await fetchAssetWithoutRedirectLoop(mappedPath || normalizedPath);
-        if (resolvedResponse) return resolvedResponse;
-      }
-
-      let response = await env.ASSETS.fetch(request);
-      if (response.status === 404 && !url.pathname.includes(".") && url.pathname !== "/") {
-        const cleanResponse = await fetchAssetWithoutRedirectLoop(`${url.pathname}.html`);
-        if (cleanResponse) return cleanResponse;
-      }
-      return response;
-    }
-
-    return new Response("Not Found", { status: 404 });
-  },
-};
+               
