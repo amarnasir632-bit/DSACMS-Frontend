@@ -16,7 +16,7 @@
   "r2_buckets": [
     {
       "binding": "R2",
-      "bucket_name": "ضع-هنا-اسم-حاوية-R2"
+      "bucket_name": "dsacms-media"
     }
   ]
 }
