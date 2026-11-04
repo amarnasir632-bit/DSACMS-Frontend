@@ -1,6 +1,6 @@
 /**
  * DSACMS All-in-One Cloudflare Edge Worker (Pages + D1 Database + R2 Storage)
- * يعمل بالكامل على Cloudflare مجاناً بدون الحاجة إلى Vercel أو Supabase
+ * يتعرف تلقائياً على ربط D1 و R2 بأي اسم متغير، وينقل البيانات تلقائياً، ويشغل الرفع المباشر إلى R2
  */
 
 const OLD_BACKEND_API = "https://dsacms-backend.vercel.app/api";
@@ -34,7 +34,7 @@ function corsHeaders(origin = "*") {
 }
 
 function jsonResponse(data, status = 200, origin = "*") {
-  return new Response(JSON.stringify(data), {
+  return new Response(JSON.stringify(data, null, 2), {
     status,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
@@ -44,8 +44,47 @@ function jsonResponse(data, status = 200, origin = "*") {
   });
 }
 
+// كاشف تلقائي لربط قاعدة بيانات D1 مهما كان اسم المتغير في Cloudflare
+function getDbBinding(env) {
+  if (!env || typeof env !== "object") return null;
+  for (const key of Object.keys(env)) {
+    const val = env[key];
+    if (val && typeof val === "object" && typeof val.prepare === "function" && typeof val.batch === "function") {
+      return val;
+    }
+  }
+  return null;
+}
+
+// كاشف تلقائي لربط حاوية R2 مهما كان اسم المتغير في Cloudflare
+function getR2Binding(env) {
+  if (!env || typeof env !== "object") return null;
+  for (const key of Object.keys(env)) {
+    if (key === "ASSETS") continue;
+    const val = env[key];
+    if (
+      val &&
+      typeof val === "object" &&
+      typeof val.put === "function" &&
+      typeof val.get === "function" &&
+      typeof val.prepare !== "function"
+    ) {
+      return val;
+    }
+  }
+  return null;
+}
+
+async function sha256Hex(text) {
+  const data = new TextEncoder().encode(String(text || ""));
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 async function ensureD1SchemaAndMigrate(db) {
-  if (!db) return { initialized: false, reason: "DB binding not found" };
+  if (!db) return { initialized: false, reason: "لم يتم العثور على ربط D1" };
 
   await db.batch([
     db.prepare(`CREATE TABLE IF NOT EXISTS categories (
@@ -111,7 +150,6 @@ async function ensureD1SchemaAndMigrate(db) {
     )`),
   ]);
 
-  // التحقق مما إذا كانت قاعدة البيانات فارغة لنسخ البيانات الحالية من السيرفر القديم تلقائياً
   const countRow = await db.prepare("SELECT COUNT(*) as total FROM materials").first();
   let migratedMaterials = 0;
   let migratedCategories = 0;
@@ -221,9 +259,10 @@ async function handleDownloadProxy(request, env, url) {
   const origin = request.headers.get("Origin") || "*";
   const targetUrl = url.searchParams.get("url") || "";
   const rawFilename = url.searchParams.get("filename") || "";
+  const r2 = getR2Binding(env);
 
   if (!targetUrl) {
-    return jsonResponse({ error: "Missing url parameter" }, 400, origin);
+    return jsonResponse({ error: "يرجى تحديد رابط الملف للتحميل" }, 400, origin);
   }
 
   const ext = getRealExt(targetUrl, ".mp3");
@@ -237,12 +276,11 @@ async function handleDownloadProxy(request, env, url) {
   const asciiFallback = `media${ext}`;
   const contentDisposition = `attachment; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(finalFilename)}`;
 
-  // إذا كانت حاوية R2 مربوطة والملف داخلها نقرأه مباشرة من R2 بسرعه فائقة
-  if (env.R2_BUCKET) {
+  if (r2) {
     try {
       const parsedTarget = new URL(targetUrl, url.origin);
       const r2Key = decodeURIComponent(parsedTarget.pathname.replace(/^\/+/, ""));
-      const obj = await env.R2_BUCKET.get(r2Key);
+      const obj = await r2.get(r2Key);
       if (obj) {
         const headers = new Headers(corsHeaders(origin));
         headers.set("Content-Type", "application/octet-stream");
@@ -269,23 +307,63 @@ async function handleApiRoute(request, env, url) {
   const origin = request.headers.get("Origin") || "*";
   const method = request.method.toUpperCase();
   const path = url.pathname.replace(/^\/api\/?/, "/").replace(/\/+$/, "") || "/";
+  const db = getDbBinding(env);
+  const r2 = getR2Binding(env);
 
   if (method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders(origin) });
+  }
+
+  // هذا المسار في أعلى الدالة قبل أي شيء آخر حتى لا يرجع Cannot GET /api/init-d1 أبداً
+  if (path === "/init-d1" || path === "/status" || path === "/health") {
+    if (!db) {
+      return jsonResponse(
+        {
+          status: "waiting_for_binding",
+          message: "تم تشغيل _worker.js الجديد بنجاح! لكن ربط قاعدة بيانات D1 غير ظاهر في المتغيرات حالياً.",
+          detectedEnvKeys: Object.keys(env || {}),
+          dbBound: false,
+          r2Bound: Boolean(r2),
+          howToFix:
+            "بما أن النشر من GitHub قد اكتمل الآن، ادخل إلى Cloudflare Dashboard -> Settings -> Bindings وأضف ربط D1 و R2 واضغط Save/Deploy، أو أضف database_id في ملف wrangler.jsonc.",
+        },
+        200,
+        origin
+      );
+    }
+    const migInfo = await ensureD1SchemaAndMigrate(db);
+    const matCount = await db.prepare("SELECT COUNT(*) as c FROM materials").first();
+    const catCount = await db.prepare("SELECT COUNT(*) as c FROM categories").first();
+    const lecCount = await db.prepare("SELECT COUNT(*) as c FROM lectures").first();
+    return jsonResponse(
+      {
+        status: "ok",
+        message: "تم تفعيل Cloudflare D1 + R2 ونقل جميع البيانات بنجاح!",
+        detectedEnvKeys: Object.keys(env || {}),
+        dbBound: true,
+        r2Bound: Boolean(r2),
+        materialsCount: matCount?.c || 0,
+        categoriesCount: catCount?.c || 0,
+        lecturesCount: lecCount?.c || 0,
+        migration: migInfo,
+      },
+      200,
+      origin
+    );
   }
 
   if (path === "/download") {
     return handleDownloadProxy(request, env, url);
   }
 
-  // 1. الرفع المباشر إلى حاوية R2 المربوطة بالـ Worker (بدون أي مشاكل CORS أو S3)
+  // 1. الرفع المباشر إلى حاوية R2 المربوطة بالـ Worker
   if (path === "/r2-upload" && method === "PUT") {
-    if (!env.R2_BUCKET) {
-      return jsonResponse({ error: "حاوية R2_BUCKET غير مربوطة في إعدادات Cloudflare Pages Bindings" }, 503, origin);
+    if (!r2) {
+      return jsonResponse({ error: "حاوية R2 غير مربوطة بعد في إعدادات Cloudflare Bindings" }, 503, origin);
     }
     const key = url.searchParams.get("key") || `media/audio/${Date.now()}.mp3`;
     const contentType = request.headers.get("Content-Type") || "application/octet-stream";
-    await env.R2_BUCKET.put(key, request.body, {
+    await r2.put(key, request.body, {
       httpMetadata: { contentType },
     });
     const publicBase = String(env.R2_PUBLIC_URL || R2_PUBLIC_BASE).replace(/\/+$/, "");
@@ -294,7 +372,7 @@ async function handleApiRoute(request, env, url) {
   }
 
   if ((path === "/media-upload" || path === "/uploads/presigned-url") && method === "POST") {
-    if (env.R2_BUCKET) {
+    if (r2) {
       const body = await request.json().catch(() => ({}));
       const rawName = String(body.filename || body.name || "file.mp3");
       const extMatch = rawName.match(/\.([a-zA-Z0-9]+)$/);
@@ -322,86 +400,150 @@ async function handleApiRoute(request, env, url) {
     }
   }
 
-  // 2. إذا كانت قاعدة بيانات D1 مربوطة (env.DB) نخدم الموقع بالكامل من Cloudflare D1
-  if (env.DB) {
-    const migInfo = await ensureD1SchemaAndMigrate(env.DB);
+  // 2. تشغيل جميع مسارات الموقع من قاعدة بيانات Cloudflare D1 مباشرة
+  if (db) {
+    await ensureD1SchemaAndMigrate(db);
 
-    if (path === "/init-d1" || path === "/status" || path === "/health") {
-      const matCount = await env.DB.prepare("SELECT COUNT(*) as c FROM materials").first();
-      const catCount = await env.DB.prepare("SELECT COUNT(*) as c FROM categories").first();
-      return jsonResponse(
-        {
-          status: "ok",
-          engine: "Cloudflare D1 + R2 All-in-One",
-          r2Bound: Boolean(env.R2_BUCKET),
-          materialsCount: matCount?.c || 0,
-          categoriesCount: catCount?.c || 0,
-          migration: migInfo,
-        },
-        200,
-        origin
-      );
+    if (path === "/auth/login" && method === "POST") {
+      const b = await request.clone().json().catch(() => ({}));
+      const identifier = String(b.email || b.username || b.identifier || "").trim().toLowerCase();
+      const pass = String(b.password || "");
+      const passHash = await sha256Hex(pass);
+
+      const localUser = await db
+        .prepare("SELECT * FROM users WHERE LOWER(email) = ? OR LOWER(username) = ?")
+        .bind(identifier, identifier)
+        .first();
+
+      if (localUser && localUser.password_hash === passHash) {
+        const token = `d1_${await sha256Hex(localUser.email + ":" + Date.now())}`;
+        return jsonResponse(
+          {
+            token,
+            user: { id: localUser.id, name: localUser.name, email: localUser.email, role: localUser.role || "admin" },
+          },
+          200,
+          origin
+        );
+      }
+
+      try {
+        const upstreamLogin = await fetch(`${OLD_BACKEND_API}/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(b),
+        });
+        if (upstreamLogin.ok) {
+          const data = await upstreamLogin.json();
+          if (data?.user) {
+            await db
+              .prepare(
+                "INSERT OR REPLACE INTO users (id, name, email, username, password_hash, role) VALUES (?, ?, ?, ?, ?, ?)"
+              )
+              .bind(
+                data.user.id || 1,
+                data.user.name || "المدير",
+                String(data.user.email || identifier).toLowerCase(),
+                String(data.user.username || identifier).toLowerCase(),
+                passHash,
+                data.user.role || "admin"
+              )
+              .run();
+          }
+          return jsonResponse(data, 200, origin);
+        }
+      } catch (_) {}
     }
 
-    // التصنيفات (Categories)
+    if (path === "/users" && method === "GET") {
+      const { results } = await db.prepare("SELECT id, name, email, username, role, created_at FROM users ORDER BY id ASC").all();
+      if (results && results.length > 0) {
+        return jsonResponse(results, 200, origin);
+      }
+    }
+
     if (path === "/categories" && method === "GET") {
-      const { results } = await env.DB.prepare("SELECT * FROM categories ORDER BY id ASC").all();
+      const { results } = await db.prepare("SELECT * FROM categories ORDER BY id ASC").all();
       return jsonResponse(results || [], 200, origin);
     }
     if (path === "/categories" && method === "POST") {
       const b = await request.json();
-      const res = await env.DB.prepare("INSERT INTO categories (name, description, icon) VALUES (?, ?, ?)")
+      const res = await db
+        .prepare("INSERT INTO categories (name, description, icon) VALUES (?, ?, ?)")
         .bind(b.name || b.title, b.description || "", b.icon || "📚")
         .run();
-      const created = await env.DB.prepare("SELECT * FROM categories WHERE id = ?").bind(res.meta.last_row_id).first();
+      const created = await db.prepare("SELECT * FROM categories WHERE id = ?").bind(res.meta.last_row_id).first();
       return jsonResponse(created, 201, origin);
     }
     if (path.startsWith("/categories/") && (method === "PUT" || method === "PATCH")) {
       const id = path.split("/")[2];
       const b = await request.json();
-      await env.DB.prepare("UPDATE categories SET name = COALESCE(?, name), description = COALESCE(?, description), icon = COALESCE(?, icon) WHERE id = ?")
+      await db
+        .prepare("UPDATE categories SET name = COALESCE(?, name), description = COALESCE(?, description), icon = COALESCE(?, icon) WHERE id = ?")
         .bind(b.name || b.title || null, b.description ?? null, b.icon ?? null, id)
         .run();
-      const updated = await env.DB.prepare("SELECT * FROM categories WHERE id = ?").bind(id).first();
+      const updated = await db.prepare("SELECT * FROM categories WHERE id = ?").bind(id).first();
       return jsonResponse(updated, 200, origin);
     }
     if (path.startsWith("/categories/") && method === "DELETE") {
       const id = path.split("/")[2];
-      await env.DB.prepare("DELETE FROM categories WHERE id = ?").bind(id).run();
+      await db.prepare("DELETE FROM categories WHERE id = ?").bind(id).run();
       return jsonResponse({ ok: true }, 200, origin);
     }
 
-    // المواد العلمية والصوتية (Materials)
     if (path === "/materials" && method === "GET") {
-      const { results } = await env.DB.prepare(
-        `SELECT m.*, COALESCE(c.name, m.category_name, 'عام') as category_name
-         FROM materials m
-         LEFT JOIN categories c ON CAST(m.category_id AS TEXT) = CAST(c.id AS TEXT)
-         ORDER BY datetime(COALESCE(m.published_at, m.created_at)) DESC, m.id DESC`
-      ).all();
+      const { results } = await db
+        .prepare(
+          `SELECT m.*, COALESCE(c.name, m.category_name, 'عام') as category_name
+           FROM materials m
+           LEFT JOIN categories c ON CAST(m.category_id AS TEXT) = CAST(c.id AS TEXT)
+           ORDER BY datetime(COALESCE(m.published_at, m.created_at)) DESC, m.id DESC`
+        )
+        .all();
       const formatted = (results || []).map((r) => ({
         ...r,
-        body: (() => { try { return JSON.parse(r.body || "[]"); } catch (_) { return []; } })(),
-        keywords: (() => { try { return JSON.parse(r.keywords || "[]"); } catch (_) { return []; } })(),
+        body: (() => {
+          try {
+            return JSON.parse(r.body || "[]");
+          } catch (_) {
+            return [];
+          }
+        })(),
+        keywords: (() => {
+          try {
+            return JSON.parse(r.keywords || "[]");
+          } catch (_) {
+            return [];
+          }
+        })(),
       }));
       return jsonResponse(formatted, 200, origin);
+    }
+    if (path.startsWith("/materials/") && method === "GET") {
+      const id = path.split("/")[2];
+      const r = await db.prepare("SELECT * FROM materials WHERE id = ?").bind(id).first();
+      if (!r) return jsonResponse({ error: "المادة غير موجودة" }, 404, origin);
+      r.body = (() => { try { return JSON.parse(r.body || "[]"); } catch (_) { return []; } })();
+      r.keywords = (() => { try { return JSON.parse(r.keywords || "[]"); } catch (_) { return []; } })();
+      return jsonResponse(r, 200, origin);
     }
     if (path === "/materials" && method === "POST") {
       const b = await request.json();
       const catId = b.category_id || b.category || null;
       let catName = b.category_name || b.categoryName || "عام";
       if (catId) {
-        const cRow = await env.DB.prepare("SELECT name FROM categories WHERE CAST(id AS TEXT) = ?").bind(String(catId)).first();
+        const cRow = await db.prepare("SELECT name FROM categories WHERE CAST(id AS TEXT) = ?").bind(String(catId)).first();
         if (cRow?.name) catName = cRow.name;
       }
       const audioUrl = b.audio_url || b.audio || null;
       const docUrl = b.document_url || b.pdf || null;
       const cType = b.content_type || b.type || (audioUrl ? "audio" : docUrl ? "book" : "article");
-      const res = await env.DB.prepare(
-        `INSERT INTO materials
-         (title, description, author, category_id, category_name, content_type, audio_url, document_url, archive_url, storage_key, duration, body, keywords, status, published_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
+      const res = await db
+        .prepare(
+          `INSERT INTO materials
+           (title, description, author, category_id, category_name, content_type, audio_url, document_url, archive_url, storage_key, duration, body, keywords, status, published_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
         .bind(
           b.title || "مادة جديدة",
           b.description || "",
@@ -420,31 +562,32 @@ async function handleApiRoute(request, env, url) {
           b.published_at || b.pubDate || new Date().toISOString()
         )
         .run();
-      const created = await env.DB.prepare("SELECT * FROM materials WHERE id = ?").bind(res.meta.last_row_id).first();
+      const created = await db.prepare("SELECT * FROM materials WHERE id = ?").bind(res.meta.last_row_id).first();
       return jsonResponse(created, 201, origin);
     }
     if (path.startsWith("/materials/") && (method === "PUT" || method === "PATCH")) {
       const id = path.split("/")[2];
       const b = await request.json();
-      const existing = await env.DB.prepare("SELECT * FROM materials WHERE id = ?").bind(id).first();
+      const existing = await db.prepare("SELECT * FROM materials WHERE id = ?").bind(id).first();
       if (!existing) return jsonResponse({ error: "المادة غير موجودة" }, 404, origin);
 
       const catId = b.category_id !== undefined ? b.category_id : b.category !== undefined ? b.category : existing.category_id;
       let catName = b.category_name || b.categoryName || existing.category_name || "عام";
       if (catId) {
-        const cRow = await env.DB.prepare("SELECT name FROM categories WHERE CAST(id AS TEXT) = ?").bind(String(catId)).first();
+        const cRow = await db.prepare("SELECT name FROM categories WHERE CAST(id AS TEXT) = ?").bind(String(catId)).first();
         if (cRow?.name) catName = cRow.name;
       }
       const audioUrl = b.audio_url !== undefined ? b.audio_url : b.audio !== undefined ? b.audio : existing.audio_url;
       const docUrl = b.document_url !== undefined ? b.document_url : b.pdf !== undefined ? b.pdf : existing.document_url;
       const cType = b.content_type || b.type || existing.content_type || (audioUrl ? "audio" : "article");
 
-      await env.DB.prepare(
-        `UPDATE materials SET
-         title = ?, description = ?, author = ?, category_id = ?, category_name = ?, content_type = ?,
-         audio_url = ?, document_url = ?, archive_url = ?, duration = ?, body = ?, keywords = ?, status = ?, published_at = ?
-         WHERE id = ?`
-      )
+      await db
+        .prepare(
+          `UPDATE materials SET
+           title = ?, description = ?, author = ?, category_id = ?, category_name = ?, content_type = ?,
+           audio_url = ?, document_url = ?, archive_url = ?, duration = ?, body = ?, keywords = ?, status = ?, published_at = ?
+           WHERE id = ?`
+        )
         .bind(
           b.title ?? existing.title,
           b.description ?? existing.description,
@@ -463,52 +606,53 @@ async function handleApiRoute(request, env, url) {
           id
         )
         .run();
-      const updated = await env.DB.prepare("SELECT * FROM materials WHERE id = ?").bind(id).first();
+      const updated = await db.prepare("SELECT * FROM materials WHERE id = ?").bind(id).first();
       return jsonResponse(updated, 200, origin);
     }
     if (path.startsWith("/materials/") && method === "DELETE") {
       const id = path.split("/")[2];
-      await env.DB.prepare("DELETE FROM materials WHERE id = ?").bind(id).run();
+      await db.prepare("DELETE FROM materials WHERE id = ?").bind(id).run();
       return jsonResponse({ ok: true }, 200, origin);
     }
 
-    // المحاضرات (Lectures)
     if (path === "/lectures" && method === "GET") {
-      const { results } = await env.DB.prepare("SELECT * FROM lectures ORDER BY lecture_date ASC, id DESC").all();
+      const { results } = await db.prepare("SELECT * FROM lectures ORDER BY lecture_date ASC, id DESC").all();
       return jsonResponse(results || [], 200, origin);
     }
     if (path === "/lectures" && method === "POST") {
       const b = await request.json();
-      const res = await env.DB.prepare(
-        "INSERT INTO lectures (title, mosque, lecture_date, lecture_time, notes, status) VALUES (?, ?, ?, ?, ?, ?)"
-      )
+      const res = await db
+        .prepare("INSERT INTO lectures (title, mosque, lecture_date, lecture_time, notes, status) VALUES (?, ?, ?, ?, ?, ?)")
         .bind(b.title, b.mosque || "", b.lecture_date || null, b.lecture_time || "", b.notes || "", b.status || "scheduled")
         .run();
-      const created = await env.DB.prepare("SELECT * FROM lectures WHERE id = ?").bind(res.meta.last_row_id).first();
+      const created = await db.prepare("SELECT * FROM lectures WHERE id = ?").bind(res.meta.last_row_id).first();
       return jsonResponse(created, 201, origin);
     }
     if (path.startsWith("/lectures/") && method === "DELETE") {
       const id = path.split("/")[2];
-      await env.DB.prepare("DELETE FROM lectures WHERE id = ?").bind(id).run();
+      await db.prepare("DELETE FROM lectures WHERE id = ?").bind(id).run();
       return jsonResponse({ ok: true }, 200, origin);
     }
 
-    // الأسئلة (Questions)
     if (path === "/questions" && method === "GET") {
-      const { results } = await env.DB.prepare("SELECT * FROM questions ORDER BY id DESC").all();
+      const { results } = await db.prepare("SELECT * FROM questions ORDER BY id DESC").all();
       return jsonResponse(results || [], 200, origin);
     }
     if (path === "/questions" && method === "POST") {
       const b = await request.json();
-      const res = await env.DB.prepare("INSERT INTO questions (question, asker_name, status) VALUES (?, ?, 'pending')")
+      const res = await db
+        .prepare("INSERT INTO questions (question, asker_name, status) VALUES (?, ?, 'pending')")
         .bind(b.question || b.text || "", b.asker_name || b.name || "زائر")
         .run();
-      const created = await env.DB.prepare("SELECT * FROM questions WHERE id = ?").bind(res.meta.last_row_id).first();
+      const created = await db.prepare("SELECT * FROM questions WHERE id = ?").bind(res.meta.last_row_id).first();
       return jsonResponse(created, 201, origin);
+    }
+    if (path === "/audit-logs" && method === "GET") {
+      const { results } = await db.prepare("SELECT * FROM audit_logs ORDER BY id DESC LIMIT 100").all();
+      return jsonResponse(results || [], 200, origin);
     }
   }
 
-  // 3. تمرير أي مسار إضافي كنسخة احتياطية إلى الباك إند القديم حتى يكتمل ربط D1
   const targetBackendUrl = `${OLD_BACKEND_API}${path}${url.search}`;
   const proxyReq = new Request(targetBackendUrl, {
     method,
@@ -525,12 +669,10 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // 1. معالجة جميع مسارات /api/* محلياً عبر Cloudflare D1 + R2
     if (url.pathname.startsWith("/api/") || url.pathname === "/api") {
       return handleApiRoute(request, env, url);
     }
 
-    // 2. معالجة صفحات الموقع بدون أي حلقة توجيه (No 301/308 Redirect Loops)
     if (env.ASSETS && typeof env.ASSETS.fetch === "function") {
       const normalizedPath = url.pathname.replace(/\/+$/, "") || "/";
       const mappedPath = PAGE_ALIASES[normalizedPath];
