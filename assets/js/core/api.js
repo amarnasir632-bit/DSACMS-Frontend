@@ -3,7 +3,7 @@
  * Handles unified fetch requests, 10s timeout, credentials, and backend communication.
  */
 
-const DEFAULT_PRODUCTION_API = "https://dsacms-backend.vercel.app/api";
+const DEFAULT_PRODUCTION_API = "/api";
 
 export function getApiBase() {
   if (typeof window !== "undefined") {
