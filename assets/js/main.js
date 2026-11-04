@@ -4861,3 +4861,11 @@ if (document.readyState === "loading") {
     initAllEnhancements();
   }
 })();
+
+// توجيه جميع طلبات الواجهة ولوحة الإدارة والرفع مباشرة إلى Cloudflare Worker المحلي (/api)
+try {
+  localStorage.removeItem("dsacms_api_base");
+  if (typeof API_CONFIG === "object" && API_CONFIG) {
+    API_CONFIG.baseUrl = "/api";
+  }
+} catch (_) {}
