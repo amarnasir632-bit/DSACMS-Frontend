@@ -546,15 +546,15 @@ async function handleApiRoute(request, env, url) {
     }
     if (path === "/materials" && method === "POST") {
       const b = await request.json();
-      const catId = b.category_id || b.category || null;
+      const catId = b.category_id ?? b.categoryId ?? b.category ?? null;
       let catName = b.category_name || b.categoryName || "عام";
       if (catId) {
         const cRow = await db.prepare("SELECT name FROM categories WHERE CAST(id AS TEXT) = ?").bind(String(catId)).first();
         if (cRow?.name) catName = cRow.name;
       }
-      const audioUrl = b.audio_url || b.audio || null;
-      const docUrl = b.document_url || b.pdf || null;
-      const cType = b.content_type || b.type || (audioUrl ? "audio" : docUrl ? "book" : "article");
+      const audioUrl = b.audio_url || b.audioUrl || b.audio || null;
+      const docUrl = b.document_url || b.documentUrl || b.pdf || null;
+      const cType = b.content_type || b.contentType || b.type || (audioUrl ? "audio" : docUrl ? "book" : "article");
       const res = await db
         .prepare(
           `INSERT INTO materials
@@ -572,7 +572,7 @@ async function handleApiRoute(request, env, url) {
           docUrl,
           b.archive_url || b.archiveUrl || null,
           b.storage_key || b.storageKey || null,
-          Number(b.duration || 0),
+          Number(b.duration_seconds ?? b.durationSeconds ?? b.duration ?? 0),
           JSON.stringify(b.body || []),
           JSON.stringify(b.keywords || []),
           String(b.status || "published").toLowerCase(),
@@ -588,15 +588,15 @@ async function handleApiRoute(request, env, url) {
       const existing = await db.prepare("SELECT * FROM materials WHERE id = ?").bind(id).first();
       if (!existing) return jsonResponse({ error: "المادة غير موجودة" }, 404, origin);
 
-      const catId = b.category_id !== undefined ? b.category_id : b.category !== undefined ? b.category : existing.category_id;
+      const catId = b.category_id !== undefined ? b.category_id : b.categoryId !== undefined ? b.categoryId : b.category !== undefined ? b.category : existing.category_id;
       let catName = b.category_name || b.categoryName || existing.category_name || "عام";
       if (catId) {
         const cRow = await db.prepare("SELECT name FROM categories WHERE CAST(id AS TEXT) = ?").bind(String(catId)).first();
         if (cRow?.name) catName = cRow.name;
       }
-      const audioUrl = b.audio_url !== undefined ? b.audio_url : b.audio !== undefined ? b.audio : existing.audio_url;
-      const docUrl = b.document_url !== undefined ? b.document_url : b.pdf !== undefined ? b.pdf : existing.document_url;
-      const cType = b.content_type || b.type || existing.content_type || (audioUrl ? "audio" : "article");
+      const audioUrl = b.audio_url !== undefined ? b.audio_url : b.audioUrl !== undefined ? b.audioUrl : b.audio !== undefined ? b.audio : existing.audio_url;
+      const docUrl = b.document_url !== undefined ? b.document_url : b.documentUrl !== undefined ? b.documentUrl : b.pdf !== undefined ? b.pdf : existing.document_url;
+      const cType = b.content_type || b.contentType || b.type || existing.content_type || (audioUrl ? "audio" : "article");
 
       await db
         .prepare(
@@ -615,7 +615,7 @@ async function handleApiRoute(request, env, url) {
           audioUrl,
           docUrl,
           b.archive_url ?? b.archiveUrl ?? existing.archive_url,
-          Number(b.duration ?? existing.duration ?? 0),
+          Number(b.duration_seconds ?? b.durationSeconds ?? b.duration ?? existing.duration ?? 0),
           b.body !== undefined ? JSON.stringify(b.body) : existing.body,
           b.keywords !== undefined ? JSON.stringify(b.keywords) : existing.keywords,
           String(b.status || existing.status || "published").toLowerCase(),
