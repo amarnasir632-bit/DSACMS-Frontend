@@ -4220,6 +4220,7 @@ html[data-theme="dark"] .fu-04 {
   display: block;
   width: 100%;
   margin-block: 0.75rem 1.25rem !important;
+   margin-bottom: 16px;
 }
 
 #downloads-section[hidden],
@@ -4244,5 +4245,5 @@ html[data-theme="dark"] .fu-04 {
   padding-block: 0.85rem !important;
   font-size: 1rem !important;
   font-weight: 700 !important;
-   margin-bottom: 16px;
+   
 }
