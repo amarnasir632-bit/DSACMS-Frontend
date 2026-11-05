@@ -1,5 +1,4 @@
 const DEFAULT_SITE_ORIGIN = "https://www.mohamedalahadi.com";
-const DEFAULT_API_URL = "https://dsacms-backend.vercel.app/api/materials";
 
 const escapeXml = (value) => String(value)
   .replace(/&/g, "&amp;")
@@ -16,7 +15,7 @@ function sitemapEntry(url, lastModified) {
 export async function onRequestGet(context) {
   const env = context.env || {};
   const siteOrigin = (env.SITE_ORIGIN || DEFAULT_SITE_ORIGIN).replace(/\/+$/, "");
-  const apiUrl = env.API_URL || DEFAULT_API_URL;
+  const apiUrl = new URL("/api/materials", context.request.url);
 
   const urls = [
     sitemapEntry(`${siteOrigin}/`),

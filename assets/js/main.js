@@ -14,6 +14,13 @@ import { initNavbar } from "./components/navbar.js";
 import { initHomePage } from "./pages/home.js";
 import { initSearchPage } from "./pages/search.js";
 
+try {
+  const savedBase = localStorage.getItem("dsacms_api_base") || "";
+  if (savedBase.includes("vercel.app") || savedBase.includes("workers.dev")) {
+    localStorage.removeItem("dsacms_api_base");
+  }
+} catch (_) {}
+
 /* ----------------------------------------------------------------------
    0) أدوات مساعدة (Utilities)
    ---------------------------------------------------------------------- */
@@ -366,24 +373,8 @@ async function copyTextToClipboard(text) {
 /* ----------------------------------------------------------------------
    1) مصدر البيانات (REST API)
    ---------------------------------------------------------------------- */
-const API_CONFIG = {
-  baseUrl: (() => {
-    if (typeof window !== "undefined") {
-      if (window.DSACMS_API_BASE) return window.DSACMS_API_BASE;
-      try {
-        const stored = localStorage.getItem("dsacms_api_base");
-        if (stored) {
-          if (stored.includes("onrender.com") || stored.includes("localhost")) {
-            localStorage.removeItem("dsacms_api_base");
-          } else {
-            return stored;
-          }
-        }
-      } catch (_) { }
-    }
-    return "https://dsacms-backend.vercel.app/api";
-  })().replace(/\/$/, ""),
-};
+const DEFAULT_API_BASE = "/api";
+const API_CONFIG = { baseUrl: DEFAULT_API_BASE };
 let apiCategories = [];
 let apiContents = [];
 let apiUsers = [];
@@ -740,7 +731,7 @@ function normalizeMaterial(row) {
     title: String(row.title || "بدون عنوان"),
     description: row.description || "",
     author: row.author || "غير محدد",
-    category: String(row.category_id || row.categoryId || row.category || ""),
+    category: row.category_id != null ? String(row.category_id) : row.categoryId != null ? String(row.categoryId) : String(row.category || ""),
     categoryName: row.category_name || row.categoryName || "عام",
     keywords: Array.isArray(row.keywords) ? row.keywords : [],
     body,
@@ -803,23 +794,19 @@ async function fetchApi(path, options) {
 
 async function fetchPublicJsonWithFallback(endpointPath) {
   const cleanPath = endpointPath.startsWith("/") ? endpointPath : `/${endpointPath}`;
-  for (const url of [`/api${cleanPath}`, `https://dsacms-backend.vercel.app/api${cleanPath}`]) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
-    try {
-      const res = await fetch(url, { method: "GET", headers: { Accept: "application/json" }, signal: controller.signal });
-      if (res.ok) {
-        const data = await res.json();
-        const list = Array.isArray(data) ? data : data?.items || data?.materials || data?.categories || data?.data || [];
-        if (Array.isArray(list) && list.length) return list;
-      }
-    } catch (_) {
-      // Continue to the public backend when the same-origin route is unavailable.
-    } finally {
-      clearTimeout(timer);
-    }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
+  try {
+    const res = await fetch(`/api${cleanPath}`, { method: "GET", headers: { Accept: "application/json" }, signal: controller.signal });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const list = Array.isArray(data) ? data : data?.items || data?.materials || data?.categories || data?.data || [];
+    return Array.isArray(list) ? list : [];
+  } catch (_) {
+    return [];
+  } finally {
+    clearTimeout(timer);
   }
-  return [];
 }
 
 async function loadRemoteData() {
@@ -4053,7 +4040,18 @@ async function initDashboard() {
           `تأكيد ${u.status === "active" ? "تعطيل" : "تفعيل"} حساب «${u.name}».`
         );
         if (!ok) return;
-        u.status = u.status === "active" ? "inactive" : "active";
+        const nextStatus = u.status === "active" ? "inactive" : "active";
+        try {
+          await fetchApi(`/auth/users/${encodeURIComponent(u.id)}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status: nextStatus }),
+          });
+        } catch (error) {
+          showToast(error.message || "تعذر تحديث حالة المستخدم على الخادم.", "error");
+          return;
+        }
+        u.status = nextStatus;
         saveUsers(users);
         logAudit("UPDATE_USER_STATUS", u.username, "OK");
         showToast("تم تحديث حالة المستخدم.");
@@ -4146,7 +4144,7 @@ async function initDashboard() {
         created = await fetchApi("/auth/users", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, password, role: role === "site_admin" ? "admin" : role }),
+          body: JSON.stringify({ name, username, password, role: role === "site_admin" ? "admin" : role }),
         });
       } catch (error) {
         showToast("تعذر إنشاء الحساب على الخادم. تحقق من الاتصال أو من أن اسم المستخدم غير مكرر.", "error");

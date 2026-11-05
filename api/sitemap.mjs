@@ -1,5 +1,4 @@
 const SITE_ORIGIN = "https://www.mohamedalahadi.com";
-const API_URL = "https://dsacms-backend.vercel.app/api/materials";
 
 const escapeXml = (value) => String(value)
   .replace(/&/g, "&amp;")
@@ -13,7 +12,7 @@ function sitemapEntry(url, lastModified) {
   return `  <url>\n    <loc>${escapeXml(url)}</loc>${lastmod}\n  </url>`;
 }
 
-export async function GET() {
+export async function GET(request) {
   const urls = [
     sitemapEntry(`${SITE_ORIGIN}/`),
     sitemapEntry(`${SITE_ORIGIN}/pages/about.html`),
@@ -23,7 +22,7 @@ export async function GET() {
   ];
 
   try {
-    const response = await fetch(API_URL, { signal: AbortSignal.timeout(8000) });
+    const response = await fetch(new URL("/api/materials", request.url), { signal: AbortSignal.timeout(8000) });
     if (!response.ok) throw new Error(`Backend returned ${response.status}`);
     const materials = await response.json();
     if (!Array.isArray(materials)) throw new Error("Backend returned an invalid materials list");

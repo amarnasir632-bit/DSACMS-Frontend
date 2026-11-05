@@ -7,14 +7,11 @@ const DEFAULT_PRODUCTION_API = "/api";
 
 export function getApiBase() {
   if (typeof window !== "undefined") {
-    if (window.DSACMS_API_BASE) return window.DSACMS_API_BASE;
     try {
       const stored = localStorage.getItem("dsacms_api_base");
       if (stored) {
-        if (stored.includes("onrender.com") || stored.includes("localhost")) {
+        if (/vercel\.app|workers\.dev|onrender\.com|localhost/i.test(stored)) {
           localStorage.removeItem("dsacms_api_base");
-        } else {
-          return stored;
         }
       }
     } catch (_) {}
@@ -24,9 +21,10 @@ export function getApiBase() {
 
 export function setApiBase(url) {
   if (typeof window !== "undefined") {
-    window.DSACMS_API_BASE = url;
+    const safeUrl = /vercel\.app|workers\.dev/i.test(String(url || "")) ? DEFAULT_PRODUCTION_API : url;
+    window.DSACMS_API_BASE = safeUrl;
     try {
-      localStorage.setItem("dsacms_api_base", url);
+      localStorage.setItem("dsacms_api_base", safeUrl);
     } catch (_) {}
   }
 }

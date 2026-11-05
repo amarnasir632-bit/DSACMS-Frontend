@@ -3,9 +3,6 @@
  * يتعرف تلقائياً على ربط D1 و R2 بأي اسم متغير، وينقل البيانات تلقائياً، ويشغل الرفع المباشر إلى R2
  */
 
-const OLD_BACKEND_API = "https://dsacms-backend.vercel.app/api";
-const R2_PUBLIC_BASE = "https://media.mohamedalahadi.com";
-
 const PAGE_ALIASES = {
   "/home.html": "/index.html",
   "/index": "/index.html",
@@ -83,7 +80,7 @@ async function sha256Hex(text) {
     .join("");
 }
 
-async function ensureD1SchemaAndMigrate(db) {
+async function ensureD1SchemaAndMigrate(db, env = {}) {
   if (!db) return { initialized: false, reason: "لم يتم العثور على ربط D1" };
 
   await db.batch([
@@ -139,6 +136,15 @@ async function ensureD1SchemaAndMigrate(db) {
       username TEXT,
       password_hash TEXT NOT NULL,
       role TEXT DEFAULT 'admin',
+      status TEXT DEFAULT 'active',
+      must_change_password INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS auth_sessions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      token_hash TEXT UNIQUE NOT NULL,
+      expires_at TEXT NOT NULL,
       created_at TEXT DEFAULT (datetime('now'))
     )`),
     db.prepare(`CREATE TABLE IF NOT EXISTS audit_logs (
@@ -149,101 +155,37 @@ async function ensureD1SchemaAndMigrate(db) {
       created_at TEXT DEFAULT (datetime('now'))
     )`),
   ]);
+  try { await db.prepare("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active'").run(); } catch (_) {}
+  try { await db.prepare("ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0").run(); } catch (_) {}
 
-  const countRow = await db.prepare("SELECT COUNT(*) as total FROM materials").first();
-  let migratedMaterials = 0;
-  let migratedCategories = 0;
-  let migratedLectures = 0;
-
-  if (!countRow || Number(countRow.total) === 0) {
-    try {
-      const [catsRes, matsRes, lecsRes] = await Promise.allSettled([
-        fetch(`${OLD_BACKEND_API}/categories`).then((r) => (r.ok ? r.json() : [])),
-        fetch(`${OLD_BACKEND_API}/materials`).then((r) => (r.ok ? r.json() : [])),
-        fetch(`${OLD_BACKEND_API}/lectures`).then((r) => (r.ok ? r.json() : [])),
-      ]);
-
-      const cats =
-        catsRes.status === "fulfilled"
-          ? Array.isArray(catsRes.value)
-            ? catsRes.value
-            : catsRes.value?.items || catsRes.value?.categories || []
-          : [];
-      for (const c of cats) {
-        await db
-          .prepare("INSERT OR IGNORE INTO categories (id, name, description, icon) VALUES (?, ?, ?, ?)")
-          .bind(c.id || null, c.name || c.title || "تصنيف", c.description || "", c.icon || "📚")
-          .run();
-        migratedCategories++;
-      }
-
-      const mats =
-        matsRes.status === "fulfilled"
-          ? Array.isArray(matsRes.value)
-            ? matsRes.value
-            : matsRes.value?.items || matsRes.value?.materials || []
-          : [];
-      for (const m of mats) {
-        const bodyStr = typeof m.body === "string" ? m.body : JSON.stringify(m.body || []);
-        const kwStr = typeof m.keywords === "string" ? m.keywords : JSON.stringify(m.keywords || []);
-        await db
-          .prepare(
-            `INSERT OR IGNORE INTO materials
-             (id, title, description, author, category_id, category_name, content_type, audio_url, document_url, archive_url, storage_key, duration, body, keywords, status, published_at, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-          )
-          .bind(
-            m.id || null,
-            m.title || "مادة علمية",
-            m.description || "",
-            m.author || "الشيخ محمد أحمد الهادي الكرار",
-            m.category_id || m.category || null,
-            m.category_name || m.categoryName || "عام",
-            m.content_type || m.type || (m.audio_url || m.audio ? "audio" : "article"),
-            m.audio_url || m.audio || null,
-            m.document_url || m.pdf || null,
-            m.archive_url || m.archiveUrl || null,
-            m.storage_key || m.storageKey || null,
-            Number(m.duration || 0),
-            bodyStr,
-            kwStr,
-            String(m.status || "published").toLowerCase(),
-            m.published_at || m.pubDate || m.created_at || new Date().toISOString(),
-            m.created_at || new Date().toISOString()
-          )
-          .run();
-        migratedMaterials++;
-      }
-
-      const lecs =
-        lecsRes.status === "fulfilled"
-          ? Array.isArray(lecsRes.value)
-            ? lecsRes.value
-            : lecsRes.value?.items || []
-          : [];
-      for (const l of lecs) {
-        await db
-          .prepare(
-            "INSERT OR IGNORE INTO lectures (id, title, mosque, lecture_date, lecture_time, notes, status) VALUES (?, ?, ?, ?, ?, ?, ?)"
-          )
-          .bind(
-            l.id || null,
-            l.title || "محاضرة",
-            l.mosque || "",
-            l.lecture_date || null,
-            l.lecture_time || "",
-            l.notes || "",
-            l.status || "scheduled"
-          )
-          .run();
-        migratedLectures++;
-      }
-    } catch (err) {
-      console.error("Auto-migration warning:", err);
-    }
+  const userCount = await db.prepare("SELECT COUNT(*) as total FROM users").first();
+  if (Number(userCount?.total || 0) === 0) {
+    const identifier = String(env.DSACMS_INITIAL_ADMIN_USERNAME || "admin").trim().toLowerCase();
+    const email = String(env.DSACMS_INITIAL_ADMIN_EMAIL || "admin@dsacms.local").trim().toLowerCase();
+    const password = String(env.DSACMS_INITIAL_ADMIN_PASSWORD || "DSACMS-Initial-Admin-2026!");
+    await db.prepare(
+      "INSERT INTO users (name, email, username, password_hash, role, status, must_change_password) VALUES (?, ?, ?, ?, 'admin', 'active', 1)"
+    ).bind("مدير النظام", email, identifier, await sha256Hex(password)).run();
   }
+  return { initialized: true, usersSeeded: Number(userCount?.total || 0) === 0 };
+}
 
-  return { initialized: true, migratedCategories, migratedMaterials, migratedLectures };
+async function writeAuditLog(db, request, action, details = "") {
+  const session = await getD1SessionUser(db, request).catch(() => null);
+  const actor = String(session?.username || session?.email || "system").slice(0, 160);
+  await db.prepare("INSERT INTO audit_logs (action, actor, details) VALUES (?, ?, ?)")
+    .bind(action, actor, String(details || "").slice(0, 1000)).run();
+}
+
+async function getD1SessionUser(db, request) {
+  const authorization = request.headers.get("Authorization") || "";
+  const token = authorization.replace(/^Bearer\s+/i, "").trim();
+  if (!token) return null;
+  return db.prepare(
+    `SELECT u.id, u.name, u.email, u.username, u.role, u.status
+     FROM auth_sessions s JOIN users u ON u.id = s.user_id
+     WHERE s.token_hash = ? AND s.expires_at > ? AND u.status = 'active'`
+  ).bind(await sha256Hex(token), new Date().toISOString()).first();
 }
 
 function getRealExt(urlStr, fallback = ".mp3") {
@@ -279,7 +221,11 @@ async function handleDownloadProxy(request, env, url) {
   if (r2) {
     try {
       const parsedTarget = new URL(targetUrl, url.origin);
-      const r2Key = decodeURIComponent(parsedTarget.pathname.replace(/^\/+/, ""));
+      const mediaPrefix = "/api/media/";
+      const mediaIndex = parsedTarget.pathname.indexOf(mediaPrefix);
+      const r2Key = decodeURIComponent(mediaIndex >= 0
+        ? parsedTarget.pathname.slice(mediaIndex + mediaPrefix.length)
+        : parsedTarget.pathname.replace(/^\/+/, ""));
       const obj = await r2.get(r2Key);
       if (obj) {
         const headers = new Headers(corsHeaders(origin));
@@ -320,31 +266,33 @@ async function handleApiRoute(request, env, url) {
       return jsonResponse(
         {
           status: "waiting_for_binding",
-          message: "تم تشغيل _worker.js الجديد بنجاح! لكن ربط قاعدة بيانات D1 غير ظاهر في المتغيرات حالياً.",
+          message: "تم تشغيل _worker.js لكن ربط قاعدة بيانات D1 غير ظاهر في المتغيرات حالياً.",
           detectedEnvKeys: Object.keys(env || {}),
           dbBound: false,
           r2Bound: Boolean(r2),
           howToFix:
-            "بما أن النشر من GitHub قد اكتمل الآن، ادخل إلى Cloudflare Dashboard -> Settings -> Bindings وأضف ربط D1 و R2 واضغط Save/Deploy، أو أضف database_id في ملف wrangler.jsonc.",
+            "ادخل إلى Cloudflare Dashboard -> Settings -> Bindings وأضف ربط D1 و R2 ثم أعد النشر، أو راجع wrangler.toml.",
         },
         200,
         origin
       );
     }
-    const migInfo = await ensureD1SchemaAndMigrate(db);
+    const migInfo = await ensureD1SchemaAndMigrate(db, env);
     const matCount = await db.prepare("SELECT COUNT(*) as c FROM materials").first();
     const catCount = await db.prepare("SELECT COUNT(*) as c FROM categories").first();
     const lecCount = await db.prepare("SELECT COUNT(*) as c FROM lectures").first();
+    const userCount = await db.prepare("SELECT COUNT(*) as c FROM users").first();
     return jsonResponse(
       {
         status: "ok",
-        message: "تم تفعيل Cloudflare D1 + R2 ونقل جميع البيانات بنجاح!",
+        message: "Cloudflare D1 و R2 جاهزان لمعالجة بيانات الموقع وملفاته.",
         detectedEnvKeys: Object.keys(env || {}),
         dbBound: true,
         r2Bound: Boolean(r2),
         materialsCount: matCount?.c || 0,
         categoriesCount: catCount?.c || 0,
         lecturesCount: lecCount?.c || 0,
+        usersCount: userCount?.c || 0,
         migration: migInfo,
       },
       200,
@@ -356,7 +304,7 @@ async function handleApiRoute(request, env, url) {
     return handleDownloadProxy(request, env, url);
   }
 
-  // 1. الرفع المباشر إلى حاوية R2 المربوطة بالـ Worker
+  // الرفع المباشر إلى حاوية R2 المربوطة بالـ Worker
   if (path === "/r2-upload" && method === "PUT") {
     if (!r2) {
       return jsonResponse({ error: "حاوية R2 غير مربوطة بعد في إعدادات Cloudflare Bindings" }, 503, origin);
@@ -370,11 +318,27 @@ async function handleApiRoute(request, env, url) {
     return jsonResponse({ ok: true, fileUrl, storageKey: key }, 200, origin);
   }
 
-    // قراءة وتشغيل الملفات الصوتية والـ PDF مباشرة من حاوية R2 على نفس نطاق الموقع
+  // قراءة الملفات من R2 مع دعم طلبات الوسائط ذات النطاق الجزئي (stream seeking).
   if (path.startsWith("/media/") && (method === "GET" || method === "HEAD")) {
     if (!r2) return jsonResponse({ error: "R2 not bound" }, 404, origin);
     const key = decodeURIComponent(path.replace(/^\/media\//, ""));
-    const obj = await r2.get(key);
+    const rangeHeader = request.headers.get("Range");
+    const meta = method === "HEAD" || rangeHeader ? await r2.head(key) : null;
+    if ((method === "HEAD" || rangeHeader) && !meta) return jsonResponse({ error: "الملف غير موجود في R2" }, 404, origin);
+    let range = null;
+    if (rangeHeader && meta) {
+      const match = rangeHeader.match(/^bytes=(\d*)-(\d*)$/i);
+      if (!match || (!match[1] && !match[2])) {
+        return new Response(null, { status: 416, headers: { ...corsHeaders(origin), "Content-Range": `bytes */${meta.size}` } });
+      }
+      const start = match[1] ? Number(match[1]) : Math.max(0, meta.size - Number(match[2]));
+      const end = match[1] ? Math.min(meta.size - 1, match[2] ? Number(match[2]) : meta.size - 1) : meta.size - 1;
+      if (start >= meta.size || end < start) {
+        return new Response(null, { status: 416, headers: { ...corsHeaders(origin), "Content-Range": `bytes */${meta.size}` } });
+      }
+      range = { offset: start, length: end - start + 1 };
+    }
+    const obj = method === "HEAD" ? meta : await r2.get(key, range ? { range } : {});
     if (!obj) return jsonResponse({ error: "الملف غير موجود في R2" }, 404, origin);
     const headers = new Headers(corsHeaders(origin));
     const ext = getRealExt(key, ".mp3");
@@ -384,8 +348,15 @@ async function handleApiRoute(request, env, url) {
     headers.set("Content-Type", mime);
     headers.set("Accept-Ranges", "bytes");
     headers.set("Cache-Control", "public, max-age=31536000");
-    if (obj.size) headers.set("Content-Length", String(obj.size));
-    return new Response(method === "HEAD" ? null : obj.body, { status: 200, headers });
+    if (range) {
+      const first = range.offset;
+      const last = first + range.length - 1;
+      headers.set("Content-Range", `bytes ${first}-${last}/${meta.size}`);
+      headers.set("Content-Length", String(range.length));
+    } else if (obj.size != null) {
+      headers.set("Content-Length", String(obj.size));
+    }
+    return new Response(method === "HEAD" ? null : obj.body, { status: range ? 206 : 200, headers });
   }
 
   if ((path === "/media-upload" || path === "/uploads/presigned-url") && method === "POST") {
@@ -414,15 +385,16 @@ async function handleApiRoute(request, env, url) {
         origin
       );
     }
+    return jsonResponse({ error: "حاوية R2 غير مربوطة في Worker" }, 503, origin);
   }
 
 
   // 2. تشغيل جميع مسارات الموقع من قاعدة بيانات Cloudflare D1 مباشرة
   if (db) {
-    await ensureD1SchemaAndMigrate(db);
+    await ensureD1SchemaAndMigrate(db, env);
 
     if (path === "/auth/login" && method === "POST") {
-      const b = await request.clone().json().catch(() => ({}));
+      const b = await request.json().catch(() => ({}));
       const identifier = String(b.email || b.username || b.identifier || "").trim().toLowerCase();
       const pass = String(b.password || "");
       const passHash = await sha256Hex(pass);
@@ -432,51 +404,94 @@ async function handleApiRoute(request, env, url) {
         .bind(identifier, identifier)
         .first();
 
-      if (localUser && localUser.password_hash === passHash) {
-        const token = `d1_${await sha256Hex(localUser.email + ":" + Date.now())}`;
+      if (localUser && localUser.status !== "inactive" && localUser.password_hash === passHash) {
+        const token = `d1_${crypto.randomUUID()}_${await sha256Hex(localUser.email + ":" + Date.now())}`;
+        await db.prepare("INSERT INTO auth_sessions (user_id, token_hash, expires_at) VALUES (?, ?, ?)")
+          .bind(localUser.id, await sha256Hex(token), new Date(Date.now() + 30 * 86400000).toISOString()).run();
         return jsonResponse(
           {
             token,
-            user: { id: localUser.id, name: localUser.name, email: localUser.email, role: localUser.role || "admin" },
+            user: { id: localUser.id, name: localUser.name, email: localUser.email, username: localUser.username, role: localUser.role || "admin", mustChangePassword: Boolean(localUser.must_change_password) },
           },
           200,
           origin
         );
       }
-
-      try {
-        const upstreamLogin = await fetch(`${OLD_BACKEND_API}/auth/login`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(b),
-        });
-        if (upstreamLogin.ok) {
-          const data = await upstreamLogin.json();
-          if (data?.user) {
-            await db
-              .prepare(
-                "INSERT OR REPLACE INTO users (id, name, email, username, password_hash, role) VALUES (?, ?, ?, ?, ?, ?)"
-              )
-              .bind(
-                data.user.id || 1,
-                data.user.name || "المدير",
-                String(data.user.email || identifier).toLowerCase(),
-                String(data.user.username || identifier).toLowerCase(),
-                passHash,
-                data.user.role || "admin"
-              )
-              .run();
-          }
-          return jsonResponse(data, 200, origin);
-        }
-      } catch (_) {}
+      return jsonResponse({ error: "اسم المستخدم أو كلمة المرور غير صحيحة" }, 401, origin);
     }
 
-    if (path === "/users" && method === "GET") {
-      const { results } = await db.prepare("SELECT id, name, email, username, role, created_at FROM users ORDER BY id ASC").all();
-      if (results && results.length > 0) {
-        return jsonResponse(results, 200, origin);
+    if (path === "/auth/change-password" && method === "POST") {
+      const actor = await getD1SessionUser(db, request);
+      if (!actor) return jsonResponse({ error: "authentication is required" }, 401, origin);
+      const b = await request.json().catch(() => ({}));
+      if (String(b.newPassword || "").length < 8) return jsonResponse({ error: "كلمة المرور يجب ألا تقل عن 8 أحرف" }, 400, origin);
+      const user = await db.prepare("SELECT password_hash FROM users WHERE id = ?").bind(actor.id).first();
+      if (!user || user.password_hash !== await sha256Hex(String(b.currentPassword || ""))) {
+        return jsonResponse({ error: "كلمة المرور الحالية غير صحيحة" }, 401, origin);
       }
+      await db.prepare("UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?").bind(await sha256Hex(String(b.newPassword)), actor.id).run();
+      await writeAuditLog(db, request, "CHANGE_PASSWORD", actor.username || actor.email);
+      return jsonResponse({ ok: true }, 200, origin);
+    }
+
+    const usersBasePath = path === "/auth/users" || path === "/users";
+    const userId = usersBasePath ? null : path.match(/^\/(?:auth\/)?users\/([^/]+)$/)?.[1];
+    if (usersBasePath || (userId && ["PUT", "PATCH", "DELETE"].includes(method))) {
+      const actor = await getD1SessionUser(db, request);
+      if (!actor) return jsonResponse({ error: "authentication is required" }, 401, origin);
+      if (!(["admin", "site_admin"].includes(actor.role))) return jsonResponse({ error: "forbidden" }, 403, origin);
+      if (method === "GET" && usersBasePath) {
+        const { results } = await db.prepare("SELECT id, name, email, username, role, status, created_at FROM users ORDER BY id ASC").all();
+        return jsonResponse(results || [], 200, origin);
+      }
+      if (method === "POST" && usersBasePath) {
+        const b = await request.json().catch(() => ({}));
+        const username = String(b.username || b.email || "").trim().toLowerCase();
+        const password = String(b.password || "");
+        const email = String(b.email || (username.includes("@") ? username : `${username}@dsacms.local`)).trim().toLowerCase();
+        if (!username || password.length < 8) return jsonResponse({ error: "username and a password of at least 8 characters are required" }, 400, origin);
+        try {
+          const result = await db.prepare("INSERT INTO users (name, email, username, password_hash, role, status) VALUES (?, ?, ?, ?, ?, 'active')")
+            .bind(String(b.name || username), email, username, await sha256Hex(password), String(b.role || "manager")).run();
+          const created = await db.prepare("SELECT id, name, email, username, role, status FROM users WHERE id = ?").bind(result.meta.last_row_id).first();
+          await writeAuditLog(db, request, "CREATE_USER", username);
+          return jsonResponse(created, 201, origin);
+        } catch (_) { return jsonResponse({ error: "اسم المستخدم أو البريد مستخدم مسبقاً" }, 409, origin); }
+      }
+      if (userId && method === "DELETE") {
+        if (String(actor.id) === decodeURIComponent(userId)) return jsonResponse({ error: "لا يمكن حذف الحساب الحالي" }, 400, origin);
+        await db.prepare("DELETE FROM users WHERE id = ?").bind(decodeURIComponent(userId)).run();
+        await db.prepare("DELETE FROM auth_sessions WHERE user_id = ?").bind(decodeURIComponent(userId)).run();
+        await writeAuditLog(db, request, "DELETE_USER", userId);
+        return jsonResponse({ ok: true }, 200, origin);
+      }
+      if (userId && ["PUT", "PATCH"].includes(method)) {
+        const b = await request.json().catch(() => ({}));
+        const existing = await db.prepare("SELECT * FROM users WHERE id = ?").bind(decodeURIComponent(userId)).first();
+        if (!existing) return jsonResponse({ error: "المستخدم غير موجود" }, 404, origin);
+        const passwordHash = b.password ? await sha256Hex(String(b.password)) : existing.password_hash;
+        await db.prepare("UPDATE users SET name = ?, email = ?, username = ?, role = ?, status = ?, password_hash = ? WHERE id = ?")
+          .bind(b.name ?? existing.name, b.email ?? existing.email, b.username ?? existing.username, b.role ?? existing.role, b.status ?? existing.status, passwordHash, existing.id).run();
+        if (b.password) await db.prepare("DELETE FROM auth_sessions WHERE user_id = ?").bind(existing.id).run();
+        const updated = await db.prepare("SELECT id, name, email, username, role, status FROM users WHERE id = ?").bind(existing.id).first();
+        await writeAuditLog(db, request, "UPDATE_USER", userId);
+        return jsonResponse(updated, 200, origin);
+      }
+    }
+
+    const protectedWrite = ["POST", "PUT", "PATCH", "DELETE"].includes(method) && (
+      path === "/categories" || path.startsWith("/categories/") ||
+      path === "/materials" || path.startsWith("/materials/") ||
+      path === "/lectures" || path.startsWith("/lectures/") ||
+      (path.startsWith("/questions/") && path !== "/questions")
+    );
+    if (protectedWrite) {
+      const actor = await getD1SessionUser(db, request);
+      if (!actor) return jsonResponse({ error: "authentication is required" }, 401, origin);
+      const allowedRoles = path.startsWith("/materials") || path.startsWith("/lectures")
+        ? ["admin", "site_admin", "manager"]
+        : ["admin", "site_admin"];
+      if (!allowedRoles.includes(actor.role)) return jsonResponse({ error: "forbidden" }, 403, origin);
     }
 
     if (path === "/categories" && method === "GET") {
@@ -490,6 +505,7 @@ async function handleApiRoute(request, env, url) {
         .bind(b.name || b.title, b.description || "", b.icon || "📚")
         .run();
       const created = await db.prepare("SELECT * FROM categories WHERE id = ?").bind(res.meta.last_row_id).first();
+      await writeAuditLog(db, request, "CREATE_CATEGORY", created?.name || b.name || b.title || "");
       return jsonResponse(created, 201, origin);
     }
     if (path.startsWith("/categories/") && (method === "PUT" || method === "PATCH")) {
@@ -500,11 +516,14 @@ async function handleApiRoute(request, env, url) {
         .bind(b.name || b.title || null, b.description ?? null, b.icon ?? null, id)
         .run();
       const updated = await db.prepare("SELECT * FROM categories WHERE id = ?").bind(id).first();
+      await writeAuditLog(db, request, "UPDATE_CATEGORY", updated?.name || id);
       return jsonResponse(updated, 200, origin);
     }
     if (path.startsWith("/categories/") && method === "DELETE") {
       const id = path.split("/")[2];
+      const removed = await db.prepare("SELECT name FROM categories WHERE id = ?").bind(id).first();
       await db.prepare("DELETE FROM categories WHERE id = ?").bind(id).run();
+      await writeAuditLog(db, request, "DELETE_CATEGORY", removed?.name || id);
       return jsonResponse({ ok: true }, 200, origin);
     }
 
@@ -580,6 +599,7 @@ async function handleApiRoute(request, env, url) {
         )
         .run();
       const created = await db.prepare("SELECT * FROM materials WHERE id = ?").bind(res.meta.last_row_id).first();
+      await writeAuditLog(db, request, "CREATE_MATERIAL", created?.title || b.title || "");
       return jsonResponse(created, 201, origin);
     }
     if (path.startsWith("/materials/") && (method === "PUT" || method === "PATCH")) {
@@ -624,11 +644,14 @@ async function handleApiRoute(request, env, url) {
         )
         .run();
       const updated = await db.prepare("SELECT * FROM materials WHERE id = ?").bind(id).first();
+      await writeAuditLog(db, request, "UPDATE_MATERIAL", updated?.title || id);
       return jsonResponse(updated, 200, origin);
     }
     if (path.startsWith("/materials/") && method === "DELETE") {
       const id = path.split("/")[2];
+      const removed = await db.prepare("SELECT title FROM materials WHERE id = ?").bind(id).first();
       await db.prepare("DELETE FROM materials WHERE id = ?").bind(id).run();
+      await writeAuditLog(db, request, "DELETE_MATERIAL", removed?.title || id);
       return jsonResponse({ ok: true }, 200, origin);
     }
 
@@ -644,6 +667,16 @@ async function handleApiRoute(request, env, url) {
         .run();
       const created = await db.prepare("SELECT * FROM lectures WHERE id = ?").bind(res.meta.last_row_id).first();
       return jsonResponse(created, 201, origin);
+    }
+    if (path.startsWith("/lectures/") && ["PUT", "PATCH"].includes(method)) {
+      const id = path.split("/")[2];
+      const b = await request.json().catch(() => ({}));
+      const current = await db.prepare("SELECT * FROM lectures WHERE id = ?").bind(id).first();
+      if (!current) return jsonResponse({ error: "المحاضرة غير موجودة" }, 404, origin);
+      await db.prepare(`UPDATE lectures SET title = ?, mosque = ?, lecture_date = ?, lecture_time = ?, notes = ?, status = ? WHERE id = ?`)
+        .bind(b.title ?? current.title, b.mosque ?? current.mosque, b.lecture_date ?? b.lectureDate ?? current.lecture_date,
+          b.lecture_time ?? b.lectureTime ?? current.lecture_time, b.notes ?? current.notes, b.status ?? current.status, id).run();
+      return jsonResponse(await db.prepare("SELECT * FROM lectures WHERE id = ?").bind(id).first(), 200, origin);
     }
     if (path.startsWith("/lectures/") && method === "DELETE") {
       const id = path.split("/")[2];
@@ -664,22 +697,29 @@ async function handleApiRoute(request, env, url) {
       const created = await db.prepare("SELECT * FROM questions WHERE id = ?").bind(res.meta.last_row_id).first();
       return jsonResponse(created, 201, origin);
     }
+    if (path.startsWith("/questions/") && ["PUT", "PATCH"].includes(method)) {
+      const id = path.split("/")[2];
+      const b = await request.json().catch(() => ({}));
+      const current = await db.prepare("SELECT * FROM questions WHERE id = ?").bind(id).first();
+      if (!current) return jsonResponse({ error: "السؤال غير موجود" }, 404, origin);
+      await db.prepare("UPDATE questions SET question = ?, asker_name = ?, answer = ?, status = ?, answered_at = ? WHERE id = ?")
+        .bind(b.question ?? b.text ?? current.question, b.asker_name ?? b.askerName ?? current.asker_name,
+          b.answer ?? current.answer, b.status ?? current.status, b.answered_at ?? b.answeredAt ?? current.answered_at, id).run();
+      return jsonResponse(await db.prepare("SELECT * FROM questions WHERE id = ?").bind(id).first(), 200, origin);
+    }
+    if (path.startsWith("/questions/") && method === "DELETE") {
+      const id = path.split("/")[2];
+      await db.prepare("DELETE FROM questions WHERE id = ?").bind(id).run();
+      return jsonResponse({ ok: true }, 200, origin);
+    }
     if (path === "/audit-logs" && method === "GET") {
       const { results } = await db.prepare("SELECT * FROM audit_logs ORDER BY id DESC LIMIT 100").all();
       return jsonResponse(results || [], 200, origin);
     }
   }
 
-  const targetBackendUrl = `${OLD_BACKEND_API}${path}${url.search}`;
-  const proxyReq = new Request(targetBackendUrl, {
-    method,
-    headers: request.headers,
-    body: ["GET", "HEAD"].includes(method) ? null : request.body,
-  });
-  const backendRes = await fetch(proxyReq);
-  const resHeaders = new Headers(backendRes.headers);
-  Object.entries(corsHeaders(origin)).forEach(([k, v]) => resHeaders.set(k, v));
-  return new Response(backendRes.body, { status: backendRes.status, headers: resHeaders });
+  if (!db) return jsonResponse({ error: "Cloudflare D1 binding is not configured" }, 503, origin);
+  return jsonResponse({ error: "المسار غير موجود" }, 404, origin);
 }
 
 export default {
