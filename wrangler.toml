@@ -1,22 +1,16 @@
-{
-  "name": "dsacms-frontend",
-  "compatibility_date": "2026-02-20",
-  "main": "_worker.js",
-  "assets": {
-    "directory": ".",
-    "binding": "ASSETS"
-  },
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "dsacms-db",
-      "database_id": "6097c429-74a7-44ef-a3c3-5a1bc3191d6f"
-    }
-  ],
-  "r2_buckets": [
-    {
-      "binding": "R2",
-      "bucket_name": "dsacms-media"
-    }
-  ]
-}
+name = "dsacms-frontend"
+compatibility_date = "2026-02-20"
+main = "_worker.js"
+
+[assets]
+directory = "."
+binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "dsacms-db"
+database_id = "6097c429-74a7-44ef-a3c3-5a1bc3191d6f"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "dsacms-media"
