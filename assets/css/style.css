@@ -4214,3 +4214,34 @@ html[data-theme="dark"] .fu-04 {
     margin-inline-end: 3.25rem !important;
   }
 }
+/* وضع قسم وزر التحميل كـ block في سطر مستقل بعرض كامل تحت مشغل الصوت مباشرة */
+#downloads-section,
+.downloads-section {
+  display: block;
+  width: 100%;
+  margin-block: 0.75rem 1.25rem !important;
+}
+
+#downloads-section[hidden],
+.downloads-section[hidden] {
+  display: none !important;
+}
+
+#download-actions,
+#download-actions .download-item {
+  display: block !important;
+  width: 100% !important;
+}
+
+#download-actions .btn,
+#download-actions a.btn,
+#download-actions button.btn,
+#downloads-section .download-trigger {
+  display: block !important;
+  width: 100% !important;
+  text-align: center !important;
+  justify-content: center !important;
+  padding-block: 0.85rem !important;
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+}
