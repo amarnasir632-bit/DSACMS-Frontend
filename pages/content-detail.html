@@ -91,6 +91,12 @@
 
         <div class="detail-layout">
           <div>
+            <!-- زر التنزيل -->
+              <section id="downloads-section" class="downloads-section" hidden aria-label="تنزيل ملفات المادة">
+              <h2>ملفات المادة</h2>
+              <div id="download-actions"></div>
+              <p class="download-hint" id="download-hint" hidden></p>
+            </section>
 
             <!-- مشغّل الصوت المخصص (FR-008 / FR-009 / UI-005) -->
             <section id="player-section" aria-label="مشغّل الصوت">
@@ -123,13 +129,8 @@
               </div>
             </section>
 
-            <!-- روابط التنزيل -->
-            <section id="downloads-section" class="downloads-section" hidden aria-label="تنزيل ملفات المادة">
-              <h2>ملفات المادة</h2>
-              <div id="download-actions"></div>
-              <p class="download-hint" id="download-hint" hidden></p>
-            </section>
-
+            
+            
             <!-- نص الوصف -->
             <div class="prose" id="article-prose">
               <h3>نبذة عن المادة</h3>
