@@ -162,7 +162,8 @@ async function ensureD1SchemaAndMigrate(db, env = {}) {
   if (Number(userCount?.total || 0) === 0) {
     const identifier = String(env.DSACMS_INITIAL_ADMIN_USERNAME || "admin").trim().toLowerCase();
     const email = String(env.DSACMS_INITIAL_ADMIN_EMAIL || "admin@dsacms.local").trim().toLowerCase();
-    const password = String(env.DSACMS_INITIAL_ADMIN_PASSWORD || "DSACMS-Initial-Admin-2026!");
+    const password = String(env.DSACMS_INITIAL_ADMIN_PASSWORD || "");
+    if (!password) return { initialized: true, usersSeeded: false, adminSetupRequired: true };
     await db.prepare(
       "INSERT INTO users (name, email, username, password_hash, role, status, must_change_password) VALUES (?, ?, ?, ?, 'admin', 'active', 1)"
     ).bind("مدير النظام", email, identifier, await sha256Hex(password)).run();
