@@ -366,15 +366,14 @@ async function handleApiRoute(request, env, url) {
     await r2.put(key, request.body, {
       httpMetadata: { contentType },
     });
-    const publicBase = String(env.R2_PUBLIC_URL || R2_PUBLIC_BASE).replace(/\/+$/, "");
-    const fileUrl = `${publicBase}/${key.replace(/^\/+/, "")}`;
+    const fileUrl = `${url.origin}/api/media/${key.replace(/^\/+/, "")}`;
     return jsonResponse({ ok: true, fileUrl, storageKey: key }, 200, origin);
   }
 
     // قراءة وتشغيل الملفات الصوتية والـ PDF مباشرة من حاوية R2 على نفس نطاق الموقع
   if (path.startsWith("/media/") && (method === "GET" || method === "HEAD")) {
     if (!r2) return jsonResponse({ error: "R2 not bound" }, 404, origin);
-    const key = decodeURIComponent(path.replace(/^\/+/, ""));
+    const key = decodeURIComponent(path.replace(/^\/media\//, ""));
     const obj = await r2.get(key);
     if (!obj) return jsonResponse({ error: "الملف غير موجود في R2" }, 404, origin);
     const headers = new Headers(corsHeaders(origin));
@@ -387,20 +386,6 @@ async function handleApiRoute(request, env, url) {
     headers.set("Cache-Control", "public, max-age=31536000");
     if (obj.size) headers.set("Content-Length", String(obj.size));
     return new Response(method === "HEAD" ? null : obj.body, { status: 200, headers });
-  }
-
-  // 1. الرفع المباشر إلى حاوية R2 المربوطة بالـ Worker
-  if (path === "/r2-upload" && method === "PUT") {
-    if (!r2) {
-      return jsonResponse({ error: "حاوية R2 غير مربوطة بعد في إعدادات Cloudflare Bindings" }, 503, origin);
-    }
-    const key = url.searchParams.get("key") || `media/audio/${Date.now()}.mp3`;
-    const contentType = request.headers.get("Content-Type") || "application/octet-stream";
-    await r2.put(key, request.body, {
-      httpMetadata: { contentType },
-    });
-    const fileUrl = `${url.origin}/api/media/${key.replace(/^\/+/, "")}`;
-    return jsonResponse({ ok: true, fileUrl, storageKey: key }, 200, origin);
   }
 
   if ((path === "/media-upload" || path === "/uploads/presigned-url") && method === "POST") {

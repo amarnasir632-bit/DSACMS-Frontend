@@ -717,8 +717,8 @@ function normalizeContentType(value, { audio, pdf, body } = {}) {
 
 function normalizeMaterial(row) {
   if (!row) return null;
-  const audio = row.audio_url || row.audioUrl || null;
-  const pdf = row.document_url || row.documentUrl || null;
+  const audio = row.audio_url || row.audioUrl || row.audio || null;
+  const pdf = row.document_url || row.documentUrl || row.pdf_url || row.pdfUrl || row.pdf || null;
   const archiveUrl = row.archive_url || row.archiveUrl || null;
   const storageKey = row.storage_key || row.storageKey || null;
   const archiveStatus = row.archive_status || row.archiveStatus || "UPLOADED_TO_R2";
@@ -737,16 +737,16 @@ function normalizeMaterial(row) {
 
   return {
     id: materialId,
-    title: row.title,
+    title: String(row.title || "بدون عنوان"),
     description: row.description || "",
     author: row.author || "غير محدد",
-    category: row.category_id ? String(row.category_id) : "",
-    categoryName: row.category_name || "عام",
+    category: String(row.category_id || row.categoryId || row.category || ""),
+    categoryName: row.category_name || row.categoryName || "عام",
     keywords: Array.isArray(row.keywords) ? row.keywords : [],
     body,
     readingSettings: normalizeReadingSettings(row.reading_settings || row.readingSettings),
     pubDate: candidateDate,
-    duration: Number(row.duration_seconds) || 0,
+    duration: Number(row.duration_seconds || row.durationSeconds || row.duration) || 0,
     audio,
     pdf,
     archiveUrl,
@@ -755,8 +755,7 @@ function normalizeMaterial(row) {
     audioArchive: (audio && archiveUrl && (archiveUrl.endsWith(".mp3") || archiveUrl.includes("/audio") || !pdf)) ? archiveUrl : archiveUrl,
     pdfArchive: (pdf && archiveUrl && (archiveUrl.endsWith(".pdf") || archiveUrl.includes(".pdf") || !audio)) ? archiveUrl : archiveUrl,
     type: normalizeContentType(row.content_type || row.contentType || row.type, { audio, pdf, body }),
-     status: String(row.status || "published").trim().toLowerCase(),
-
+    status: String(row.status || "published").trim().toLowerCase(),
   };
 }
 
@@ -802,84 +801,51 @@ async function fetchApi(path, options) {
   return response.json();
 }
 
-async function loadRemoteData() {
-async function fetchApiWithRetry(path, options = {}, retries = 3, delayMs = 500) {
-  let lastError;
-  for (let attempt = 0; attempt <= retries; attempt++) {
+async function fetchPublicJsonWithFallback(endpointPath) {
+  const cleanPath = endpointPath.startsWith("/") ? endpointPath : `/${endpointPath}`;
+  for (const url of [`/api${cleanPath}`, `https://dsacms-backend.vercel.app/api${cleanPath}`]) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
     try {
-      return await fetchApi(path, options);
-    } catch (err) {
-      lastError = err;
-      if (attempt < retries) {
-        await new Promise((r) => setTimeout(r, delayMs * (attempt + 1)));
+      const res = await fetch(url, { method: "GET", headers: { Accept: "application/json" }, signal: controller.signal });
+      if (res.ok) {
+        const data = await res.json();
+        const list = Array.isArray(data) ? data : data?.items || data?.materials || data?.categories || data?.data || [];
+        if (Array.isArray(list) && list.length) return list;
       }
+    } catch (_) {
+      // Continue to the public backend when the same-origin route is unavailable.
+    } finally {
+      clearTimeout(timer);
     }
   }
-  throw lastError;
+  return [];
 }
 
 async function loadRemoteData() {
-  const CAT_CACHE_KEY = "dsacms_categories_cache_v1";
-  const MAT_CACHE_KEY = "dsacms_materials_cache_v1";
-
-  const extractArray = (val) => {
-    if (Array.isArray(val)) return val;
-    if (val && typeof val === "object") {
-      if (Array.isArray(val.materials)) return val.materials;
-      if (Array.isArray(val.categories)) return val.categories;
-      if (Array.isArray(val.data)) return val.data;
-      if (Array.isArray(val.items)) return val.items;
-    }
-    return [];
-  };
-
-  // جلب التصنيفات أولاً ثم المواد مع إعادة المحاولة التلقائية لمنع تصادم الاتصالات في قاعدة البيانات
-  const catResult = await Promise.allSettled([fetchApiWithRetry("/categories", {}, 2, 400)]);
-  const matResult = await Promise.allSettled([fetchApiWithRetry("/materials", {}, 3, 500)]);
-
-  if (catResult[0].status === "fulfilled") {
-    const rawCats = extractArray(catResult[0].value);
-    apiCategories = rawCats.map(normalizeCategory).filter(Boolean);
+  const [rawCats, rawMats] = await Promise.all([
+    fetchPublicJsonWithFallback("/categories"),
+    fetchPublicJsonWithFallback("/materials"),
+  ]);
+  if (rawCats.length) {
+    apiCategories = rawCats.map((row) => { try { return normalizeCategory(row); } catch (_) { return null; } }).filter(Boolean);
+    try { localStorage.setItem("dsacms_categories_cache_v1", JSON.stringify(apiCategories)); } catch (_) {}
+  } else if (!apiCategories.length) {
     try {
-      if (apiCategories.length > 0) {
-        localStorage.setItem(CAT_CACHE_KEY, JSON.stringify(apiCategories));
-      }
-    } catch (_) {}
-  } else {
-    try {
-      const cachedCats = JSON.parse(localStorage.getItem(CAT_CACHE_KEY) || "[]");
-      if (Array.isArray(cachedCats) && cachedCats.length > 0) {
-        apiCategories = cachedCats;
-      }
+      const cached = JSON.parse(localStorage.getItem("dsacms_categories_cache_v1") || "[]");
+      if (Array.isArray(cached) && cached.length) apiCategories = cached;
     } catch (_) {}
   }
-
-  if (matResult[0].status === "fulfilled") {
-    const rawMats = extractArray(matResult[0].value);
-    apiContents = rawMats.map(normalizeMaterial).filter(Boolean);
+  if (rawMats.length) {
+    apiContents = rawMats.map((row) => { try { return normalizeMaterial(row); } catch (_) { return null; } }).filter(Boolean);
+    try { localStorage.setItem("dsacms_materials_cache_v1", JSON.stringify(apiContents)); } catch (_) {}
+  } else if (!apiContents.length) {
     try {
-      if (apiContents.length > 0) {
-        localStorage.setItem(MAT_CACHE_KEY, JSON.stringify(apiContents));
-      }
-    } catch (_) {}
-  } else {
-    console.warn("Failed to load /materials after retries, using cached copy:", matResult[0].reason);
-    try {
-      const cachedMats = JSON.parse(localStorage.getItem(MAT_CACHE_KEY) || "[]");
-      if (Array.isArray(cachedMats) && cachedMats.length > 0) {
-        apiContents = cachedMats;
-      }
+      const cached = JSON.parse(localStorage.getItem("dsacms_materials_cache_v1") || "[]");
+      if (Array.isArray(cached) && cached.length) apiContents = cached;
     } catch (_) {}
   }
-
-  if (catResult[0].status === "rejected" && matResult[0].status === "rejected") {
-    console.warn("DSACMS API unavailable; continuing with locally available data.");
-    return apiCategories.length > 0 || apiContents.length > 0;
-  }
-  return true;
-}
-
-  return true;
+  return apiCategories.length > 0 || apiContents.length > 0;
 }
 
 async function loadRemoteUsers() {
@@ -3186,6 +3152,8 @@ async function initDashboard() {
     return;
   }
 
+  if (!apiContents.length || !apiCategories.length) await loadRemoteData();
+
   const userRole = String(session.role || "").toLowerCase();
   const isAdmin = ["admin", "site_admin"].includes(userRole);
   const isSheikh = userRole === "sheikh";
@@ -3519,16 +3487,26 @@ async function initDashboard() {
       if (button) button.disabled = true;
       setUploadStatus(target, "جارٍ تجهيز الرفع المباشر إلى Cloudflare R2…", "loading");
       try {
-        const prepared = await fetchApi("/media-upload", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        const uploadPayload = {
             filename: file.name,
             contentType: isPdf ? "application/pdf" : (file.type || "application/octet-stream"),
             size: file.size,
             title: cfTitle?.value.trim() || file.name,
             description: cfDesc?.value.trim() || "",
-          }),
-        });
+          };
+        let prepared = null;
+        try {
+          const localRes = await fetch("/api/media-upload", {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(uploadPayload),
+          });
+          if (localRes.ok) prepared = await localRes.json();
+        } catch (_) {}
+        if (!prepared?.uploadUrl) {
+          prepared = await fetchApi("/media-upload", {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(uploadPayload),
+          });
+        }
+        if (!prepared?.uploadUrl) throw new Error("تعذر تجهيز رابط الرفع حالياً.");
         const uploadedResult = await putFileWithProgress(prepared.uploadUrl, file, target, prepared.contentType, prepared.uploadToken);
         const resolvedFileUrl = uploadedResult?.fileUrl || prepared.fileUrl;
         if (field) {
@@ -4276,7 +4254,7 @@ const bootstrap = async () => {
         initAccount();
         break;
       case "dashboard":
-        initDashboard();
+        await initDashboard();
         break;
       case "questions":
         await initQuestions();
@@ -4747,17 +4725,28 @@ if (document.readyState === "loading") {
 
         try {
           statusEl.textContent = "جاري طلب تصريح الرفع من الخادم...";
-          const prepared = await fetchApi("/media-upload", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              filename: file.name,
-              contentType: file.type || "application/octet-stream",
-              size: file.size,
-              title: document.querySelector("#cf-title")?.value || "",
-              description: document.querySelector("#cf-description")?.value || "",
-            }),
-          });
+          const titleVal = document.querySelector("#cf-title")?.value || "";
+          const descVal = document.querySelector("#cf-description")?.value || "";
+          const uploadPayload = {
+            filename: file.name,
+            contentType: file.type || (cfg.targetType === "pdf" ? "application/pdf" : "audio/mpeg"),
+            size: file.size,
+            title: titleVal,
+            description: descVal,
+          };
+          let prepared = null;
+          try {
+            const localRes = await fetch("/api/media-upload", {
+              method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(uploadPayload),
+            });
+            if (localRes.ok) prepared = await localRes.json();
+          } catch (_) {}
+          if (!prepared?.uploadUrl) {
+            prepared = await fetchApi("/media-upload", {
+              method: "POST", body: JSON.stringify(uploadPayload),
+            });
+          }
+          if (!prepared?.uploadUrl) throw new Error("تعذر تجهيز رابط الرفع حالياً.");
 
           const uploadUrl = prepared.uploadUrl;
           const isDirectSignedR2 =
