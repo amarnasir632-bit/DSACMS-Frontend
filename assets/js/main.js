@@ -3245,6 +3245,10 @@ async function initDashboard() {
   /* ---- جدول المحتوى ---- */
   const contentTbody = $("#content-tbody");
   const contentFilter = $("#content-filter");
+  const contentPagination = $("#content-pagination");
+  const contentPageSize = 10;
+  const contentDesktopView = window.matchMedia("(min-width: 44.001rem)");
+  let contentPage = 1;
 
   function renderContentTable() {
     if (!contentTbody) return;
@@ -3255,12 +3259,44 @@ async function initDashboard() {
       return (c.title + " " + c.author + " " + c.category).toLowerCase().includes(q);
     });
 
+    const pageCount = contentDesktopView.matches ? Math.max(1, Math.ceil(list.length / contentPageSize)) : 1;
+    contentPage = Math.min(contentPage, pageCount);
+
+    if (contentPagination) {
+      contentPagination.hidden = !contentDesktopView.matches || list.length <= contentPageSize;
+      if (!contentPagination.hidden) {
+        const visiblePages = new Set([1, pageCount]);
+        for (let page = Math.max(1, contentPage - 2); page <= Math.min(pageCount, contentPage + 2); page += 1) {
+          visiblePages.add(page);
+        }
+        let previousPage = 0;
+        const pageButtons = [...visiblePages].sort((a, b) => a - b).map((page) => {
+          const gap = page - previousPage > 1 ? '<span class="content-pagination__ellipsis" aria-hidden="true">…</span>' : "";
+          previousPage = page;
+          return `${gap}<button type="button" class="content-pagination__page${page === contentPage ? " is-current" : ""}" data-content-page="${page}" aria-label="الصفحة ${page}" aria-current="${page === contentPage ? "page" : "false"}" ${page === contentPage ? "disabled" : ""}>${page}</button>`;
+        }).join("");
+        contentPagination.innerHTML = `
+          <span class="content-pagination__summary">${list.length} مادة · صفحة ${contentPage} من ${pageCount}</span>
+          <div class="content-pagination__controls" role="group" aria-label="التنقل بين صفحات المحتوى">
+            <button type="button" class="content-pagination__step" data-content-page="${contentPage - 1}" ${contentPage === 1 ? "disabled" : ""}>السابق</button>
+            ${pageButtons}
+            <button type="button" class="content-pagination__step" data-content-page="${contentPage + 1}" ${contentPage === pageCount ? "disabled" : ""}>التالي</button>
+          </div>`;
+      } else {
+        contentPagination.innerHTML = "";
+      }
+    }
+
     if (!list.length) {
       contentTbody.innerHTML = '<tr><td colspan="6" class="dash-empty">لا توجد مواد بعد. أضف مادة جديدة.</td></tr>';
       return;
     }
 
-    contentTbody.innerHTML = list
+    const visibleList = contentDesktopView.matches
+      ? list.slice((contentPage - 1) * contentPageSize, contentPage * contentPageSize)
+      : list;
+
+    contentTbody.innerHTML = visibleList
       .map((c) => {
         const cat = loadCategories().find((x) => x.id === c.category);
         const badge =
@@ -3287,6 +3323,20 @@ async function initDashboard() {
       })
       .join("");
   }
+
+  contentPagination?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-content-page]");
+    if (!button || button.disabled) return;
+    const nextPage = Number(button.dataset.contentPage);
+    if (!Number.isInteger(nextPage) || nextPage < 1) return;
+    contentPage = nextPage;
+    renderContentTable();
+  });
+
+  contentDesktopView.addEventListener("change", () => {
+    contentPage = 1;
+    renderContentTable();
+  });
 
   if (contentTbody) {
     contentTbody.addEventListener("click", async (e) => {
@@ -3347,7 +3397,10 @@ async function initDashboard() {
     });
   }
 
-  if (contentFilter) contentFilter.addEventListener("input", debounce(renderContentTable, 200));
+  if (contentFilter) contentFilter.addEventListener("input", debounce(() => {
+    contentPage = 1;
+    renderContentTable();
+  }, 200));
 
   /* ---- محرر المادة (إضافة/تعديل) ---- */
   const cfForm = $("#content-form");
