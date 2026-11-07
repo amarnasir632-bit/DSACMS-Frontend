@@ -129,6 +129,10 @@ async function ensureD1SchemaAndMigrate(db, env = {}) {
       created_at TEXT DEFAULT (datetime('now')),
       answered_at TEXT
     )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS public_question_rate_limits (
+      ip_hash TEXT PRIMARY KEY,
+      last_submitted_at INTEGER NOT NULL
+    )`),
     db.prepare(`CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -155,6 +159,7 @@ async function ensureD1SchemaAndMigrate(db, env = {}) {
       created_at TEXT DEFAULT (datetime('now'))
     )`),
   ]);
+  try { await db.prepare("ALTER TABLE questions ADD COLUMN category TEXT DEFAULT 'عام'").run(); } catch (_) {}
   try { await db.prepare("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active'").run(); } catch (_) {}
   try { await db.prepare("ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0").run(); } catch (_) {}
 
@@ -393,6 +398,10 @@ async function handleApiRoute(request, env, url) {
   // 2. تشغيل جميع مسارات الموقع من قاعدة بيانات Cloudflare D1 مباشرة
   if (db) {
     await ensureD1SchemaAndMigrate(db, env);
+
+    if (path === "/questions/status" && method === "GET") {
+      return jsonResponse({ accepting: String(env.PUBLIC_QUESTIONS_ENABLED || "true").toLowerCase() !== "false" }, 200, origin);
+    }
 
     if (path === "/auth/login" && method === "POST") {
       const b = await request.json().catch(() => ({}));
@@ -686,14 +695,44 @@ async function handleApiRoute(request, env, url) {
     }
 
     if (path === "/questions" && method === "GET") {
-      const { results } = await db.prepare("SELECT * FROM questions ORDER BY id DESC").all();
-      return jsonResponse(results || [], 200, origin);
+      const { results } = await db.prepare("SELECT id, asker_name, category, question, answer, status, answered_at FROM questions WHERE LOWER(status) = 'answered' ORDER BY id DESC").all();
+      return jsonResponse((results || []).map((row) => ({
+        ...row,
+        id: String(row.id),
+        question_text: row.question,
+        answer_text: row.answer,
+      })), 200, origin);
     }
     if (path === "/questions" && method === "POST") {
-      const b = await request.json();
+      if (String(env.PUBLIC_QUESTIONS_ENABLED || "true").toLowerCase() === "false") {
+        return jsonResponse({ error: "استقبال الأسئلة متوقف مؤقتاً للصيانة." }, 503, origin);
+      }
+      const b = await request.json().catch(() => ({}));
+      if (String(b.website_url || "").trim()) return jsonResponse({ error: "Spam detected." }, 400, origin);
+      const question = String(b.question_text || b.question || b.text || "").trim();
+      if (question.length < 10 || question.length > 10000) {
+        return jsonResponse({ error: "يجب أن يكون السؤال بين 10 و10000 حرف." }, 400, origin);
+      }
+      const clientIp = request.headers.get("CF-Connecting-IP") || "unknown";
+      const ipHash = await sha256Hex(clientIp);
+      const slot = await db.prepare(
+        `INSERT INTO public_question_rate_limits (ip_hash, last_submitted_at)
+         VALUES (?, unixepoch())
+         ON CONFLICT (ip_hash) DO UPDATE SET last_submitted_at = unixepoch()
+         WHERE public_question_rate_limits.last_submitted_at <= unixepoch() - 60
+         RETURNING last_submitted_at`
+      ).bind(ipHash).first();
+      if (!slot) {
+        const previous = await db.prepare("SELECT last_submitted_at FROM public_question_rate_limits WHERE ip_hash = ?").bind(ipHash).first();
+        const retryAfter = Math.max(1, 60 - (Math.floor(Date.now() / 1000) - Number(previous?.last_submitted_at || Math.floor(Date.now() / 1000))));
+        return new Response(JSON.stringify({ error: `يمكنك إرسال سؤال جديد بعد ${retryAfter} ثانية.`, retry_after: retryAfter }), {
+          status: 429,
+          headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Retry-After": String(retryAfter), ...corsHeaders(origin) },
+        });
+      }
       const res = await db
-        .prepare("INSERT INTO questions (question, asker_name, status) VALUES (?, ?, 'pending')")
-        .bind(b.question || b.text || "", b.asker_name || b.name || "زائر")
+        .prepare("INSERT INTO questions (question, asker_name, category, status) VALUES (?, ?, ?, 'pending')")
+        .bind(question, String(b.asker_name || b.name || "زائر").trim().slice(0, 255) || "زائر", String(b.category || "عام").slice(0, 80))
         .run();
       const created = await db.prepare("SELECT * FROM questions WHERE id = ?").bind(res.meta.last_row_id).first();
       return jsonResponse(created, 201, origin);
