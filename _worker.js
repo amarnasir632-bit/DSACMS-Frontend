@@ -54,6 +54,11 @@ function jsonResponse(data, status = 200, origin = "*") {
   });
 }
 
+function parseJsonField(value, fallback = []) {
+  if (Array.isArray(value) || (value && typeof value === "object")) return value;
+  try { return JSON.parse(value || ""); } catch (_) { return fallback; }
+}
+
 // كاشف تلقائي لربط قاعدة بيانات D1 مهما كان اسم المتغير في Cloudflare
 function getDbBinding(env) {
   if (!env || typeof env !== "object") return null;
@@ -451,6 +456,30 @@ async function handleApiRoute(request, env, url) {
 
   // 2. تشغيل جميع مسارات الموقع من قاعدة بيانات Cloudflare D1 مباشرة
   if (db) {
+    if (path === "/debug-d1" && method === "GET") {
+      const actor = await getD1SessionUser(db, request).catch(() => null);
+      if (!actor) return jsonResponse({ error: "authentication is required" }, 401, origin);
+      if (!(actor.role === "admin" || actor.role === "site_admin")) return jsonResponse({ error: "forbidden" }, 403, origin);
+      const [tables, categoryColumns, materialColumns, categoryCount, materialCount, categorySample, materialSample] = await Promise.all([
+        db.prepare("PRAGMA table_list").all(),
+        db.prepare("PRAGMA table_info(categories)").all(),
+        db.prepare("PRAGMA table_info(materials)").all(),
+        db.prepare("SELECT COUNT(*) AS count FROM categories").first(),
+        db.prepare("SELECT COUNT(*) AS count FROM materials").first(),
+        db.prepare("SELECT * FROM categories LIMIT 1").first(),
+        db.prepare("SELECT * FROM materials LIMIT 1").first(),
+      ]);
+      return jsonResponse({
+        tables: tables.results || [],
+        categoryColumns: categoryColumns.results || [],
+        materialColumns: materialColumns.results || [],
+        categoriesCount: Number(categoryCount?.count || 0),
+        materialsCount: Number(materialCount?.count || 0),
+        categorySample: categorySample || null,
+        materialSample: materialSample || null,
+      }, 200, origin);
+    }
+
     if (path === "/questions/status" && method === "GET") {
       return jsonResponse({ accepting: String(env.PUBLIC_QUESTIONS_ENABLED || "true").toLowerCase() !== "false" }, 200, origin);
     }
@@ -557,8 +586,15 @@ async function handleApiRoute(request, env, url) {
     }
 
     if (path === "/categories" && method === "GET") {
-      const { results } = await db.prepare("SELECT * FROM categories ORDER BY id ASC").all();
-      return jsonResponse(results || [], 200, origin);
+      const { results } = await db.prepare("SELECT * FROM categories").all();
+      const formatted = (results || []).map((row) => ({
+        ...row,
+        id: String(row.id ?? ""),
+        name: row.name || row.title || "",
+        description: row.description || "",
+        icon: row.icon || "📚",
+      })).sort((a, b) => Number(a.id) - Number(b.id));
+      return jsonResponse(formatted, 200, origin);
     }
     if (path === "/categories" && method === "POST") {
       const b = await request.json();
@@ -590,31 +626,23 @@ async function handleApiRoute(request, env, url) {
     }
 
     if (path === "/materials" && method === "GET") {
-      const { results } = await db
-        .prepare(
-          `SELECT m.*, COALESCE(c.name, m.category_name, 'عام') as category_name
-           FROM materials m
-           LEFT JOIN categories c ON CAST(m.category_id AS TEXT) = CAST(c.id AS TEXT)
-           ORDER BY datetime(COALESCE(m.published_at, m.created_at)) DESC, m.id DESC`
-        )
-        .all();
-      const formatted = (results || []).map((r) => ({
-        ...r,
-        body: (() => {
-          try {
-            return JSON.parse(r.body || "[]");
-          } catch (_) {
-            return [];
-          }
-        })(),
-        keywords: (() => {
-          try {
-            return JSON.parse(r.keywords || "[]");
-          } catch (_) {
-            return [];
-          }
-        })(),
-      }));
+      const [matsRes, catsRes] = await Promise.all([
+        db.prepare("SELECT * FROM materials").all(),
+        db.prepare("SELECT * FROM categories").all().catch(() => ({ results: [] })),
+      ]);
+      const catsById = new Map((catsRes.results || []).map((row) => [String(row.id), row.name || row.title || ""]));
+      const formatted = (matsRes.results || []).map((row) => ({
+        ...row,
+        id: String(row.id ?? ""),
+        title: row.title || row.name || "",
+        category_name: row.category_name || catsById.get(String(row.category_id ?? row.categoryId ?? "")) || "عام",
+        body: parseJsonField(row.body, []),
+        keywords: parseJsonField(row.keywords, []),
+      })).sort((a, b) => {
+        const dateA = new Date(a.published_at || a.pubDate || a.created_at || a.id || 0).getTime() || Number(a.id) || 0;
+        const dateB = new Date(b.published_at || b.pubDate || b.created_at || b.id || 0).getTime() || Number(b.id) || 0;
+        return dateB - dateA;
+      });
       return jsonResponse(formatted, 200, origin);
     }
     if (path.startsWith("/materials/") && method === "GET") {
@@ -819,7 +847,16 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname.startsWith("/api/") || url.pathname === "/api") {
-      return handleApiRoute(request, env, url);
+      try {
+        return await handleApiRoute(request, env, url);
+      } catch (err) {
+        const origin = request.headers.get("Origin") || "*";
+        console.error("Unhandled API worker exception", { path: url.pathname, message: err?.message || String(err), stack: err?.stack || null });
+        return jsonResponse({
+          error: "Internal Worker Exception",
+          path: url.pathname,
+        }, 500, origin);
+      }
     }
 
     if (env.ASSETS && typeof env.ASSETS.fetch === "function") {
