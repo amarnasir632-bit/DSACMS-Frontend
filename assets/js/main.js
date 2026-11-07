@@ -4807,7 +4807,7 @@ if (document.readyState === "loading") {
   }
 
   function initAllEnhancements() {
-    setupGlobalThemeToggle();
+    // setupGlobalThemeToggle(); // معطّل مؤقتاً حتى إصلاح الميزة.
     setupEnhancedDownloads();
     upgradeDashboardUploadersToFu04();
   }
