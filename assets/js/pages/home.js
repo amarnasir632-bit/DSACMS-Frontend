@@ -15,6 +15,22 @@ const ICONS = {
   location: `<svg class="svg-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6-5.333-6-10a6 6 0 0 1 12 0c0 4.667-6 10-6 10z"/><circle cx="12" cy="11" r="2.5"/></svg>`,
 };
 
+async function fetchPublicListWithRetry(endpoint) {
+  let lastError = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    if (attempt) await new Promise((resolve) => setTimeout(resolve, 500));
+    try {
+      const res = await apiRequest(endpoint, { cache: "no-store" });
+      const list = Array.isArray(res) ? res : res?.items || res?.materials || res?.categories || res?.data || [];
+      if (!Array.isArray(list)) throw new Error(`Invalid list response for ${endpoint}`);
+      if (list.length || attempt === 1) return { list, unavailable: false };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  return { list: [], unavailable: true, error: lastError };
+}
+
 export async function initHomePage(storeData = {}) {
   // 1) Initialize Statistics with Skeletons
   initHeroStats(storeData);
@@ -62,14 +78,23 @@ async function loadLatestAudio(storeData) {
 
   try {
     let contents = storeData.contents || [];
+    let apiUnavailable = false;
     if (!contents.length) {
-      try {
-        const res = await apiRequest("/materials");
-        contents = Array.isArray(res) ? res : res.items || [];
-      } catch (_) {
-        // Fallback to local storage if API is temporarily unavailable
-        const cached = localStorage.getItem("dsacms_contents_v1");
-        if (cached) contents = JSON.parse(cached);
+      const result = await fetchPublicListWithRetry("/materials");
+      contents = result.list;
+      apiUnavailable = result.unavailable;
+      if (apiUnavailable) {
+        // Use the same cache key as the shared content loader before reporting an empty library.
+        const cached = localStorage.getItem("dsacms_materials_cache_v1") || localStorage.getItem("dsacms_contents_v1");
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length) {
+              contents = parsed;
+              apiUnavailable = false;
+            }
+          } catch (_) {}
+        }
       }
     }
 
@@ -80,6 +105,14 @@ async function loadLatestAudio(storeData) {
       .slice(0, 6);
 
     if (audioItems.length === 0) {
+      if (apiUnavailable) {
+        renderViewState(container, "error", {
+          title: "تعذر تحميل المواد الصوتية",
+          message: "تعذر الاتصال بمكتبة المواد الآن. أعد المحاولة بعد لحظات.",
+          onRetry: () => loadLatestAudio(storeData),
+        });
+        return;
+      }
       renderViewState(container, "empty", {
         title: "لا توجد مواد صوتية منشورة حالياً",
         message: "سيتم إضافة أحدث المواد الصوتية والدروس قريباً بإذن الله.",
@@ -193,16 +226,38 @@ async function renderCategoriesGrid(storeData) {
   if (!grid) return;
 
   let cats = storeData.categories || [];
+  let apiUnavailable = false;
   if (!cats.length) {
-    try {
-      const res = await apiRequest("/categories");
-      cats = Array.isArray(res) ? res : res.items || [];
-    } catch (_) {}
+    const result = await fetchPublicListWithRetry("/categories");
+    cats = result.list;
+    apiUnavailable = result.unavailable;
+    if (apiUnavailable) {
+      try {
+        const cached = JSON.parse(localStorage.getItem("dsacms_categories_cache_v1") || "[]");
+        if (Array.isArray(cached) && cached.length) {
+          cats = cached;
+          apiUnavailable = false;
+        }
+      } catch (_) {}
+    }
+  }
+
+  if (cats.length) {
+    const statCats = document.getElementById("stat-categories");
+    if (statCats) statCats.textContent = String(cats.length);
   }
 
   const pub = filterPublicMaterials(storeData.contents || []);
 
   if (!cats.length) {
+    if (apiUnavailable) {
+      grid.innerHTML = `<div class="alert alert--error" role="alert"><p>تعذر تحميل التصنيفات من الخادم.</p><button type="button" class="btn btn--outline btn--sm" data-retry-categories>إعادة المحاولة</button></div>`;
+      grid.querySelector("[data-retry-categories]")?.addEventListener("click", async (event) => {
+        event.currentTarget.disabled = true;
+        await renderCategoriesGrid({ ...storeData, categories: [] });
+      });
+      return;
+    }
     grid.innerHTML = `<p class="section-desc">لا توجد تصنيفات معرّفة حالياً.</p>`;
     return;
   }
