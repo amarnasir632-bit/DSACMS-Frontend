@@ -2381,7 +2381,6 @@ async function initQuestions() {
   const list = $("#public-questions-list");
   const maintenanceNotice = $("#qa-maintenance-notice");
   const maintenanceMessage = $("#qa-maintenance-message");
-  const formStatus = $("#question-form-status");
 
   const setQuestionIntakeState = (accepting, message = "") => {
     if (maintenanceNotice) maintenanceNotice.hidden = accepting;
@@ -2391,7 +2390,6 @@ async function initQuestions() {
     form.querySelectorAll("input, select, textarea, button[type='submit']").forEach((control) => {
       control.disabled = !accepting;
     });
-    if (formStatus) formStatus.textContent = accepting ? "خدمة استقبال الأسئلة متاحة." : "";
   };
 
   try {

@@ -311,6 +311,13 @@ table {
 .qa-form-card {
   max-width: 48rem;
 }
+.qa-form-card #question-submit {
+  display: flex;
+  width: 100%;
+  direction: rtl;
+  margin-inline: auto;
+  text-align: center;
+}
 .qa-privacy-note {
   margin-block: var(--space-3) var(--space-4);
   line-height: 1.8;
