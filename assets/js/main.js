@@ -3417,7 +3417,7 @@ async function initDashboard() {
         request.setRequestHeader("Content-Type", contentType || file.type);
       }
       request.upload.addEventListener("progress", (event) => {
-        if (event.lengthComputable) setUploadStatus(target, `جارٍ رفع الملف إلى Cloudflare R2… ${Math.round(event.loaded / event.total * 100)}٪`, "loading");
+        if (event.lengthComputable) setUploadStatus(target, `جارٍ رفع الملف… ${Math.round(event.loaded / event.total * 100)}٪`, "loading");
       });
       request.upload.addEventListener("load", () => setUploadStatus(target, "اكتمل النقل؛ جارٍ التحقق من الحفظ…", "loading"));
       request.addEventListener("load", () => {
@@ -3474,7 +3474,7 @@ async function initDashboard() {
       try {
         const uploadPayload = {
             filename: file.name,
-            contentType: isPdf ? "application/pdf" : (file.type || "application/octet-stream"),
+            contentType: isPdf ? "application/pdf" : (file.type.startsWith("audio/") ? file.type : ({ mp3: "audio/mpeg", wav: "audio/wav", ogg: "audio/ogg", oga: "audio/ogg", m4a: "audio/mp4", aac: "audio/aac", flac: "audio/flac", opus: "audio/opus", wma: "audio/x-ms-wma" }[ext] || "audio/mpeg")),
             size: file.size,
             title: cfTitle?.value.trim() || file.name,
             description: cfDesc?.value.trim() || "",
@@ -3492,16 +3492,42 @@ async function initDashboard() {
           });
         }
         if (!prepared?.uploadUrl) throw new Error("تعذر تجهيز رابط الرفع حالياً.");
-        const uploadedResult = await putFileWithProgress(prepared.uploadUrl, file, target, prepared.contentType, prepared.uploadToken);
+        let uploadedResult;
+        let usedArchiveFallback = prepared.provider === "internet-archive-fallback";
+        if (usedArchiveFallback) {
+          if (file.size > Number(prepared.archiveMaxBytes || 0)) throw new Error("تعذر R2 والملف أكبر من الحد المسموح للأرشيف الاحتياطي (90 ميغابايت).");
+          setUploadStatus(target, "R2 غير متاح؛ جارٍ الحفظ في أرشيف الإنترنت كمسار احتياطي…", "loading");
+          uploadedResult = await putFileWithProgress(prepared.uploadUrl, file, target, prepared.contentType, prepared.archiveUploadToken);
+        } else {
+          try {
+            uploadedResult = await putFileWithProgress(prepared.uploadUrl, file, target, prepared.contentType, prepared.uploadToken);
+          } catch (primaryError) {
+            if (!prepared.archiveUploadUrl || !prepared.archiveUploadToken) throw primaryError;
+            if (file.size > Number(prepared.archiveMaxBytes || 0)) {
+              throw new Error("تعذر الرفع إلى R2، والملف أكبر من الحد المسموح للأرشيف الاحتياطي (90 ميغابايت).");
+            }
+            usedArchiveFallback = true;
+            setUploadStatus(target, "تعذر الحفظ في R2؛ جارٍ التحويل تلقائيًا إلى أرشيف الإنترنت…", "loading");
+            uploadedResult = await putFileWithProgress(prepared.archiveUploadUrl, file, target, prepared.contentType, prepared.archiveUploadToken);
+          }
+        }
         const resolvedFileUrl = uploadedResult?.fileUrl || prepared.fileUrl;
+        if (!resolvedFileUrl) throw new Error("اكتمل النقل لكن لم يُرجع التخزين رابطًا صالحًا للملف.");
         if (field) {
           field.value = resolvedFileUrl;
-          if (prepared.storageKey) field.dataset.storageKey = prepared.storageKey;
+          if (usedArchiveFallback) delete field.dataset.storageKey;
+          else if (prepared.storageKey) field.dataset.storageKey = prepared.storageKey;
           field.dispatchEvent(new Event("input", { bubbles: true }));
         }
+        if (usedArchiveFallback) {
+          const archiveField = $("#cf-archive-url");
+          if (archiveField) archiveField.value = resolvedFileUrl;
+        }
         if (!isPdf && validateAudioUrl(resolvedFileUrl)) loadAudioDuration(resolvedFileUrl);
-        setUploadStatus(target, "تم رفع الملف بنجاح إلى Cloudflare R2 وإدراج الرابط الأساسي تلقائيًا.", "success");
-        showToast("تم رفع الملف بنجاح إلى Cloudflare R2.", "success");
+        setUploadStatus(target, usedArchiveFallback
+          ? "تعذر R2؛ حُفظ الملف في أرشيف الإنترنت وأُدرج رابطه الاحتياطي تلقائيًا."
+          : "تم حفظ الملف في Cloudflare R2 وإدراج رابطه الأساسي تلقائيًا.", "success");
+        showToast(usedArchiveFallback ? "تعذر R2؛ تم حفظ الملف في أرشيف الإنترنت كمسار احتياطي." : "تم حفظ الملف في Cloudflare R2.", "success");
       } catch (error) {
         console.error("Media upload failed", error);
         setUploadStatus(target, uploadErrorMessage(error), "error");

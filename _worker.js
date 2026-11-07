@@ -30,6 +30,19 @@ function corsHeaders(origin = "*") {
   };
 }
 
+function encodeBase64Url(bytes) {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+async function signArchiveUpload(payload, secret) {
+  const encodedPayload = encodeBase64Url(new TextEncoder().encode(JSON.stringify(payload)));
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(encodedPayload));
+  return `${encodedPayload}.${encodeBase64Url(new Uint8Array(signature))}`;
+}
+
 function jsonResponse(data, status = 200, origin = "*") {
   return new Response(JSON.stringify(data, null, 2), {
     status,
@@ -324,6 +337,25 @@ async function handleApiRoute(request, env, url) {
     return jsonResponse({ ok: true, fileUrl, storageKey: key }, 200, origin);
   }
 
+  // تمرير الرفع الاحتياطي إلى Worker الأرشيف عبر Service Binding؛ تبقى مفاتيح IA على الخادم.
+  if (path === "/archive-upload" && method === "PUT") {
+    if (!env.ARCHIVE_WORKER || !env.MEDIA_UPLOAD_SECRET) {
+      return jsonResponse({ error: "مسار Internet Archive الاحتياطي غير مهيأ" }, 503, origin);
+    }
+    const headers = new Headers({
+      "Authorization": request.headers.get("Authorization") || "",
+      "Content-Type": request.headers.get("Content-Type") || "application/octet-stream",
+      "Origin": request.headers.get("Origin") || "",
+    });
+    const archiveResponse = await env.ARCHIVE_WORKER.fetch(new Request("https://dsacms-archive-worker/upload", {
+      method: "PUT", headers, body: request.body,
+    }));
+    return new Response(archiveResponse.body, {
+      status: archiveResponse.status,
+      headers: { "Content-Type": archiveResponse.headers.get("Content-Type") || "application/json; charset=utf-8", "Cache-Control": "no-store", ...corsHeaders(origin) },
+    });
+  }
+
   // قراءة الملفات من R2 مع دعم طلبات الوسائط ذات النطاق الجزئي (stream seeking).
   if (path.startsWith("/media/") && (method === "GET" || method === "HEAD")) {
     if (!r2) return jsonResponse({ error: "R2 not bound" }, 404, origin);
@@ -366,32 +398,50 @@ async function handleApiRoute(request, env, url) {
   }
 
   if ((path === "/media-upload" || path === "/uploads/presigned-url") && method === "POST") {
-    if (r2) {
-      const body = await request.json().catch(() => ({}));
+    const actor = db ? await getD1SessionUser(db, request).catch(() => null) : null;
+    if (!actor) return jsonResponse({ error: "authentication is required" }, 401, origin);
+    if (!["admin", "site_admin", "manager"].includes(actor.role)) return jsonResponse({ error: "forbidden" }, 403, origin);
+    const body = await request.json().catch(() => ({}));
       const rawName = String(body.filename || body.name || "file.mp3");
       const extMatch = rawName.match(/\.([a-zA-Z0-9]+)$/);
       const ext = extMatch ? extMatch[1].toLowerCase() : "mp3";
+      const allowedExts = ["mp3", "wav", "ogg", "oga", "m4a", "aac", "flac", "opus", "wma", "pdf"];
+      if (!allowedExts.includes(ext)) return jsonResponse({ error: "صيغة الملف غير مدعومة" }, 400, origin);
       const isPdf = ext === "pdf" || String(body.contentType || "").includes("pdf");
       const folder = isPdf ? "books" : "audio";
       const randomId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const key = `media/${folder}/${randomId}.${ext}`;
-      const uploadUrl = `${url.origin}/api/r2-upload?key=${encodeURIComponent(key)}`;
       const fileUrl = `${url.origin}/api/media/${key}`;
+      const archiveReady = Boolean(env.ARCHIVE_WORKER && env.MEDIA_UPLOAD_SECRET && Number(body.size) > 0 && Number(body.size) <= 90 * 1024 * 1024);
+      const archiveItemId = `dsacms-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
+      const archiveToken = archiveReady ? await signArchiveUpload({
+        itemId: archiveItemId,
+        key: `media.${ext}`,
+        size: Number(body.size),
+        contentType: body.contentType || (isPdf ? "application/pdf" : "audio/mpeg"),
+        title: String(body.title || rawName).slice(0, 500),
+        description: String(body.description || "").slice(0, 2000),
+        origin,
+        expiresAt: Math.floor(Date.now() / 1000) + 15 * 60,
+      }, env.MEDIA_UPLOAD_SECRET) : null;
+      const archiveUploadUrl = archiveReady ? `${url.origin}/api/archive-upload` : null;
+      if (!r2 && !archiveReady) return jsonResponse({ error: "لا يتوفر تخزين R2 ولا مسار أرشيف احتياطي مهيأ" }, 503, origin);
       return jsonResponse(
         {
-          provider: "cloudflare-r2-direct",
-          uploadUrl,
-          fileUrl,
-          publicUrl: fileUrl,
-          storageKey: key,
+          provider: r2 ? "cloudflare-r2" : "internet-archive-fallback",
+          uploadUrl: r2 ? `${url.origin}/api/r2-upload?key=${encodeURIComponent(key)}` : archiveUploadUrl,
+          fileUrl: r2 ? fileUrl : null,
+          publicUrl: r2 ? fileUrl : null,
+          storageKey: r2 ? key : null,
           contentType: body.contentType || (isPdf ? "application/pdf" : "audio/mpeg"),
           maxBytes: 500 * 1024 * 1024,
+          archiveUploadUrl,
+          archiveUploadToken: archiveToken,
+          archiveMaxBytes: archiveReady ? 90 * 1024 * 1024 : 0,
         },
         201,
         origin
       );
-    }
-    return jsonResponse({ error: "حاوية R2 غير مربوطة في Worker" }, 503, origin);
   }
 
 

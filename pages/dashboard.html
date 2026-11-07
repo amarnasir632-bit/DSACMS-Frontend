@@ -311,7 +311,7 @@
               <div class="form-group">
                 <label for="cf-archive-url">رابط النسخة الاحتياطية (Internet Archive - SRS 23.2)</label>
                 <input type="url" id="cf-archive-url" name="archiveUrl" class="field" maxlength="2000" placeholder="https://archive.org/download/.../media.mp3" inputmode="url" aria-describedby="cf-archive-hint">
-                <p class="hint" id="cf-archive-hint">يُنشأ تلقائياً كنسخة احتياطية في أرشيف الإنترنت عند نشر المادة، أو يمكنك إدخال رابط أرشيف احتياطي يدويًا لتفعيل التبديل التلقائي (Failover).</p>
+                <p class="hint" id="cf-archive-hint">يُرفع الملف أولاً إلى Cloudflare R2. إذا تعذر R2، يحاول النظام حفظ الملفات حتى 90 ميغابايت في Internet Archive ويضع رابط الأرشيف هنا تلقائيًا.</p>
               </div>
               <div class="editor-step__actions">
                 <button type="button" class="btn btn--outline" data-step-prev="2">السابق</button>
@@ -510,6 +510,6 @@
   </footer>
 
   <!-- التذييل -->
-  <script type="module" src="../assets/js/main.js?v=20261107-v21" defer></script>
+  <script type="module" src="../assets/js/main.js?v=20261107-v22" defer></script>
 </body>
 </html>

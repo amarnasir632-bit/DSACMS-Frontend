@@ -14,3 +14,7 @@ database_id = "6097c429-74a7-44ef-a3c3-5a1bc3191d6f"
 [[r2_buckets]]
 binding = "R2"
 bucket_name = "dsacms-media"
+
+[[services]]
+binding = "ARCHIVE_WORKER"
+service = "dsacms-archive-worker"
