@@ -71,6 +71,77 @@ function getR2Binding(env) {
   return env.R2 || env.MEDIA_BUCKET || env.STORAGE || null;
 }
 
+function escapeHtmlAttribute(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function previewDescription(material) {
+  let description = String(material.description || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  if (!description) {
+    const body = parseJsonField(material.body, []);
+    const extractText = (value) => {
+      if (typeof value === "string") return value;
+      if (Array.isArray(value)) return value.map(extractText).join(" ");
+      if (value && typeof value === "object") return extractText(value.text || value.content || value.children || "");
+      return "";
+    };
+    description = extractText(body).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  }
+  if (!description) description = "درس من المكتبة العلمية والصوتية للشيخ محمد أحمد الهادي الكرار.";
+  if (description.length > 200) description = `${description.slice(0, 197).replace(/\s+\S*$/, "").trim()}…`;
+  return description;
+}
+
+function replaceMetaContent(html, attribute, key, content) {
+  const escapedContent = escapeHtmlAttribute(content);
+  const tagPattern = new RegExp(`<meta\\b(?=[^>]*\\b${attribute}=["']${key}["'])(?=[^>]*\\bcontent=)[^>]*>`, "i");
+  return html.replace(tagPattern, (tag) => tag.replace(/\bcontent=(["'])[^"']*\1/i, `content="${escapedContent}"`));
+}
+
+async function addContentShareMetadata(response, request, assetPath, env) {
+  if (!/^\/pages\/content-detail(?:\.html)?\/?$/i.test(assetPath)) return response;
+  const url = new URL(request.url);
+  const id = url.searchParams.get("id");
+  const db = getDbBinding(env);
+  if (!id || !db) return response;
+
+  try {
+    const material = await db.prepare("SELECT * FROM materials WHERE id = ?").bind(id).first();
+    if (!material || (material.status && String(material.status).toLowerCase() !== "published")) return response;
+
+    const title = `${material.title || material.name || "درس علمي"} | الشيخ محمد أحمد الهادي الكرار`;
+    const description = previewDescription(material);
+    const canonicalUrl = new URL(`/pages/content-detail?id=${encodeURIComponent(id)}`, url.origin).toString();
+    let html = await response.text();
+    html = html.replace(/<title\b[^>]*>[\s\S]*?<\/title>/i, `<title>${escapeHtmlAttribute(title)}</title>`);
+    html = replaceMetaContent(html, "name", "description", description);
+    html = replaceMetaContent(html, "property", "og:title", title);
+    html = replaceMetaContent(html, "property", "og:description", description);
+    html = replaceMetaContent(html, "property", "og:url", canonicalUrl);
+    html = replaceMetaContent(html, "name", "twitter:title", title);
+    html = replaceMetaContent(html, "name", "twitter:description", description);
+    if (!/<meta\b[^>]*property=["']og:url["']/i.test(html)) {
+      html = html.replace("</head>", `<meta property="og:url" content="${escapeHtmlAttribute(canonicalUrl)}">\n</head>`);
+    }
+    if (!/<link\b[^>]*rel=["']canonical["']/i.test(html)) {
+      html = html.replace("</head>", `<link rel="canonical" href="${escapeHtmlAttribute(canonicalUrl)}">\n</head>`);
+    }
+    const headers = new Headers(response.headers);
+    headers.delete("Content-Length");
+    headers.delete("Content-Encoding");
+    headers.delete("ETag");
+    return new Response(html, { status: response.status, statusText: response.statusText, headers });
+  } catch (error) {
+    console.error("Unable to add content share metadata", { id, message: error?.message || String(error) });
+    return response;
+  }
+}
+
 async function sha256Hex(text) {
   const data = new TextEncoder().encode(String(text || ""));
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
@@ -864,7 +935,8 @@ export default {
               headers.set("Content-Type", "text/html; charset=utf-8");
               headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
             }
-            return new Response(res.body, { status: 200, headers });
+            const assetResponse = new Response(res.body, { status: 200, headers });
+            return await addContentShareMetadata(assetResponse, request, candidate, env);
           }
 
           if ([301, 302, 307, 308].includes(res.status)) {
@@ -878,7 +950,8 @@ export default {
                 const headers = new Headers(followed.headers);
                 headers.set("Content-Type", "text/html; charset=utf-8");
                 headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
-                return new Response(followed.body, { status: 200, headers });
+                const assetResponse = new Response(followed.body, { status: 200, headers });
+                return await addContentShareMetadata(assetResponse, request, locUrl.pathname, env);
               }
             }
           }
