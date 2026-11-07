@@ -3246,9 +3246,34 @@ async function initDashboard() {
   const contentTbody = $("#content-tbody");
   const contentFilter = $("#content-filter");
   const contentPagination = $("#content-pagination");
+  const contentTableWrap = $(".content-table-wrap");
+  const contentHorizontalScroll = $("#content-horizontal-scroll");
+  const contentHorizontalSpacer = $("#content-horizontal-scroll-spacer");
   const contentPageSize = 10;
   const contentDesktopView = window.matchMedia("(min-width: 44.001rem)");
   let contentPage = 1;
+
+  function syncContentHorizontalScroll(source = "table") {
+    const table = $("#content-table");
+    if (!table || !contentTableWrap || !contentHorizontalScroll || !contentHorizontalSpacer) return;
+    const needsScroll = contentDesktopView.matches && table.scrollWidth > contentTableWrap.clientWidth + 1;
+    contentHorizontalScroll.hidden = !needsScroll;
+    contentTableWrap.classList.toggle("has-content-pagination", Boolean(contentPagination && !contentPagination.hidden));
+    if (!needsScroll) {
+      contentTableWrap.scrollLeft = 0;
+      return;
+    }
+    contentHorizontalSpacer.style.width = `${table.scrollWidth}px`;
+    if (source === "table" && Math.abs(contentHorizontalScroll.scrollLeft - contentTableWrap.scrollLeft) > 1) {
+      contentHorizontalScroll.scrollLeft = contentTableWrap.scrollLeft;
+    } else if (source === "bar" && Math.abs(contentTableWrap.scrollLeft - contentHorizontalScroll.scrollLeft) > 1) {
+      contentTableWrap.scrollLeft = contentHorizontalScroll.scrollLeft;
+    }
+  }
+
+  contentHorizontalScroll?.addEventListener("scroll", () => syncContentHorizontalScroll("bar"), { passive: true });
+  contentTableWrap?.addEventListener("scroll", () => syncContentHorizontalScroll("table"), { passive: true });
+  window.addEventListener("resize", () => syncContentHorizontalScroll());
 
   function renderContentTable() {
     if (!contentTbody) return;
@@ -3289,6 +3314,7 @@ async function initDashboard() {
 
     if (!list.length) {
       contentTbody.innerHTML = '<tr><td colspan="6" class="dash-empty">لا توجد مواد بعد. أضف مادة جديدة.</td></tr>';
+      requestAnimationFrame(() => syncContentHorizontalScroll());
       return;
     }
 
@@ -3322,6 +3348,7 @@ async function initDashboard() {
           </tr>`;
       })
       .join("");
+    requestAnimationFrame(() => syncContentHorizontalScroll());
   }
 
   contentPagination?.addEventListener("click", (event) => {

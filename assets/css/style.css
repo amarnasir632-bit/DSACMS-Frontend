@@ -1992,6 +1992,7 @@ input[type="range"]:focus-visible::-moz-range-thumb {
     align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
+    min-height: 3.5rem;
     min-width: max-content;
     padding: var(--space-2) var(--space-3);
     border-block-end: 1px solid var(--color-border);
@@ -2007,7 +2008,7 @@ input[type="range"]:focus-visible::-moz-range-thumb {
     display: flex;
     align-items: center;
     gap: 0.25rem;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
   .content-pagination__ellipsis {
     padding-inline: 0.25rem;
@@ -2038,6 +2039,45 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   .content-pagination__controls button:disabled {
     cursor: default;
     opacity: 0.55;
+  }
+  #panel-content .content-horizontal-scroll:not([hidden]) {
+    position: sticky;
+    top: 0;
+    inset-inline: 0;
+    z-index: 3;
+    display: block;
+    height: 2.5rem;
+    overflow-x: scroll;
+    overflow-y: hidden;
+    border-block-end: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-muted);
+    scrollbar-color: var(--color-primary) var(--color-surface-muted);
+    scrollbar-width: auto;
+    outline-offset: 2px;
+  }
+  #panel-content .content-table-wrap.has-content-pagination .content-horizontal-scroll:not([hidden]) {
+    top: 3.5rem;
+  }
+  .content-horizontal-scroll__spacer {
+    height: 1px;
+  }
+  .content-horizontal-scroll::-webkit-scrollbar {
+    height: 20px;
+  }
+  .content-horizontal-scroll::-webkit-scrollbar-track {
+    background: var(--color-surface-muted);
+    border-radius: 999px;
+  }
+  .content-horizontal-scroll::-webkit-scrollbar-thumb {
+    min-width: 3rem;
+    border: 3px solid var(--color-surface-muted);
+    border-radius: 999px;
+    background: var(--color-primary);
+  }
+  .content-horizontal-scroll:hover::-webkit-scrollbar-thumb,
+  .content-horizontal-scroll:focus-visible::-webkit-scrollbar-thumb {
+    background: var(--color-primary-hover, #b58a4a);
   }
 }
 .data-table th,
