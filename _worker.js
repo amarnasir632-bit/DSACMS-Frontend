@@ -279,8 +279,8 @@ async function handleApiRoute(request, env, url) {
     return new Response(null, { status: 204, headers: corsHeaders(origin) });
   }
 
-  // هذا المسار في أعلى الدالة قبل أي شيء آخر حتى لا يرجع Cannot GET /api/init-d1 أبداً
-  if (path === "/init-d1" || path === "/status" || path === "/health") {
+  // أبقِ ترحيل قاعدة البيانات صريحاً؛ تشغيل DDL مع كل طلب API يسبب تعارضات ويعطل القراءة.
+  if (path === "/init-d1") {
     if (!db) {
       return jsonResponse(
         {
@@ -445,10 +445,12 @@ async function handleApiRoute(request, env, url) {
   }
 
 
+  if (path === "/status" || path === "/health") {
+    return jsonResponse({ status: db ? "ok" : "waiting_for_binding", dbBound: Boolean(db), r2Bound: Boolean(r2) }, 200, origin);
+  }
+
   // 2. تشغيل جميع مسارات الموقع من قاعدة بيانات Cloudflare D1 مباشرة
   if (db) {
-    await ensureD1SchemaAndMigrate(db, env);
-
     if (path === "/questions/status" && method === "GET") {
       return jsonResponse({ accepting: String(env.PUBLIC_QUESTIONS_ENABLED || "true").toLowerCase() !== "false" }, 200, origin);
     }
