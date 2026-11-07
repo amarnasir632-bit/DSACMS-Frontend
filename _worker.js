@@ -59,35 +59,16 @@ function parseJsonField(value, fallback = []) {
   try { return JSON.parse(value || ""); } catch (_) { return fallback; }
 }
 
-// كاشف تلقائي لربط قاعدة بيانات D1 مهما كان اسم المتغير في Cloudflare
+// استخدم أسماء bindings الصريحة حتى لا يُكتشف Service binding كأنه D1.
 function getDbBinding(env) {
   if (!env || typeof env !== "object") return null;
-  for (const key of Object.keys(env)) {
-    const val = env[key];
-    if (val && typeof val === "object" && typeof val.prepare === "function" && typeof val.batch === "function") {
-      return val;
-    }
-  }
-  return null;
+  return env.DB || env.D1 || env.DATABASE || env.DSACMS_DB || null;
 }
 
-// كاشف تلقائي لربط حاوية R2 مهما كان اسم المتغير في Cloudflare
+// استخدم binding R2 الصريح؛ Service bindings قد تعرض RPC عامّاً لأي اسم دالة.
 function getR2Binding(env) {
   if (!env || typeof env !== "object") return null;
-  for (const key of Object.keys(env)) {
-    if (key === "ASSETS") continue;
-    const val = env[key];
-    if (
-      val &&
-      typeof val === "object" &&
-      typeof val.put === "function" &&
-      typeof val.get === "function" &&
-      typeof val.prepare !== "function"
-    ) {
-      return val;
-    }
-  }
-  return null;
+  return env.R2 || env.MEDIA_BUCKET || env.STORAGE || null;
 }
 
 async function sha256Hex(text) {
