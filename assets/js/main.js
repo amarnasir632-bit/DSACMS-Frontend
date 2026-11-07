@@ -4306,7 +4306,7 @@ if (document.readyState === "loading") {
       rootEl.dataset.theme = saved;
     }
 
-    const headerContainer = document.querySelector(".site-header .header-container");
+    const headerContainer = document.querySelector(".site-header .nav-wrap");
     if (headerContainer && !headerContainer.querySelector(".fu-04__theme")) {
       const btn = document.createElement("button");
       btn.className = "fu-04__theme";
