@@ -5,6 +5,7 @@ main = "_worker.js"
 [assets]
 directory = "."
 binding = "ASSETS"
+run_worker_first = ["/pages/content-detail", "/pages/content-detail.html"]
 
 [[d1_databases]]
 binding = "DB"
