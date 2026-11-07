@@ -2333,33 +2333,63 @@ function renderPublicQuestions(items) {
   const search = $("#public-question-search");
   const categoryFilter = $("#public-question-category");
   const pagination = $("#public-question-pagination");
+  const resultsCount = $("#question-search-results");
   const pageSize = 10;
   let currentPage = 1;
   const categories = [...new Set(items.map((item) => item.category || "عام"))].sort((a, b) => a.localeCompare(b, "ar"));
   if (categoryFilter) {
     categoryFilter.innerHTML = '<option value="">كل الموضوعات</option>' + categories.map((category) => `<option value="${escapeHTML(category)}">${escapeHTML(category)}</option>`).join("");
   }
-  if (tools) tools.hidden = items.length === 0;
+  if (tools) tools.hidden = false;
+
+  const faqData = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: items.map((item) => ({
+      "@type": "Question",
+      "@id": `${window.location.origin}/pages/questions.html#question-${encodeURIComponent(item.id)}`,
+      name: String(item.question_text || ""),
+      acceptedAnswer: { "@type": "Answer", text: String(item.answer_text || "") },
+    })),
+  };
+  let faqScript = document.getElementById("faq-page-structured-data");
+  if (!faqScript) {
+    faqScript = document.createElement("script");
+    faqScript.id = "faq-page-structured-data";
+    faqScript.type = "application/ld+json";
+    document.head.appendChild(faqScript);
+  }
+  faqScript.textContent = JSON.stringify(faqData);
+  const normalizeSearchText = (value) => String(value || "")
+    .normalize("NFKC")
+    .toLocaleLowerCase("ar")
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, "")
+    .replace(/[أإآٱ]/g, "ا")
+    .replace(/ى/g, "ي");
   const render = () => {
-    const query = (search?.value || "").trim().toLocaleLowerCase("ar");
+    const queryTerms = normalizeSearchText(search?.value).trim().split(/\s+/).filter(Boolean);
     const selectedCategory = categoryFilter?.value || "";
     const filtered = items.filter((item) => {
-      const content = `${item.question_text || ""} ${item.answer_text || ""} ${item.asker_name || ""}`.toLocaleLowerCase("ar");
-      return (!query || content.includes(query)) && (!selectedCategory || (item.category || "عام") === selectedCategory);
+      const content = normalizeSearchText(`${item.question_text || ""} ${item.answer_text || ""} ${item.asker_name || ""} ${item.category || ""}`);
+      return queryTerms.every((term) => content.includes(term)) && (!selectedCategory || (item.category || "عام") === selectedCategory);
     });
     const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
     currentPage = Math.min(currentPage, pageCount);
     const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
     list.innerHTML = visible.length
       ? visible.map((item) => `
-        <article class="qa-item">
+        <article class="qa-item" id="question-${escapeHTML(item.id)}">
           <div class="qa-item-meta"><span class="qa-category">${escapeHTML(item.category || "عام")}</span><span>${escapeHTML(item.asker_name || "بدون اسم")}</span></div>
-          <h3>السؤال</h3>
-          <p class="qa-question">${escapeHTML(item.question_text)}</p>
+          <h3>${escapeHTML(item.question_text || "السؤال")}</h3>
           <div class="qa-answer"><strong>الإجابة:</strong><br>${escapeHTML(item.answer_text)}</div>
           <small>تاريخ الإجابة: ${formatDate(item.answered_at)}</small>
         </article>`).join("")
       : `<p class="alert alert--info">${items.length ? "لا توجد نتائج مطابقة. جرّب كلمات أو موضوعاً آخر." : "لا توجد أسئلة مجاب عنها حتى الآن."}</p>`;
+    if (resultsCount) {
+      resultsCount.textContent = filtered.length
+        ? `عدد النتائج: ${filtered.length} من ${items.length} سؤالاً مجاباً عنها.`
+        : items.length ? "لا توجد نتائج مطابقة. جرّب كلمات بحث أخرى أو اختر موضوعاً مختلفاً." : "لا توجد أسئلة مجاب عنها حتى الآن.";
+    }
     if (pagination) {
       pagination.hidden = filtered.length <= pageSize;
       pagination.innerHTML = pagination.hidden ? "" : `<button type="button" class="btn btn--outline btn--sm" data-question-page="prev" ${currentPage === 1 ? "disabled" : ""}>السابق</button><span>صفحة ${currentPage} من ${pageCount}</span><button type="button" class="btn btn--outline btn--sm" data-question-page="next" ${currentPage === pageCount ? "disabled" : ""}>التالي</button>`;
@@ -3801,21 +3831,33 @@ async function initDashboard() {
         });
         const savedRow = (saved && saved.material) || saved || {};
         const savedId = String(savedRow.id || item.id || "");
+        if (!savedId || !String(savedRow.title || "").trim()) {
+          throw new Error("وصل طلب الحفظ لكن الخادم لم يؤكد إنشاء المادة. أعد تحميل قائمة المواد قبل المحاولة مجددًا.");
+        }
+        // أعد القراءة من المصدر بعد الحفظ حتى لا نعرض نجاحاً متفائلاً إذا لم تثبت المادة في قاعدة البيانات.
+        const persistedRow = await fetchApi(`/materials/${encodeURIComponent(savedId)}`);
+        if (!persistedRow || String(persistedRow.id) !== savedId) {
+          throw new Error("لم تظهر المادة في قاعدة البيانات بعد الحفظ. لم يتم تأكيد نجاح العملية.");
+        }
         saveContentDate(savedId, item.pubDate);
         const normalized = normalizeMaterial({
-          ...savedRow,
+          ...persistedRow,
           id: savedId,
           pubDate: item.pubDate,
           published_at: item.pubDate,
           publishedAt: item.pubDate,
         });
         normalized.pubDate = item.pubDate;
-        apiContents = [
-          normalized,
-          ...apiContents.filter((content) => content.id !== normalized.id),
-        ];
+        const persistedMaterials = await fetchApi("/materials");
+        if (!Array.isArray(persistedMaterials) || !persistedMaterials.some((row) => String(row.id) === savedId)) {
+          throw new Error("حُفظت المادة لكن قائمة المواد في الخادم لم تُحدّثها بعد. أعد تحميل لوحة الإدارة للتحقق.");
+        }
+        apiContents = persistedMaterials.map((row) => normalizeMaterial(row)).filter(Boolean);
         logAudit(existing ? "UPDATE_CONTENT" : "CREATE_CONTENT", item.title, "OK");
-        showToast(existing ? "تم تحديث المادة وحفظها على الخادم." : "تم رفع المادة وحفظها بنجاح.");
+        const visibilityNote = normalized.status === "published"
+          ? "وهي منشورة الآن على الموقع."
+          : `حُفظت بحالة ${normalized.status === "draft" ? "مسودة" : "مؤرشفة"} ولن تظهر للزوار حتى نشرها.`;
+        showToast(existing ? `تم تحديث المادة والتحقق من حفظها؛ ${visibilityNote}` : `تم حفظ المادة والتحقق من ظهورها في النظام؛ ${visibilityNote}`);
         resetEditor();
         switchTab("content");
         refreshAll();

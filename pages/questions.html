@@ -10,6 +10,7 @@
     content="اطرح سؤالك الشرعي وتصفح الإجابات المنشورة في مكتبة الشيخ محمد أحمد الهادي الكرار، واقرأ مواد في التفسير وأصول الفقه والحديث والسيرة النبوية.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://www.mohamedalahadi.com/pages/questions.html">
+  <link rel="alternate" type="application/json" href="https://www.mohamedalahadi.com/api/questions" title="الأسئلة المجاب عنها وإجاباتها">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="ar_AR">
   <meta property="og:site_name" content="المكتبة العلمية والصوتية للشيخ محمد أحمد الهادي الكرار">
@@ -125,14 +126,15 @@
       </section>
       <section aria-labelledby="answered-questions-title">
         <h2 id="answered-questions-title">الأسئلة المجاب عنها</h2>
-        <div class="qa-tools" id="public-question-tools" hidden>
-          <label class="visually-hidden" for="public-question-search">ابحث في الأسئلة والإجابات</label>
-          <input id="public-question-search" class="field" type="search" placeholder="ابحث في الأسئلة والإجابات…">
+        <div class="qa-tools" id="public-question-tools">
+          <label class="visually-hidden" for="public-question-search">ابحث في الأسئلة المجاب عنها</label>
+          <input id="public-question-search" class="field" type="search" placeholder="ابحث في نص السؤال أو الإجابة…" autocomplete="off" aria-describedby="question-search-results">
           <label class="visually-hidden" for="public-question-category">صفّ حسب الموضوع</label>
           <select id="public-question-category" class="field">
             <option value="">كل الموضوعات</option>
           </select>
         </div>
+        <p id="question-search-results" class="hint" role="status" aria-live="polite"></p>
         <div id="public-questions-list" class="qa-list" aria-live="polite"></div>
         <nav id="public-question-pagination" class="qa-pagination" aria-label="صفحات الأسئلة المجاب عنها" hidden></nav>
       </section>
@@ -197,7 +199,7 @@
       </div>
     </div>
   </footer>
-  <script type="module" src="../assets/js/main.js?v=20261107-v19" defer></script>
+  <script type="module" src="../assets/js/main.js?v=20261107-v21" defer></script>
 </body>
 
 </html>
