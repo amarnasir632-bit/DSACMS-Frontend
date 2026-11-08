@@ -3623,12 +3623,12 @@ async function initDashboard() {
   }
   $$("[data-step-next]").forEach((button) => {
     button.addEventListener("click", () => {
-      if (Number(button.dataset.stepNext) === 1) {
+      if (Number(button.dataset.stepNext) === 2) {
         let valid = true;
         if (!cfTitle.value.trim()) { showFieldError("err-cf-title", cfTitle); valid = false; }
         if (!cfAuthor.value.trim()) { showFieldError("err-cf-author", cfAuthor); valid = false; }
         if (!cfCategory.value) { showFieldError("err-cf-category", cfCategory); valid = false; }
-        if (valid) showEditorStep(2);
+        if (valid) showEditorStep(3);
       } else {
         showEditorStep(Math.min(3, activeEditorStep + 1));
       }
@@ -3808,8 +3808,15 @@ async function initDashboard() {
       if (validateAudioUrl(url)) loadAudioDuration(url);
     });
   }
+  const aiBox = $("#ai-audio-box");
+  const aiFullButton = $("#btn-ai-full");
+  const aiMetaButton = $("#btn-ai-meta");
   const aiStatus = $("#ai-audio-status");
   const aiTitles = $("#ai-suggested-titles");
+  [aiBox, aiFullButton, aiMetaButton, aiTitles].filter(Boolean).forEach((element) => {
+    element.hidden = true;
+    element.style.setProperty("display", "none", "important");
+  });
   const bodyPreview = $("#cf-body-preview");
   const previewButton = $("#btn-md-preview");
   function updateBodyPreview() {
