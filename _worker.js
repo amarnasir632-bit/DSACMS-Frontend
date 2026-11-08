@@ -325,6 +325,21 @@ async function handleDownloadProxy(request, env, url) {
   return new Response(upstream.body, { status: upstream.status, headers });
 }
 
+function normalizeGeminiAudioMime(rawMime, pathOrUrl = "") {
+  const lowerUrl = String(pathOrUrl || "").toLowerCase().split("?")[0];
+  if (lowerUrl.endsWith(".mp3")) return "audio/mp3";
+  if (lowerUrl.endsWith(".m4a") || lowerUrl.endsWith(".mp4")) return "audio/mp4";
+  if (lowerUrl.endsWith(".wav")) return "audio/wav";
+  if (lowerUrl.endsWith(".ogg") || lowerUrl.endsWith(".opus")) return "audio/ogg";
+  if (lowerUrl.endsWith(".flac")) return "audio/flac";
+  if (lowerUrl.endsWith(".aac")) return "audio/aac";
+  const clean = String(rawMime || "").toLowerCase().split(";")[0].trim();
+  if (clean === "audio/mpeg" || clean === "audio/mp3") return "audio/mp3";
+  if (clean === "audio/x-m4a" || clean === "audio/m4a" || clean === "audio/mp4") return "audio/mp4";
+  if (clean.startsWith("audio/")) return clean;
+  return "audio/mp3";
+}
+
 async function analyzeAudioWithGemini(env, { audioUrl, storageKey, mode = "full", categories = [] }, originUrl) {
   const apiKey = String(env.GEMINI_API_KEY || "").trim();
   if (!apiKey) throw new Error("مفتاح GEMINI_API_KEY غير مضاف في إعدادات Cloudflare Variables and Secrets.");
@@ -346,6 +361,7 @@ async function analyzeAudioWithGemini(env, { audioUrl, storageKey, mode = "full"
     const ct = upstream.headers.get("Content-Type"); if (ct && ct.includes("audio/")) mimeType = ct.split(";")[0].trim();
   }
   if (!audioStream) throw new Error("لم يتم العثور على الملف الصوتي لتحليله. تأكد من رفع الملف أولاً.");
+  mimeType = normalizeGeminiAudioMime(mimeType, keyToTry || audioUrl);
   const startHeaders = { "X-Goog-Upload-Protocol": "resumable", "X-Goog-Upload-Command": "start", "X-Goog-Upload-Header-Content-Type": mimeType, "Content-Type": "application/json" };
   if (contentLength > 0) startHeaders["X-Goog-Upload-Header-Content-Length"] = String(contentLength);
   const startRes = await fetch(`https://generativelanguage.googleapis.com/upload/v1beta/files?key=${encodeURIComponent(apiKey)}`, { method: "POST", headers: startHeaders, body: JSON.stringify({ file: { display_name: `dsacms_audio_${Date.now()}` } }) });
@@ -368,9 +384,37 @@ async function analyzeAudioWithGemini(env, { audioUrl, storageKey, mode = "full"
     }
     const catListText = Array.isArray(categories) && categories.length ? categories.map((c) => c.name || c).join("، ") : "خطب جمعة، تفسير، دروس عامة، محاضرات، عقيدة، فقه";
     const promptText = `أنت مساعد علمي شرعي متخصص في أرشفة دروس وخطب فضيلة الشيخ محمد أحمد الهادي الكرار. استمع إلى التسجيل بالكامل، وأخرج كائن JSON صالحاً باللغة العربية الفصحى يحتوي title عنواناً دقيقاً وجذاباً، suggestedTitles مصفوفة من 3 بدائل، description نبذة وافية من سطرين إلى ثلاثة، categoryName تصنيفاً من هذه القائمة فقط (${catListText})، keywords من 5 إلى 8 كلمات مفتاحية، وmarkdownBody تفريغاً كاملاً منسقاً بـ Markdown (اتركه فارغاً في وضع metadata). في التفريغ استخدم ## للعناوين، وضع الآيات بين ﴿...﴾ داخل اقتباس >، والأحاديث والاقتباسات في >، والنقاط بالقوائم، وأبرز المهم بخط عريض. صحح العفوي إملائياً مع الحفاظ على كلام الشيخ ومعانيه.`;
-    const genRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ contents: [{ parts: [{ file_data: { mime_type: mimeType, file_uri: fileUri } }, { text: promptText }] }], generationConfig: { temperature: 0.2, responseMimeType: "application/json" } }) });
-    if (!genRes.ok) { console.error("Gemini Generate Error:", await genRes.text().catch(() => "")); throw new Error("تعذر إكمال التحليل الذكي للملف الصوتي عبر Gemini 2.5 Flash."); }
-    const rawJsonText = (await genRes.json())?.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+    mimeType = normalizeGeminiAudioMime(mimeType, keyToTry || audioUrl);
+    const modelAttempts = [
+      { model: "gemini-2.5-flash", config: { temperature: 0.2, maxOutputTokens: 65536, responseMimeType: "application/json", thinkingConfig: { thinkingBudget: 0 } } },
+      { model: "gemini-2.5-flash", config: { temperature: 0.2, maxOutputTokens: 32768, responseMimeType: "application/json" } },
+      { model: "gemini-2.0-flash", config: { temperature: 0.2, maxOutputTokens: 8192, responseMimeType: "application/json" } },
+    ];
+    let genData = null;
+    let lastGoogleError = "";
+    for (const attempt of modelAttempts) {
+      const genRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${attempt.model}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ fileData: { mimeType, fileUri } }, { text: promptText }] }],
+          generationConfig: attempt.config,
+        }),
+      });
+      if (genRes.ok) { genData = await genRes.json(); break; }
+      const errText = await genRes.text().catch(() => "");
+      console.error(`Gemini [${attempt.model}] Error (${genRes.status}):`, errText);
+      try { lastGoogleError = JSON.parse(errText)?.error?.message || `HTTP ${genRes.status}`; }
+      catch (_) { lastGoogleError = `HTTP ${genRes.status}`; }
+    }
+    if (!genData) throw new Error(`تعذر إكمال التحليل الذكي للملف الصوتي (${lastGoogleError}).`);
+    const parts = genData?.candidates?.[0]?.content?.parts || [];
+    const textPart = parts.find((part) => typeof part.text === "string" && !part.thought) || parts[0];
+    let rawJsonText = String(textPart?.text || "{}").trim();
+    rawJsonText = rawJsonText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+    const firstBrace = rawJsonText.indexOf("{");
+    const lastBrace = rawJsonText.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace > firstBrace) rawJsonText = rawJsonText.slice(firstBrace, lastBrace + 1);
     const parsed = JSON.parse(rawJsonText);
     return { title: String(parsed.title || "").trim(), suggestedTitles: Array.isArray(parsed.suggestedTitles) ? parsed.suggestedTitles.slice(0, 3) : [], description: String(parsed.description || "").trim(), categoryName: String(parsed.categoryName || "").trim(), keywords: Array.isArray(parsed.keywords) ? parsed.keywords : [], markdownBody: String(parsed.markdownBody || "").trim() };
   } finally {
@@ -433,7 +477,7 @@ async function handleApiRoute(request, env, url) {
     try {
       if (!db) return jsonResponse({ ok: false, error: "خدمة الدخول غير متاحة حالياً." }, 503, origin);
       const sessionUser = await getD1SessionUser(db, request);
-      if (!sessionUser || !["admin", "manager"].includes(String(sessionUser.role).toLowerCase())) return jsonResponse({ ok: false, error: "يلزم تسجيل الدخول بحساب مدير لتحليل الصوت." }, 401, origin);
+      if (!sessionUser || !["admin", "site_admin", "manager"].includes(String(sessionUser.role).toLowerCase())) return jsonResponse({ ok: false, error: "يلزم تسجيل الدخول بحساب مدير لتحليل الصوت." }, 401, origin);
       const body = await request.json();
       const result = await analyzeAudioWithGemini(env, body, url.origin);
       return jsonResponse({ ok: true, ...result }, 200, origin);
