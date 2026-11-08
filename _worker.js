@@ -388,7 +388,7 @@ async function analyzeAudioWithGemini(env, { audioUrl, storageKey, mode = "full"
     const modelAttempts = [
       { model: "gemini-2.5-flash", config: { temperature: 0.2, maxOutputTokens: 65536, responseMimeType: "application/json", thinkingConfig: { thinkingBudget: 0 } } },
       { model: "gemini-2.5-flash", config: { temperature: 0.2, maxOutputTokens: 32768, responseMimeType: "application/json" } },
-      { model: "gemini-2.0-flash", config: { temperature: 0.2, maxOutputTokens: 8192, responseMimeType: "application/json" } },
+      { model: "gemini-3.8-flash", config: { temperature: 0.2, maxOutputTokens: 8192, responseMimeType: "application/json" } },
     ];
     let genData = null;
     let lastGoogleError = "";
