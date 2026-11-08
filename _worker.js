@@ -21,6 +21,18 @@ const PAGE_ALIASES = {
   "/pages/account": "/pages/account.html",
 };
 
+function withSecurityHeaders(response) {
+  const headers = new Headers(response.headers);
+  headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("X-Frame-Options", "SAMEORIGIN");
+  headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
 function corsHeaders(origin = "*") {
   return {
     "Access-Control-Allow-Origin": origin || "*",
@@ -1010,14 +1022,14 @@ export default {
 
     if (url.pathname.startsWith("/api/") || url.pathname === "/api") {
       try {
-        return await handleApiRoute(request, env, url);
+        return withSecurityHeaders(await handleApiRoute(request, env, url));
       } catch (err) {
         const origin = request.headers.get("Origin") || "*";
         console.error("Unhandled API worker exception", { path: url.pathname, message: err?.message || String(err), stack: err?.stack || null });
-        return jsonResponse({
+        return withSecurityHeaders(jsonResponse({
           error: "Internal Worker Exception",
           path: url.pathname,
-        }, 500, origin);
+        }, 500, origin));
       }
     }
 
@@ -1071,17 +1083,17 @@ export default {
 
       if (mappedPath || normalizedPath.startsWith("/pages/")) {
         const resolvedResponse = await fetchAssetWithoutRedirectLoop(mappedPath || normalizedPath);
-        if (resolvedResponse) return resolvedResponse;
+        if (resolvedResponse) return withSecurityHeaders(resolvedResponse);
       }
 
       let response = await env.ASSETS.fetch(request);
       if (response.status === 404 && !url.pathname.includes(".") && url.pathname !== "/") {
         const cleanResponse = await fetchAssetWithoutRedirectLoop(`${url.pathname}.html`);
-        if (cleanResponse) return cleanResponse;
+        if (cleanResponse) return withSecurityHeaders(cleanResponse);
       }
-      return response;
+      return withSecurityHeaders(response);
     }
 
-    return new Response("Not Found", { status: 404 });
+    return withSecurityHeaders(new Response("Not Found", { status: 404 }));
   },
 };

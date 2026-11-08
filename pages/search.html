@@ -25,7 +25,7 @@
   <meta name="twitter:description" content="ابحث عن الدروس الصوتية والكتب والمقالات الشرعية في مكتبة الشيخ.">
   <meta name="twitter:image" content="https://www.mohamedalahadi.com/assets/images/logo.png">
 
-  <link rel="stylesheet" href="../assets/css/style.css?v=20261108-v17">
+  <link rel="stylesheet" href="../assets/css/style.css?v=20261108-v18">
   <link rel="icon" type="image/png" href="../assets/images/logo.png">
 </head>
 
@@ -40,8 +40,8 @@
         <span>الشيخ محمد أحمد الهادي الكرار<small>المكتبة العلمية والصوتية</small></span>
       </a>
       <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" aria-label="فتح القائمة الرئيسية">
-        <span class="icon-menu" aria-hidden="true">☰</span>
-        <span class="icon-close" aria-hidden="true">✕</span>
+        <svg class="icon-menu" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        <svg class="icon-close" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18M6 6l12 12"/></svg>
       </button>
       <nav id="site-nav" class="site-nav" aria-label="القائمة الرئيسية">
         <button
@@ -96,7 +96,7 @@
           <fieldset class="filter-group">
             <legend id="filter-cat-label">التصنيف</legend>
             <label class="visually-hidden" for="filter-category">اختر تصنيفاً</label>
-            <select id="filter-category" name="category" aria-labelledby="filter-cat-label">
+            <select id="filter-category" name="category">
               <option value="">جميع التصنيفات</option>
               <!-- تُملأ الخيارات عبر JS -->
             </select>
@@ -105,8 +105,8 @@
           <!-- تصفية الصوت -->
           <fieldset class="filter-group">
             <legend>نوع الملف</legend>
-            <label class="visually-hidden" for="filter-media">نوع المحتوى</label>
-            <select id="filter-media" name="media" aria-label="نوع المحتوى">
+            <label class="visually-hidden" for="filter-media">نوع الملف</label>
+            <select id="filter-media" name="media">
               <option value="">الكل</option>
               <option value="audio">مادة صوتية</option>
               <option value="article">مقال مكتوب</option>
@@ -119,7 +119,7 @@
           <fieldset class="filter-group">
             <legend id="filter-sort-label">ترتيب حسب</legend>
             <label class="visually-hidden" for="filter-sort">طريقة الترتيب</label>
-            <select id="filter-sort" name="sort" aria-labelledby="filter-sort-label">
+            <select id="filter-sort" name="sort">
               <option value="newest">الأحدث أولاً</option>
               <option value="oldest">الأقدم أولاً</option>
               <option value="title-asc">العنوان (أ → ي)</option>
@@ -212,6 +212,6 @@
     </div>
   </footer>
 
-  <script type="module" src="../assets/js/main.js?v=20261108-v17" defer></script>
+  <script type="module" src="../assets/js/main.js?v=20261108-v18" defer></script>
 </body>
 </html>

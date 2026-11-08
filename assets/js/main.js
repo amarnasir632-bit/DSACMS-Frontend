@@ -1457,7 +1457,7 @@ function initShared() {
       toggle.setAttribute("aria-expanded", String(open));
       toggle.setAttribute(
         "aria-label",
-        open ? "إغلاق قائمة التنقل" : "فتح قائمة التنقل"
+        open ? "إغلاق القائمة الرئيسية" : "فتح القائمة الرئيسية"
       );
 
       document.body.classList.toggle("nav-menu-open", open);
@@ -2381,9 +2381,10 @@ function renderPublicQuestions(items) {
         </article>`).join("")
       : `<p class="alert alert--info">${items.length ? "لا توجد نتائج مطابقة. جرّب كلمات أو موضوعاً آخر." : "لا توجد أسئلة مجاب عنها حتى الآن."}</p>`;
     if (resultsCount) {
+      resultsCount.hidden = items.length === 0;
       resultsCount.textContent = filtered.length
         ? `عدد النتائج: ${filtered.length} من ${items.length} سؤالاً مجاباً عنها.`
-        : items.length ? "لا توجد نتائج مطابقة. جرّب كلمات بحث أخرى أو اختر موضوعاً مختلفاً." : "لا توجد أسئلة مجاب عنها حتى الآن.";
+        : "لا توجد نتائج مطابقة. جرّب كلمات بحث أخرى أو اختر موضوعاً مختلفاً.";
     }
     if (pagination) {
       pagination.hidden = filtered.length <= pageSize;
