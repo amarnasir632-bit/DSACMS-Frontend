@@ -13,6 +13,7 @@
 import { initNavbar } from "./components/navbar.js";
 import { initHomePage } from "./pages/home.js";
 import { initSearchPage } from "./pages/search.js";
+import { renderMarkdownToHtml } from "./utils/markdown.js";
 
 try {
   const savedBase = localStorage.getItem("dsacms_api_base") || "";
@@ -752,7 +753,7 @@ function normalizeMaterial(row) {
 
 async function fetchApi(path, options) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25000);
+  const timeout = setTimeout(() => controller.abort(), Number(options?.timeout) || 25000);
   const session = store.read(STORE.session, null);
   const headers = new Headers((options && options.headers) || {});
   if (session?.token) headers.set("Authorization", `Bearer ${session.token}`);
@@ -1987,13 +1988,7 @@ async function initDetail() {
     }
     applyReadingSettings();
     if (content.body && content.body.length) {
-      const paragraphs = content.body
-        .flatMap((paragraph) => String(paragraph).split(/\r?\n+/))
-        .map((paragraph) => paragraph.trim())
-        .filter(Boolean);
-      articleBody.innerHTML = paragraphs
-        .map((paragraph) => `<p>${escapeHTML(paragraph)}</p>`)
-        .join("");
+      articleBody.innerHTML = renderMarkdownToHtml(content.body);
     }
     if (content.pdf && pdfReader && pdfFrame) {
       pdfReader.hidden = false;
@@ -3813,6 +3808,67 @@ async function initDashboard() {
       if (validateAudioUrl(url)) loadAudioDuration(url);
     });
   }
+  const aiStatus = $("#ai-audio-status");
+  const aiTitles = $("#ai-suggested-titles");
+  const bodyPreview = $("#cf-body-preview");
+  const previewButton = $("#btn-md-preview");
+  function updateBodyPreview() {
+    if (bodyPreview && cfBody) bodyPreview.innerHTML = renderMarkdownToHtml(cfBody.value);
+  }
+  function addMarkdownAtCursor(text, wrap = false) {
+    if (!cfBody) return;
+    const start = cfBody.selectionStart, end = cfBody.selectionEnd;
+    const selected = cfBody.value.slice(start, end) || (wrap ? "نص" : "");
+    const replacement = wrap ? `${text}${selected}${text}` : text;
+    cfBody.setRangeText(replacement, start, end, "select");
+    cfBody.focus();
+    updateBodyPreview();
+  }
+  $$("[data-md-insert]").forEach((button) => button.addEventListener("click", () => addMarkdownAtCursor(button.dataset.mdInsert)));
+  $$("[data-md-wrap]").forEach((button) => button.addEventListener("click", () => addMarkdownAtCursor(button.dataset.mdWrap, true)));
+  cfBody?.addEventListener("input", updateBodyPreview);
+  previewButton?.addEventListener("click", () => {
+    const showing = !bodyPreview.hidden;
+    bodyPreview.hidden = showing;
+    previewButton.setAttribute("aria-pressed", String(!showing));
+    previewButton.textContent = showing ? "👁️ معاينة التنسيق" : "✏️ العودة للتحرير";
+    if (!showing) updateBodyPreview();
+  });
+  function displaySuggestedTitles(titles) {
+    if (!aiTitles) return;
+    aiTitles.replaceChildren();
+    for (const title of (Array.isArray(titles) ? titles : []).slice(0, 3)) {
+      const chip = document.createElement("button");
+      chip.type = "button"; chip.className = "ai-title-chip"; chip.textContent = title;
+      chip.addEventListener("click", () => { cfTitle.value = title; cfTitle.focus(); });
+      aiTitles.appendChild(chip);
+    }
+    aiTitles.hidden = !aiTitles.childElementCount;
+  }
+  async function analyzeAudio(mode) {
+    const audioUrl = cfAudio?.value.trim();
+    if (!audioUrl) { if (aiStatus) aiStatus.textContent = "ارفع الملف الصوتي أو أدخل رابطه أولاً."; cfAudio?.focus(); return; }
+    const buttons = [$("#btn-ai-full"), $("#btn-ai-meta")].filter(Boolean);
+    buttons.forEach((button) => { button.disabled = true; });
+    if (aiStatus) aiStatus.textContent = "جارٍ رفع الصوت وتحليله… قد يستغرق ذلك عدة دقائق.";
+    try {
+      const result = await fetchApi("/ai/analyze-audio", { method: "POST", body: JSON.stringify({ audioUrl, storageKey: cfAudio.dataset.storageKey || "", mode, categories: loadCategories() }), timeout: 300000 });
+      if (result?.ok === false) throw new Error(result.error || "تعذر التحليل.");
+      if (cfTitle) cfTitle.value = result.title || cfTitle.value;
+      if (cfDesc) cfDesc.value = result.description || cfDesc.value;
+      if (cfKeywords) cfKeywords.value = (result.keywords || []).join("، ");
+      displaySuggestedTitles(result.suggestedTitles);
+      const category = [...(cfCategory?.options || [])].find((option) => option.textContent.trim() === String(result.categoryName || "").trim());
+      if (category) cfCategory.value = category.value;
+      if (result.markdownBody && cfBody) { cfBody.value = result.markdownBody; updateBodyPreview(); }
+      if (aiStatus) aiStatus.textContent = mode === "full" ? "اكتمل التفريغ والبيانات. راجعها قبل الحفظ." : "اكتمل توليد البيانات. راجعها قبل الحفظ.";
+    } catch (error) {
+      if (aiStatus) aiStatus.textContent = error.detail || error.message || "تعذر تحليل الملف الصوتي.";
+    } finally { buttons.forEach((button) => { button.disabled = false; }); }
+  }
+  $("#btn-ai-full")?.addEventListener("click", () => analyzeAudio("full"));
+  $("#btn-ai-meta")?.addEventListener("click", () => analyzeAudio("metadata"));
+
   if (cfPdf) {
     cfPdf.addEventListener("blur", () => {
       const normalized = normalizeGoogleDriveUrl(cfPdf.value);

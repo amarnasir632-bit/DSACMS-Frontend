@@ -6,6 +6,7 @@
 import { renderViewState, escapeHtml, formatDuration, formatDate } from "../core/ui-states.js";
 import { apiRequest, resolveMediaUrl, resolveDownloadUrl, downloadWithProgress } from "../core/api.js";
 import { renderFullPlayer } from "../components/audio-player.js";
+import { renderMarkdownToHtml } from "../utils/markdown.js";
 
 const ICONS = {
   author: `<svg class="svg-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
@@ -103,6 +104,7 @@ function renderMaterialDetail(container, m, categories = []) {
 
       <div class="detail-body prose" style="margin-block:var(--space-4);">
         <p>${escapeHtml(m.description || "")}</p>
+        ${m.body && m.body.length ? `<div class="reading-content">${renderMarkdownToHtml(m.body)}</div>` : ""}
       </div>
 
       ${hasPdf ? `

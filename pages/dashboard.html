@@ -9,7 +9,7 @@
   <meta name="description" content="لوحة إدارة المحتوى والتصنيفات والمستخدمين وسجل العمليات في نظام DSACMS.">
   <meta name="robots" content="noindex, nofollow">
 
-  <link rel="stylesheet" href="../assets/css/style.css?v=20261107-v19">
+  <link rel="stylesheet" href="../assets/css/style.css?v=20261108-v16">
   <link rel="icon" type="image/png" href="../assets/images/logo.png">
 </head>
 
@@ -231,11 +231,28 @@
 
               <div class="editor-step is-active" data-editor-step="1">
                 <p class="editor-step__label">الخطوة 1 من 3: المعلومات الأساسية</p>
+                <div class="form-group">
+                  <label for="cf-audio">رابط الملف الصوتي الأساسي (Cloudflare R2)</label>
+                  <input type="url" id="cf-audio" name="audioUrl" class="field" maxlength="2000" placeholder="https://media.mohamedalahadi.com/audio/...mp3" inputmode="url" aria-describedby="cf-audio-hint">
+                  <p class="hint" id="cf-audio-hint">اختر ملفًا صوتيًا لرفعه مباشرة إلى R2؛ سيُضاف الرابط فائق السرعة تلقائيًا دون حد الـ 90MB.</p>
+                  <div class="archive-upload-actions">
+                    <button type="button" class="btn btn--outline" id="cf-archive-upload">اختيار ملف صوتي ورفعه إلى R2</button>
+                    <span class="hint">رفع مباشر فائق السرعة إلى Cloudflare R2 (حتى 500 ميغابايت) مع تشغيل فوري وسرعة CDN عالمية.</span>
+                  </div>
+                  <p class="upload-status" id="cf-audio-upload-status" role="status" aria-live="polite" hidden></p>
+                  <p class="field-error-msg" id="err-cf-audio"></p>
+                  <div id="ai-audio-box" class="ai-audio-box" style="margin-top:.85rem;padding:1rem;border-radius:12px;background:rgba(200,157,84,.08);border:1px dashed var(--accent,#c89d54)">
+                    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;margin-bottom:.65rem"><strong style="color:var(--primary,#0f2137);font-size:.95rem">✨ المساعد الذكي (Gemini 2.5 Flash)</strong><span id="ai-audio-status" style="font-size:.85rem;color:var(--text-muted,#555)">ارفع الملف الصوتي أولاً لتوليد البيانات تلقائياً</span></div>
+                    <div style="display:flex;flex-wrap:wrap;gap:.5rem"><button type="button" id="btn-ai-full" class="btn btn--primary btn--sm" style="flex:1 1 220px">✨ توليد العنوان والوصف + تفريغ النص الكامل (Markdown)</button><button type="button" id="btn-ai-meta" class="btn btn--outline btn--sm" style="flex:1 1 180px">⚡ توليد العنوان والوصف والـ Tags فقط</button></div>
+                  </div>
+                </div>
+
               <div class="grid grid--content">
                 <div class="form-group">
                   <label for="cf-title">العنوان <span class="req">*</span></label>
                   <input type="text" id="cf-title" name="title" class="field" required aria-required="true" maxlength="150">
                   <p class="field-error-msg" id="err-cf-title">العنوان مطلوب.</p>
+                  <div id="ai-suggested-titles" class="ai-suggested-titles" hidden aria-label="عناوين مقترحة"></div>
                 </div>
                 <div class="form-group">
                   <label for="cf-author">المؤلف <span class="req">*</span></label>
@@ -291,17 +308,7 @@
                   <input type="number" id="cf-duration" name="duration" class="field" min="0" step="1" aria-describedby="cf-duration-hint">
                   <p class="hint" id="cf-duration-hint" aria-live="polite">ستُحسب تلقائيًا عند إدخال رابط صوت مباشر، ويمكن تعديلها يدويًا عند تعذر القراءة.</p>
                 </div>
-                <div class="form-group">
-                  <label for="cf-audio">رابط الملف الصوتي الأساسي (Cloudflare R2)</label>
-                  <input type="url" id="cf-audio" name="audioUrl" class="field" maxlength="2000" placeholder="https://media.mohamedalahadi.com/audio/...mp3" inputmode="url" aria-describedby="cf-audio-hint">
-                  <p class="hint" id="cf-audio-hint">اختر ملفًا صوتيًا لرفعه مباشرة إلى R2؛ سيُضاف الرابط فائق السرعة تلقائيًا دون حد الـ 90MB.</p>
-                  <div class="archive-upload-actions">
-                    <button type="button" class="btn btn--outline" id="cf-archive-upload">اختيار ملف صوتي ورفعه إلى R2</button>
-                    <span class="hint">رفع مباشر فائق السرعة إلى Cloudflare R2 (حتى 500 ميغابايت) مع تشغيل فوري وسرعة CDN عالمية.</span>
-                  </div>
-                  <p class="upload-status" id="cf-audio-upload-status" role="status" aria-live="polite" hidden></p>
-                  <p class="field-error-msg" id="err-cf-audio"></p>
-                </div>
+
               </div>
 
               <div class="form-group">
@@ -326,9 +333,13 @@
               <div class="editor-step" data-editor-step="3" hidden>
                 <p class="editor-step__label">الخطوة 3 من 3: النص والحفظ</p>
               <div class="form-group">
-                <label for="cf-body">نص المقال</label>
+                <label for="cf-body">نص المادة</label>
+                <div class="markdown-toolbar" role="toolbar" aria-label="أدوات تنسيق Markdown">
+                  <button type="button" data-md-insert="## عنوان رئيسي\n">H2 عنوان</button><button type="button" data-md-insert="### عنوان فرعي\n">H3 فرعي</button><button type="button" data-md-wrap="**">B عريض</button><button type="button" data-md-insert="> ﴿ آية / اقتباس ﴾\n">﴿ آية/اقتباس ﴾</button><button type="button" data-md-insert="- قائمة نقطية\n">• قائمة</button><button type="button" data-md-insert="\n---\n">― فاصل</button><button type="button" id="btn-md-preview" aria-pressed="false">👁️ معاينة التنسيق</button>
+                </div>
                 <textarea id="cf-body" name="body" class="field" rows="5" placeholder="ضع كل فقرة في سطر مستقل"></textarea>
-                <p class="hint">يمكن إضافة نص للمقال مع الملف الصوتي في الصفحة نفسها؛ افصل الفقرات بأسطر فارغة.</p>
+                <p class="hint">اكتب النص مباشرة أو استخدم أدوات Markdown لإضافة العناوين والاقتباسات والقوائم.</p>
+                <div id="cf-body-preview" class="markdown-preview reading-content" hidden></div>
               </div>
 
               <fieldset class="reading-settings">
@@ -514,6 +525,6 @@
   </footer>
 
   <!-- التذييل -->
-  <script type="module" src="../assets/js/main.js?v=20261107-v25" defer></script>
+  <script type="module" src="../assets/js/main.js?v=20261108-v16" defer></script>
 </body>
 </html>

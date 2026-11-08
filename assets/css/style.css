@@ -4367,3 +4367,22 @@ html[data-theme="dark"] .fu-04 {
   font-weight: 700 !important;
    
 }
+
+/* Markdown article presentation and admin tools */
+.reading-content { direction: rtl; line-height: var(--reading-line-height, 2); }
+.reading-content h1, .reading-content h2, .reading-content h3 { color: var(--primary, #0f2137); font-weight: 800; line-height: 1.6; margin: 1.5em 0 .55em; }
+.reading-content h2 { border-inline-start: 4px solid var(--accent, #c89d54); padding-inline-start: .7em; }
+.reading-content h3 { color: var(--primary, #0f2137); }
+.reading-content blockquote { margin: 1.2em 0; padding: .8em 1em; border-inline-start: 4px solid var(--accent, #c89d54); border-radius: 8px; background: rgba(200,157,84,.09); color: var(--text, #263447); }
+.reading-content blockquote p { margin: .2em 0; }
+.reading-content ul, .reading-content ol { padding-inline-start: 1.6em; }
+.reading-content li { margin-block: .35em; }
+.reading-content li::marker { color: var(--accent, #c89d54); }
+.reading-content strong { color: var(--primary, #0f2137); }
+.reading-content hr { border: 0; border-top: 1px solid var(--accent, #c89d54); margin: 1.6em 0; }
+.markdown-toolbar { display: flex; flex-wrap: wrap; gap: .4rem; margin: .5rem 0; }
+.markdown-toolbar button, .ai-title-chip { border: 1px solid var(--color-border, #d8dee7); border-radius: 8px; background: var(--surface, #fff); padding: .4rem .65rem; cursor: pointer; font: inherit; }
+.markdown-toolbar button:hover, .ai-title-chip:hover { border-color: var(--accent, #c89d54); }
+.markdown-preview { margin-top: .75rem; padding: 1rem; border: 1px solid var(--color-border, #d8dee7); border-radius: 10px; background: var(--surface, #fff); }
+.ai-suggested-titles { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .5rem; }
+.ai-suggested-titles[hidden], .markdown-preview[hidden] { display: none; }
