@@ -883,7 +883,8 @@ async function handleApiRoute(request, env, url, context) {
         const audioTypes = {
           mp3: ["audio/mpeg", "audio/mp3"], m4a: ["audio/mp4", "audio/x-m4a"],
           aac: ["audio/aac", "audio/x-aac"], wav: ["audio/wav", "audio/x-wav"],
-          ogg: ["audio/ogg", "application/ogg"], opus: ["audio/opus", "audio/ogg"],
+          ogg: ["audio/ogg", "application/ogg"], oga: ["audio/ogg", "application/ogg"], opus: ["audio/opus", "audio/ogg"],
+          webm: ["audio/webm"],
           flac: ["audio/flac", "audio/x-flac"], "3gp": ["audio/3gpp", "video/3gpp"],
         };
         const ext = String(url.searchParams.get("ext") || "").toLowerCase();

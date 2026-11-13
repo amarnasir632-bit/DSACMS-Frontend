@@ -2762,6 +2762,33 @@ async function initSheikhQuestions() {
   const pendingList = $("#pending-questions-list");
   const answeredList = $("#answered-questions-list");
   const questionCategories = ["عام", "العقيدة", "العبادات", "الأسرة", "المعاملات", "الآداب والسلوك", "أخرى"];
+  const questionAudioFiles = new Map();
+  const questionRecorders = new Map();
+  const audioExtensions = new Set(["mp3", "m4a", "aac", "wav", "ogg", "oga", "opus", "flac", "3gp", "webm"]);
+  const audioMime = (ext) => ({ mp3: "audio/mpeg", m4a: "audio/mp4", aac: "audio/aac", wav: "audio/wav", ogg: "audio/ogg", oga: "audio/ogg", opus: "audio/ogg", flac: "audio/flac", "3gp": "audio/3gpp", webm: "audio/webm" }[ext] || "application/octet-stream");
+  const uploadQuestionAudio = (id, file, status) => new Promise((resolve, reject) => {
+    const session = getSession();
+    if (!session?.token) return reject(new Error("انتهت الجلسة. سجّل الدخول مجدداً."));
+    const xhr = new XMLHttpRequest();
+    const ext = file.name.split(".").pop().toLowerCase();
+    const contentType = file.type?.startsWith("audio/") ? file.type : audioMime(ext);
+    xhr.open("PUT", `${API_CONFIG.baseUrl}/questions/sheikh/${encodeURIComponent(id)}/answer-audio?ext=${encodeURIComponent(ext)}`);
+    xhr.setRequestHeader("Authorization", `Bearer ${session.token}`);
+    xhr.setRequestHeader("Content-Type", contentType);
+    xhr.upload.addEventListener("progress", (event) => {
+      if (event.lengthComputable) status.textContent = `جارٍ رفع الصوت إلى Cloudflare R2… ${Math.round(event.loaded / event.total * 100)}٪`;
+    });
+    xhr.upload.addEventListener("load", () => { status.textContent = "اكتمل نقل الصوت؛ جارٍ حفظ الإجابة…"; });
+    xhr.addEventListener("load", () => {
+      let payload = {};
+      try { payload = JSON.parse(xhr.responseText || "{}"); } catch (_) {}
+      if (xhr.status >= 200 && xhr.status < 300 && payload.fileUrl) resolve(payload.fileUrl);
+      else reject(new Error(payload.error || `فشل رفع التسجيل (${xhr.status}).`));
+    });
+    xhr.addEventListener("error", () => reject(new Error("تعذر الاتصال بخدمة رفع الصوت.")));
+    xhr.addEventListener("abort", () => reject(new Error("تم إلغاء رفع التسجيل.")));
+    xhr.send(file);
+  });
   const render = (items, target, answered) => {
     if (!target) return;
     target.innerHTML = items.length ? items.map((item) => `
@@ -2777,6 +2804,14 @@ async function initSheikhQuestions() {
           </div>
           <label for="answer-${escapeHTML(item.id)}">${answered ? "الإجابة" : "اكتب الإجابة"}</label>
           <textarea class="field" id="answer-${escapeHTML(item.id)}">${escapeHTML(item.answer_text || "")}</textarea>
+          ${item.answer_audio_url ? `<audio controls preload="none" src="${escapeHTML(item.answer_audio_url)}" style="display:block;width:100%;margin-block-start:var(--space-2)" aria-label="الإجابة الصوتية الحالية"></audio>` : ""}
+          <input type="hidden" id="answer-audio-url-${escapeHTML(item.id)}" value="${escapeHTML(item.answer_audio_url || "")}">
+          <input type="file" hidden id="answer-audio-file-${escapeHTML(item.id)}" accept=".mp3,.m4a,.aac,.wav,.ogg,.oga,.opus,.flac,.3gp,.webm,audio/*" data-question-audio-file="${escapeHTML(item.id)}">
+          <div class="form-group" style="display:flex;gap:var(--space-2);flex-wrap:wrap;margin-block-start:var(--space-2);">
+            <button type="button" class="btn btn--outline btn--sm" data-question-action="pick-audio" data-question-id="${escapeHTML(item.id)}">اختيار تسجيل صوتي</button>
+            <button type="button" class="btn btn--outline btn--sm" data-question-action="record-audio" data-question-id="${escapeHTML(item.id)}">تسجيل إجابة صوتية</button>
+          </div>
+          <p class="form-help" id="answer-audio-status-${escapeHTML(item.id)}" aria-live="polite">${item.answer_audio_url ? "يوجد تسجيل صوتي مرفق." : "الصيغ: MP3، M4A، AAC، WAV، OGG، OPUS، FLAC، 3GP، WEBM — الحد 20 ميجابايت."}</p>
           <div class="form-group" style="display:flex;gap:var(--space-2);flex-wrap:wrap;margin-block-start:var(--space-3);">
             <button type="button" class="btn btn--primary btn--sm" data-question-action="${answered ? "edit" : "answer"}" data-question-id="${escapeHTML(item.id)}">${answered ? "حفظ التعديل" : "نشر الإجابة"}</button>
             <button type="button" class="btn btn--danger-outline btn--sm" data-question-action="${answered ? "delete" : "reject"}" data-question-id="${escapeHTML(item.id)}">${answered ? "حذف نهائي" : "رفض / تجاهل"}</button>
@@ -2808,8 +2843,46 @@ async function initSheikhQuestions() {
     if (!button) return;
     const id = button.dataset.questionId;
     const textarea = $(`#answer-${CSS.escape(id)}`);
+    const audioUrlField = $(`#answer-audio-url-${CSS.escape(id)}`);
+    const audioStatus = $(`#answer-audio-status-${CSS.escape(id)}`);
     const categorySelect = $(`[data-question-category="${CSS.escape(id)}"]`);
     try {
+      if (button.dataset.questionAction === "pick-audio") {
+        $(`#answer-audio-file-${CSS.escape(id)}`)?.click();
+        return;
+      }
+      if (button.dataset.questionAction === "record-audio") {
+        const activeRecorder = questionRecorders.get(id);
+        if (activeRecorder) {
+          button.disabled = true;
+          button.textContent = "جارٍ إنهاء التسجيل…";
+          activeRecorder.stop();
+          return;
+        }
+        if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) throw new Error("التسجيل الصوتي غير مدعوم في هذا المتصفح؛ استخدم اختيار تسجيل موجود.");
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const recorder = new MediaRecorder(stream);
+        const chunks = [];
+        questionRecorders.set(id, recorder);
+        recorder.addEventListener("dataavailable", (event) => { if (event.data?.size) chunks.push(event.data); });
+        recorder.addEventListener("stop", () => {
+          stream.getTracks().forEach((track) => track.stop());
+          questionRecorders.delete(id);
+          button.disabled = false;
+          button.textContent = "تسجيل إجابة صوتية";
+          const mime = recorder.mimeType || "audio/webm";
+          const ext = mime.includes("ogg") ? "ogg" : "webm";
+          const file = new File(chunks, `answer-${id}.${ext}`, { type: mime });
+          if (!file.size || file.size > 20 * 1024 * 1024) { audioStatus.textContent = "التسجيل فارغ أو يتجاوز 20 ميجابايت."; return; }
+          questionAudioFiles.set(id, file);
+          audioUrlField.value = "";
+          audioStatus.textContent = `تم إرفاق التسجيل: ${file.name} (${(file.size / 1048576).toFixed(1)} MB). اضغط نشر الإجابة لرفعه.`;
+        });
+        recorder.start();
+        button.textContent = "إيقاف التسجيل";
+        audioStatus.textContent = "جارٍ التسجيل… اضغط إيقاف التسجيل عند الانتهاء.";
+        return;
+      }
       button.disabled = true;
       if (button.dataset.questionAction === "delete") {
         const ok = await confirmAction(
@@ -2832,20 +2905,54 @@ async function initSheikhQuestions() {
           body: JSON.stringify({ category: categorySelect?.value || "عام" }),
         });
       } else {
+        let audioUrl = audioUrlField?.value || "";
+        const audioFile = questionAudioFiles.get(id);
+        if (audioFile) {
+          button.disabled = true;
+          const ext = audioFile.name.split(".").pop().toLowerCase();
+          if (!audioExtensions.has(ext)) throw new Error("اختر ملفاً صوتياً بصيغة مدعومة فقط.");
+          if (audioFile.size > 20 * 1024 * 1024) throw new Error("الحد الأقصى للتسجيل الصوتي 20 ميجابايت.");
+          audioStatus.textContent = "جارٍ تجهيز الرفع إلى Cloudflare R2…";
+          audioUrl = await uploadQuestionAudio(id, audioFile, audioStatus);
+          if (audioUrlField) audioUrlField.value = audioUrl;
+          questionAudioFiles.delete(id);
+        }
         await fetchApi(`/questions/sheikh/${encodeURIComponent(id)}/${button.dataset.questionAction === "edit" ? "edit" : "answer"}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ answer_text: textarea.value }),
+          body: JSON.stringify({ answer_text: textarea.value, answer_audio_url: audioUrl || null }),
         });
       }
       showToast("تم حفظ التغيير.");
       await load();
     } catch (error) {
       console.error("Unable to update question", error);
-      showToast("تعذر حفظ التغيير.", "error");
+      const message = error?.name === "NotAllowedError"
+        ? "اسمح للمتصفح باستخدام الميكروفون لبدء تسجيل الإجابة."
+        : (error?.message || "تعذر حفظ التغيير.");
+      showToast(message, "error");
     } finally {
       button.disabled = false;
     }
+  });
+  document.addEventListener("change", (event) => {
+    const input = event.target.closest("[data-question-audio-file]");
+    if (!input) return;
+    const id = input.dataset.questionAudioFile;
+    const file = input.files?.[0];
+    if (!file) return;
+    const ext = file.name.split(".").pop().toLowerCase();
+    const status = $(`#answer-audio-status-${CSS.escape(id)}`);
+    if (!audioExtensions.has(ext)) {
+      input.value = "";
+      status.textContent = "الصيغ المقبولة للصوت: MP3، M4A، AAC، WAV، OGG، OPUS، FLAC، 3GP، WEBM.";
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) { input.value = ""; status.textContent = "الحد الأقصى للتسجيل الصوتي 20 ميجابايت."; return; }
+    questionAudioFiles.set(id, file);
+    const audioUrlField = $(`#answer-audio-url-${CSS.escape(id)}`);
+    if (audioUrlField) audioUrlField.value = "";
+    status.textContent = `تم اختيار ${file.name} (${(file.size / 1048576).toFixed(1)} MB). اضغط نشر الإجابة لرفعه.`;
   });
   await load();
 }
