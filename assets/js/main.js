@@ -2376,7 +2376,7 @@ function renderPublicQuestions(items) {
         <article class="qa-item" id="question-${escapeHTML(item.id)}">
           <div class="qa-item-meta"><span class="qa-category">${escapeHTML(item.category || "عام")}</span><span>${escapeHTML(item.asker_name || "بدون اسم")}</span></div>
           <h3>${escapeHTML(item.question_text || "السؤال")}</h3>
-          <div class="qa-answer"><strong>الإجابة:</strong><br>${escapeHTML(item.answer_text)}</div>
+          <div class="qa-answer"><strong>الإجابة:</strong><br>${escapeHTML(item.answer_text || "")}${item.answer_audio_url ? `<audio controls preload="none" src="${escapeHTML(item.answer_audio_url)}" aria-label="الإجابة الصوتية"></audio>` : ""}</div>
           <small>تاريخ الإجابة: ${formatDate(item.answered_at)}</small>
         </article>`).join("")
       : `<p class="alert alert--info">${items.length ? "لا توجد نتائج مطابقة. جرّب كلمات أو موضوعاً آخر." : "لا توجد أسئلة مجاب عنها حتى الآن."}</p>`;

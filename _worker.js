@@ -209,7 +209,8 @@ async function ensureD1SchemaAndMigrate(db, env = {}) {
       answer TEXT DEFAULT '',
       status TEXT DEFAULT 'pending',
       created_at TEXT DEFAULT (datetime('now')),
-      answered_at TEXT
+      answered_at TEXT,
+      answer_audio_url TEXT
     )`),
     db.prepare(`CREATE TABLE IF NOT EXISTS public_question_rate_limits (
       ip_hash TEXT PRIMARY KEY,
@@ -247,6 +248,7 @@ async function ensureD1SchemaAndMigrate(db, env = {}) {
     )`),
   ]);
   try { await db.prepare("ALTER TABLE questions ADD COLUMN category TEXT DEFAULT 'عام'").run(); } catch (_) {}
+  try { await db.prepare("ALTER TABLE questions ADD COLUMN answer_audio_url TEXT").run(); } catch (_) {}
   try { await db.prepare("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'active'").run(); } catch (_) {}
   try { await db.prepare("ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0").run(); } catch (_) {}
 
@@ -876,16 +878,41 @@ async function handleApiRoute(request, env, url, context) {
         });
         return jsonResponse(result, 200, origin);
       }
+      const audioUpload = path.match(/^\/questions\/sheikh\/(\d+)\/answer-audio$/);
+      if (audioUpload && method === "PUT") {
+        const audioTypes = {
+          mp3: ["audio/mpeg", "audio/mp3"], m4a: ["audio/mp4", "audio/x-m4a"],
+          aac: ["audio/aac", "audio/x-aac"], wav: ["audio/wav", "audio/x-wav"],
+          ogg: ["audio/ogg", "application/ogg"], opus: ["audio/opus", "audio/ogg"],
+          flac: ["audio/flac", "audio/x-flac"], "3gp": ["audio/3gpp", "video/3gpp"],
+        };
+        const ext = String(url.searchParams.get("ext") || "").toLowerCase();
+        const contentType = String(request.headers.get("Content-Type") || "").split(";")[0].trim().toLowerCase();
+        const size = Number(request.headers.get("Content-Length") || 0);
+        const r2 = getR2Binding(env);
+        if (!audioTypes[ext]) return jsonResponse({ error: "صيغة الصوت غير مدعومة. استخدم MP3 أو M4A أو AAC أو WAV أو OGG أو OPUS أو FLAC أو 3GP." }, 415, origin);
+        if (!audioTypes[ext].includes(contentType)) return jsonResponse({ error: "نوع الملف لا يطابق امتداد الصوت." }, 415, origin);
+        if (size > 20 * 1024 * 1024) return jsonResponse({ error: "الحد الأقصى لملف الصوت 20 ميجابايت." }, 413, origin);
+        if (!r2) return jsonResponse({ error: "تخزين R2 غير مربوط في إعدادات Cloudflare." }, 503, origin);
+        const questionId = audioUpload[1];
+        const exists = await db.prepare("SELECT id FROM questions WHERE id = ?").bind(questionId).first();
+        if (!exists) return jsonResponse({ error: "السؤال غير موجود." }, 404, origin);
+        const bytes = await request.arrayBuffer();
+        if (!bytes.byteLength || bytes.byteLength > 20 * 1024 * 1024) return jsonResponse({ error: "ملف الصوت فارغ أو أكبر من 20 ميجابايت." }, bytes.byteLength ? 413 : 400, origin);
+        const key = `questions/answers/${questionId}/${crypto.randomUUID()}.${ext}`;
+        await r2.put(key, bytes, { httpMetadata: { contentType } });
+        return jsonResponse({ ok: true, key, fileUrl: `${url.origin}/api/media/${key}` }, 201, origin);
+      }
       if (path === "/questions/sheikh/pending" && method === "GET") {
-        const { results = [] } = await db.prepare("SELECT id, asker_name, category, question, answer, status, created_at, answered_at FROM questions WHERE LOWER(status) = 'pending' ORDER BY id DESC LIMIT 200").all();
+        const { results = [] } = await db.prepare("SELECT id, asker_name, category, question, answer, answer_audio_url, status, created_at, answered_at FROM questions WHERE LOWER(status) = 'pending' ORDER BY id DESC LIMIT 200").all();
         return jsonResponse(results.map((row) => ({ ...row, id: String(row.id), question_text: row.question, answer_text: row.answer })), 200, origin);
       }
       if (path === "/questions/sheikh/answered" && method === "GET") {
-        const { results = [] } = await db.prepare("SELECT id, asker_name, category, question, answer, status, created_at, answered_at FROM questions WHERE LOWER(status) = 'answered' ORDER BY id DESC LIMIT 200").all();
+        const { results = [] } = await db.prepare("SELECT id, asker_name, category, question, answer, answer_audio_url, status, created_at, answered_at FROM questions WHERE LOWER(status) = 'answered' ORDER BY id DESC LIMIT 200").all();
         return jsonResponse(results.map((row) => ({ ...row, id: String(row.id), question_text: row.question, answer_text: row.answer })), 200, origin);
       }
       if (path === "/questions/sheikh/archived" && method === "GET") {
-        const { results = [] } = await db.prepare("SELECT id, asker_name, category, question, answer, status, created_at, answered_at FROM questions WHERE LOWER(status) = 'archived' ORDER BY id DESC LIMIT 200").all();
+        const { results = [] } = await db.prepare("SELECT id, asker_name, category, question, answer, answer_audio_url, status, created_at, answered_at FROM questions WHERE LOWER(status) = 'archived' ORDER BY id DESC LIMIT 200").all();
         return jsonResponse(results.map((row) => ({ ...row, id: String(row.id), question_text: row.question, answer_text: row.answer })), 200, origin);
       }
       const questionPath = path.match(/^\/questions\/sheikh\/(\d+)(?:\/(answer|edit|archive|restore))?$/);
@@ -897,19 +924,27 @@ async function handleApiRoute(request, env, url, context) {
           return jsonResponse({ ok: true }, 200, origin);
         }
         if (method === "GET" && !action) {
-          const row = await db.prepare("SELECT id, asker_name, category, question, answer, status, created_at, answered_at FROM questions WHERE id = ?").bind(id).first();
+          const row = await db.prepare("SELECT id, asker_name, category, question, answer, answer_audio_url, status, created_at, answered_at FROM questions WHERE id = ?").bind(id).first();
           if (!row) return jsonResponse({ error: "السؤال غير موجود." }, 404, origin);
           return jsonResponse({ ...row, id: String(row.id), question_text: row.question, answer_text: row.answer }, 200, origin);
         }
         if (method === "PATCH" && ["answer", "edit"].includes(action)) {
           const body = await request.json().catch(() => ({}));
           const answer = String(body.answer_text ?? body.answer ?? "").trim();
-          if (answer.length < 2 || answer.length > 10000) return jsonResponse({ error: "اكتب إجابة بين حرفين و10000 حرف." }, 400, origin);
-          const current = await db.prepare("SELECT id, status FROM questions WHERE id = ?").bind(id).first();
+          const hasAudioField = Object.prototype.hasOwnProperty.call(body, "answer_audio_url");
+          const audioUrl = hasAudioField ? String(body.answer_audio_url || "").trim() : null;
+          if ((answer.length < 2 && !audioUrl) || answer.length > 10000) return jsonResponse({ error: "اكتب إجابة أو أرفق تسجيلاً صوتياً." }, 400, origin);
+          if (audioUrl) {
+            const parsedAudioUrl = new URL(audioUrl, url.origin);
+            if (parsedAudioUrl.origin !== url.origin || !parsedAudioUrl.pathname.startsWith(`/api/media/questions/answers/${id}/`)) {
+              return jsonResponse({ error: "رابط ملف الإجابة الصوتية غير صالح." }, 400, origin);
+            }
+          }
+          const current = await db.prepare("SELECT id, status, answer_audio_url FROM questions WHERE id = ?").bind(id).first();
           if (!current) return jsonResponse({ error: "السؤال غير موجود." }, 404, origin);
           const status = "answered";
-          await db.prepare("UPDATE questions SET answer = ?, status = ?, answered_at = COALESCE(answered_at, datetime('now')) WHERE id = ?")
-            .bind(answer, status, id).run();
+          await db.prepare("UPDATE questions SET answer = ?, answer_audio_url = ?, status = ?, answered_at = COALESCE(answered_at, datetime('now')) WHERE id = ?")
+            .bind(answer, hasAudioField ? (audioUrl || null) : (current.answer_audio_url || null), status, id).run();
           return jsonResponse({ ok: true, id, status }, 200, origin);
         }
         if (method === "PATCH" && ["archive", "restore"].includes(action)) {
@@ -1128,12 +1163,13 @@ async function handleApiRoute(request, env, url, context) {
     }
 
     if (path === "/questions" && method === "GET") {
-      const { results } = await db.prepare("SELECT id, asker_name, category, question, answer, status, answered_at FROM questions WHERE LOWER(status) = 'answered' ORDER BY id DESC").all();
+      const { results } = await db.prepare("SELECT id, asker_name, category, question, answer, answer_audio_url, status, answered_at FROM questions WHERE LOWER(status) = 'answered' ORDER BY id DESC").all();
       return jsonResponse((results || []).map((row) => ({
         ...row,
         id: String(row.id),
         question_text: row.question,
         answer_text: row.answer,
+        answer_audio_url: row.answer_audio_url || null,
       })), 200, origin);
     }
     if (path === "/questions" && method === "POST") {
