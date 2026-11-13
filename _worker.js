@@ -233,6 +233,11 @@ async function ensureD1SchemaAndMigrate(db, env = {}) {
       expires_at TEXT NOT NULL,
       created_at TEXT DEFAULT (datetime('now'))
     )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS sheikh_push_devices (
+      registration_token TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      updated_at TEXT DEFAULT (datetime('now'))
+    )`),
     db.prepare(`CREATE TABLE IF NOT EXISTS audit_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       action TEXT NOT NULL,
@@ -274,6 +279,71 @@ async function getD1SessionUser(db, request) {
      FROM auth_sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token_hash = ? AND s.expires_at > ? AND u.status = 'active'`
   ).bind(await sha256Hex(token), new Date().toISOString()).first();
+}
+
+function bytesToBase64Url(bytes) {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function pemToBytes(pem) {
+  const base64 = String(pem || "").replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, "");
+  const binary = atob(base64);
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+
+async function getFirebaseAccessToken(account) {
+  const now = Math.floor(Date.now() / 1000);
+  const unsigned = `${bytesToBase64Url(new TextEncoder().encode(JSON.stringify({ alg: "RS256", typ: "JWT" })))}.${bytesToBase64Url(new TextEncoder().encode(JSON.stringify({
+    iss: account.client_email,
+    scope: "https://www.googleapis.com/auth/firebase.messaging",
+    aud: "https://oauth2.googleapis.com/token",
+    iat: now,
+    exp: now + 3600,
+  })))}`;
+  const key = await crypto.subtle.importKey("pkcs8", pemToBytes(account.private_key), { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
+  const signature = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(unsigned));
+  const assertion = `${unsigned}.${bytesToBase64Url(new Uint8Array(signature))}`;
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion }),
+  });
+  if (!response.ok) throw new Error(`Firebase OAuth returned ${response.status}`);
+  const result = await response.json();
+  return result.access_token;
+}
+
+async function sendQuestionPush(db, env, question) {
+  if (!env.FIREBASE_SERVICE_ACCOUNT_JSON) return;
+  const account = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT_JSON);
+  if (!account.project_id || !account.client_email || !account.private_key) throw new Error("Firebase service account configuration is incomplete");
+  const { results = [] } = await db.prepare("SELECT registration_token FROM sheikh_push_devices").all();
+  if (!results.length) return;
+  const bearer = await getFirebaseAccessToken(account);
+  await Promise.all(results.map(async ({ registration_token: token }) => {
+    try {
+      const response = await fetch(`https://fcm.googleapis.com/v1/projects/${encodeURIComponent(account.project_id)}/messages:send`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${bearer}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ message: {
+          token,
+          notification: { title: "سؤال عام جديد", body: "وصل سؤال جديد للشيخ." },
+          data: { question_id: String(question.id) },
+          android: { priority: "high", notification: { channel_id: "contact_requests" } },
+        } }),
+      });
+      if (response.ok) return;
+      const error = await response.json().catch(() => ({}));
+      const details = error.error?.details || [];
+      if (details.some((detail) => detail.errorCode === "UNREGISTERED")) {
+        await db.prepare("DELETE FROM sheikh_push_devices WHERE registration_token = ?").bind(token).run();
+      }
+    } catch (error) {
+      console.warn("Question push delivery failed", error?.message || "unknown error");
+    }
+  }));
 }
 
 function getRealExt(urlStr, fallback = ".mp3") {
@@ -434,7 +504,7 @@ async function analyzeAudioWithGemini(env, { audioUrl, storageKey, mode = "full"
   }
 }
 
-async function handleApiRoute(request, env, url) {
+async function handleApiRoute(request, env, url, context) {
   const origin = request.headers.get("Origin") || "*";
   const method = request.method.toUpperCase();
   const path = url.pathname.replace(/^\/api\/?/, "/").replace(/\/+$/, "") || "/";
@@ -744,6 +814,55 @@ async function handleApiRoute(request, env, url) {
       }
     }
 
+    if (path.startsWith("/questions/sheikh")) {
+      const actor = await getD1SessionUser(db, request).catch(() => null);
+      if (!actor) return jsonResponse({ error: "authentication is required" }, 401, origin);
+      if (String(actor.role || "").toLowerCase() !== "sheikh") return jsonResponse({ error: "forbidden" }, 403, origin);
+
+      if (path === "/questions/sheikh/push-token" && method === "POST") {
+        const token = String((await request.json().catch(() => ({}))).registration_token || "").trim();
+        if (token.length < 20 || token.length > 4096 || /\s/.test(token)) return jsonResponse({ error: "رمز الجهاز غير صالح." }, 400, origin);
+        await db.prepare(`INSERT INTO sheikh_push_devices (user_id, registration_token, updated_at) VALUES (?, ?, datetime('now'))
+          ON CONFLICT(registration_token) DO UPDATE SET user_id = excluded.user_id, updated_at = datetime('now')`)
+          .bind(actor.id, token).run();
+        return jsonResponse({ ok: true }, 200, origin);
+      }
+      if (path === "/questions/sheikh/push-token" && method === "DELETE") {
+        const token = String((await request.json().catch(() => ({}))).registration_token || "").trim();
+        await db.prepare("DELETE FROM sheikh_push_devices WHERE user_id = ? AND registration_token = ?").bind(actor.id, token).run();
+        return jsonResponse({ ok: true }, 200, origin);
+      }
+      if (path === "/questions/sheikh/pending" && method === "GET") {
+        const { results = [] } = await db.prepare("SELECT id, asker_name, category, question, answer, status, created_at, answered_at FROM questions WHERE LOWER(status) = 'pending' ORDER BY id DESC LIMIT 200").all();
+        return jsonResponse(results.map((row) => ({ ...row, id: String(row.id), question_text: row.question, answer_text: row.answer })), 200, origin);
+      }
+      if (path === "/questions/sheikh/answered" && method === "GET") {
+        const { results = [] } = await db.prepare("SELECT id, asker_name, category, question, answer, status, created_at, answered_at FROM questions WHERE LOWER(status) = 'answered' ORDER BY id DESC LIMIT 200").all();
+        return jsonResponse(results.map((row) => ({ ...row, id: String(row.id), question_text: row.question, answer_text: row.answer })), 200, origin);
+      }
+      const questionPath = path.match(/^\/questions\/sheikh\/(\d+)(?:\/(answer|edit|reject))?$/);
+      if (questionPath) {
+        const [, id, action] = questionPath;
+        if (method === "GET" && !action) {
+          const row = await db.prepare("SELECT id, asker_name, category, question, answer, status, created_at, answered_at FROM questions WHERE id = ?").bind(id).first();
+          if (!row) return jsonResponse({ error: "السؤال غير موجود." }, 404, origin);
+          return jsonResponse({ ...row, id: String(row.id), question_text: row.question, answer_text: row.answer }, 200, origin);
+        }
+        if (method === "PATCH" && ["answer", "edit"].includes(action)) {
+          const body = await request.json().catch(() => ({}));
+          const answer = String(body.answer_text ?? body.answer ?? "").trim();
+          if (answer.length < 2 || answer.length > 10000) return jsonResponse({ error: "اكتب إجابة بين حرفين و10000 حرف." }, 400, origin);
+          const current = await db.prepare("SELECT id, status FROM questions WHERE id = ?").bind(id).first();
+          if (!current) return jsonResponse({ error: "السؤال غير موجود." }, 404, origin);
+          const status = "answered";
+          await db.prepare("UPDATE questions SET answer = ?, status = ?, answered_at = COALESCE(answered_at, datetime('now')) WHERE id = ?")
+            .bind(answer, status, id).run();
+          return jsonResponse({ ok: true, id, status }, 200, origin);
+        }
+      }
+      return jsonResponse({ error: "المسار غير موجود" }, 404, origin);
+    }
+
     const protectedWrite = ["POST", "PUT", "PATCH", "DELETE"].includes(method) && (
       path === "/categories" || path.startsWith("/categories/") ||
       path === "/materials" || path.startsWith("/materials/") ||
@@ -989,6 +1108,10 @@ async function handleApiRoute(request, env, url) {
         .bind(question, String(b.asker_name || b.name || "زائر").trim().slice(0, 255) || "زائر", String(b.category || "عام").slice(0, 80))
         .run();
       const created = await db.prepare("SELECT * FROM questions WHERE id = ?").bind(res.meta.last_row_id).first();
+      const pushDelivery = sendQuestionPush(db, env, created)
+        .catch((error) => console.warn("Question saved; push delivery unavailable", error?.message || "unknown error"));
+      if (context?.waitUntil) context.waitUntil(pushDelivery);
+      else await pushDelivery;
       return jsonResponse(created, 201, origin);
     }
     if (path.startsWith("/questions/") && ["PUT", "PATCH"].includes(method)) {
@@ -1017,12 +1140,12 @@ async function handleApiRoute(request, env, url) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, context) {
     const url = new URL(request.url);
 
     if (url.pathname.startsWith("/api/") || url.pathname === "/api") {
       try {
-        return withSecurityHeaders(await handleApiRoute(request, env, url));
+        return withSecurityHeaders(await handleApiRoute(request, env, url, context));
       } catch (err) {
         const origin = request.headers.get("Origin") || "*";
         console.error("Unhandled API worker exception", { path: url.pathname, message: err?.message || String(err), stack: err?.stack || null });
