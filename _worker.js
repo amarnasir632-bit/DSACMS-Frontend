@@ -315,35 +315,49 @@ async function getFirebaseAccessToken(account) {
   return result.access_token;
 }
 
-async function sendQuestionPush(db, env, question) {
-  if (!env.FIREBASE_SERVICE_ACCOUNT_JSON) return;
+async function sendQuestionPush(db, env, question, userId = null, isTest = false) {
+  if (!env.FIREBASE_SERVICE_ACCOUNT_JSON) return { registered: 0, accepted: 0, failures: ["service_account_missing"] };
   const account = JSON.parse(env.FIREBASE_SERVICE_ACCOUNT_JSON);
   if (!account.project_id || !account.client_email || !account.private_key) throw new Error("Firebase service account configuration is incomplete");
-  const { results = [] } = await db.prepare("SELECT registration_token FROM sheikh_push_devices").all();
-  if (!results.length) return;
+  const query = userId == null
+    ? db.prepare("SELECT registration_token FROM sheikh_push_devices")
+    : db.prepare("SELECT registration_token FROM sheikh_push_devices WHERE user_id = ?").bind(userId);
+  const { results = [] } = await query.all();
+  if (!results.length) return { registered: 0, accepted: 0, failures: [] };
   const bearer = await getFirebaseAccessToken(account);
-  await Promise.all(results.map(async ({ registration_token: token }) => {
+  const outcomes = await Promise.all(results.map(async ({ registration_token: token }) => {
     try {
       const response = await fetch(`https://fcm.googleapis.com/v1/projects/${encodeURIComponent(account.project_id)}/messages:send`, {
         method: "POST",
         headers: { Authorization: `Bearer ${bearer}`, "Content-Type": "application/json" },
         body: JSON.stringify({ message: {
           token,
-          notification: { title: "سؤال عام جديد", body: "وصل سؤال جديد للشيخ." },
-          data: { question_id: String(question.id) },
+          notification: isTest
+            ? { title: "اختبار إشعارات التطبيق", body: "إشعارات الأسئلة تعمل على هذا الجهاز." }
+            : { title: "سؤال عام جديد", body: "وصل سؤال جديد للشيخ." },
+          data: isTest ? { test: "true" } : { question_id: String(question.id) },
           android: { priority: "high", notification: { channel_id: "contact_requests" } },
         } }),
       });
-      if (response.ok) return;
+      if (response.ok) return { accepted: true };
       const error = await response.json().catch(() => ({}));
       const details = error.error?.details || [];
       if (details.some((detail) => detail.errorCode === "UNREGISTERED")) {
         await db.prepare("DELETE FROM sheikh_push_devices WHERE registration_token = ?").bind(token).run();
       }
+      const code = details.find((detail) => detail.errorCode)?.errorCode || error.error?.status || `HTTP_${response.status}`;
+      console.warn("Question push rejected by FCM", response.status, code);
+      return { accepted: false, code };
     } catch (error) {
       console.warn("Question push delivery failed", error?.message || "unknown error");
+      return { accepted: false, code: "network_or_auth_error" };
     }
   }));
+  return {
+    registered: results.length,
+    accepted: outcomes.filter((outcome) => outcome.accepted).length,
+    failures: outcomes.filter((outcome) => !outcome.accepted).map((outcome) => outcome.code),
+  };
 }
 
 function getRealExt(urlStr, fallback = ".mp3") {
@@ -728,6 +742,15 @@ async function handleApiRoute(request, env, url, context) {
       return jsonResponse({ accepting: String(env.PUBLIC_QUESTIONS_ENABLED || "true").toLowerCase() !== "false" }, 200, origin);
     }
 
+    if (path === "/auth/logout" && method === "POST") {
+      const authorization = request.headers.get("Authorization") || "";
+      const token = authorization.replace(/^Bearer\s+/i, "").trim();
+      if (!token) return jsonResponse({ error: "authentication is required" }, 401, origin);
+      const result = await db.prepare("DELETE FROM auth_sessions WHERE token_hash = ?")
+        .bind(await sha256Hex(token)).run();
+      return jsonResponse({ ok: true, loggedOut: Number(result.meta?.changes || 0) > 0 }, 200, origin);
+    }
+
     if (path === "/auth/login" && method === "POST") {
       const b = await request.json().catch(() => ({}));
       const identifier = String(b.email || b.username || b.identifier || "").trim().toLowerCase();
@@ -741,8 +764,22 @@ async function handleApiRoute(request, env, url, context) {
 
       if (localUser && localUser.status !== "inactive" && localUser.password_hash === passHash) {
         const token = `d1_${crypto.randomUUID()}_${await sha256Hex(localUser.email + ":" + Date.now())}`;
-        await db.prepare("INSERT INTO auth_sessions (user_id, token_hash, expires_at) VALUES (?, ?, ?)")
-          .bind(localUser.id, await sha256Hex(token), new Date(Date.now() + 30 * 86400000).toISOString()).run();
+        const tokenHash = await sha256Hex(token);
+        const expiresAt = new Date(Date.now() + 30 * 86400000).toISOString();
+        if (String(localUser.role || "").toLowerCase() === "sheikh") {
+          const inserted = await db.prepare(
+            `INSERT INTO auth_sessions (user_id, token_hash, expires_at)
+             SELECT ?, ?, ? WHERE NOT EXISTS (
+               SELECT 1 FROM auth_sessions WHERE user_id = ? AND expires_at > ?
+             )`
+          ).bind(localUser.id, tokenHash, expiresAt, localUser.id, new Date().toISOString()).run();
+          if (Number(inserted.meta?.changes || 0) === 0) {
+            return jsonResponse({ error: "الحساب مسجل دخول بالفعل على جهاز آخر. سجّل الخروج من الجهاز الحالي أولاً." }, 409, origin);
+          }
+        } else {
+          await db.prepare("INSERT INTO auth_sessions (user_id, token_hash, expires_at) VALUES (?, ?, ?)")
+            .bind(localUser.id, tokenHash, expiresAt).run();
+        }
         return jsonResponse(
           {
             token,
@@ -832,6 +869,13 @@ async function handleApiRoute(request, env, url, context) {
         await db.prepare("DELETE FROM sheikh_push_devices WHERE user_id = ? AND registration_token = ?").bind(actor.id, token).run();
         return jsonResponse({ ok: true }, 200, origin);
       }
+      if (path === "/questions/sheikh/test-notification" && method === "POST") {
+        const result = await sendQuestionPush(db, env, { id: "test" }, actor.id, true).catch((error) => {
+          console.warn("FCM test failed", error?.message || "unknown error");
+          return { registered: 0, accepted: 0, failures: ["service_account_or_oauth_error"] };
+        });
+        return jsonResponse(result, 200, origin);
+      }
       if (path === "/questions/sheikh/pending" && method === "GET") {
         const { results = [] } = await db.prepare("SELECT id, asker_name, category, question, answer, status, created_at, answered_at FROM questions WHERE LOWER(status) = 'pending' ORDER BY id DESC LIMIT 200").all();
         return jsonResponse(results.map((row) => ({ ...row, id: String(row.id), question_text: row.question, answer_text: row.answer })), 200, origin);
@@ -840,9 +884,18 @@ async function handleApiRoute(request, env, url, context) {
         const { results = [] } = await db.prepare("SELECT id, asker_name, category, question, answer, status, created_at, answered_at FROM questions WHERE LOWER(status) = 'answered' ORDER BY id DESC LIMIT 200").all();
         return jsonResponse(results.map((row) => ({ ...row, id: String(row.id), question_text: row.question, answer_text: row.answer })), 200, origin);
       }
-      const questionPath = path.match(/^\/questions\/sheikh\/(\d+)(?:\/(answer|edit|reject))?$/);
+      if (path === "/questions/sheikh/archived" && method === "GET") {
+        const { results = [] } = await db.prepare("SELECT id, asker_name, category, question, answer, status, created_at, answered_at FROM questions WHERE LOWER(status) = 'archived' ORDER BY id DESC LIMIT 200").all();
+        return jsonResponse(results.map((row) => ({ ...row, id: String(row.id), question_text: row.question, answer_text: row.answer })), 200, origin);
+      }
+      const questionPath = path.match(/^\/questions\/sheikh\/(\d+)(?:\/(answer|edit|archive|restore))?$/);
       if (questionPath) {
         const [, id, action] = questionPath;
+        if (method === "DELETE" && !action) {
+          const result = await db.prepare("DELETE FROM questions WHERE id = ?").bind(id).run();
+          if (Number(result.meta?.changes || 0) === 0) return jsonResponse({ error: "السؤال غير موجود." }, 404, origin);
+          return jsonResponse({ ok: true }, 200, origin);
+        }
         if (method === "GET" && !action) {
           const row = await db.prepare("SELECT id, asker_name, category, question, answer, status, created_at, answered_at FROM questions WHERE id = ?").bind(id).first();
           if (!row) return jsonResponse({ error: "السؤال غير موجود." }, 404, origin);
@@ -857,6 +910,13 @@ async function handleApiRoute(request, env, url, context) {
           const status = "answered";
           await db.prepare("UPDATE questions SET answer = ?, status = ?, answered_at = COALESCE(answered_at, datetime('now')) WHERE id = ?")
             .bind(answer, status, id).run();
+          return jsonResponse({ ok: true, id, status }, 200, origin);
+        }
+        if (method === "PATCH" && ["archive", "restore"].includes(action)) {
+          const current = await db.prepare("SELECT id, answer FROM questions WHERE id = ?").bind(id).first();
+          if (!current) return jsonResponse({ error: "السؤال غير موجود." }, 404, origin);
+          const status = action === "archive" ? "archived" : (String(current.answer || "").trim() ? "answered" : "pending");
+          await db.prepare("UPDATE questions SET status = ? WHERE id = ?").bind(status, id).run();
           return jsonResponse({ ok: true, id, status }, 200, origin);
         }
       }
