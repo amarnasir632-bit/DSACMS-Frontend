@@ -2763,6 +2763,7 @@ async function initSheikhQuestions() {
   const answeredList = $("#answered-questions-list");
   const questionCategories = ["عام", "العقيدة", "العبادات", "الأسرة", "المعاملات", "الآداب والسلوك", "أخرى"];
   const questionAudioFiles = new Map();
+  const questionAudioPreviewUrls = new Map();
   const questionRecorders = new Map();
   const audioExtensions = new Set(["mp3", "m4a", "aac", "wav", "ogg", "oga", "opus", "flac", "3gp", "webm"]);
   const audioMime = (ext) => ({ mp3: "audio/mpeg", m4a: "audio/mp4", aac: "audio/aac", wav: "audio/wav", ogg: "audio/ogg", oga: "audio/ogg", opus: "audio/ogg", flac: "audio/flac", "3gp": "audio/3gpp", webm: "audio/webm" }[ext] || "application/octet-stream");
@@ -2804,12 +2805,14 @@ async function initSheikhQuestions() {
           </div>
           <label for="answer-${escapeHTML(item.id)}">${answered ? "الإجابة" : "اكتب الإجابة"}</label>
           <textarea class="field" id="answer-${escapeHTML(item.id)}">${escapeHTML(item.answer_text || "")}</textarea>
-          ${item.answer_audio_url ? `<audio controls preload="none" src="${escapeHTML(item.answer_audio_url)}" style="display:block;width:100%;margin-block-start:var(--space-2)" aria-label="الإجابة الصوتية الحالية"></audio>` : ""}
+          ${item.answer_audio_url ? `<div class="qa-answer-audio"><p class="form-help">التسجيل المنشور للزوار:</p><audio controls preload="none" src="${escapeHTML(item.answer_audio_url)}" style="display:block;width:100%;margin-block-start:var(--space-2)" aria-label="الإجابة الصوتية الحالية"></audio></div>` : ""}
           <input type="hidden" id="answer-audio-url-${escapeHTML(item.id)}" value="${escapeHTML(item.answer_audio_url || "")}">
           <input type="file" hidden id="answer-audio-file-${escapeHTML(item.id)}" accept=".mp3,.m4a,.aac,.wav,.ogg,.oga,.opus,.flac,.3gp,.webm,audio/*" data-question-audio-file="${escapeHTML(item.id)}">
+          <audio controls preload="metadata" id="answer-audio-preview-${escapeHTML(item.id)}" style="display:none;width:100%;margin-block-start:var(--space-2)" aria-label="معاينة التسجيل قبل النشر"></audio>
           <div class="form-group" style="display:flex;gap:var(--space-2);flex-wrap:wrap;margin-block-start:var(--space-2);">
             <button type="button" class="btn btn--outline btn--sm" data-question-action="pick-audio" data-question-id="${escapeHTML(item.id)}">اختيار تسجيل صوتي</button>
             <button type="button" class="btn btn--outline btn--sm" data-question-action="record-audio" data-question-id="${escapeHTML(item.id)}">تسجيل إجابة صوتية</button>
+            <button type="button" class="btn btn--danger-outline btn--sm" data-question-action="clear-audio" data-question-id="${escapeHTML(item.id)}">حذف التسجيل المختار</button>
           </div>
           <p class="form-help" id="answer-audio-status-${escapeHTML(item.id)}" aria-live="polite">${item.answer_audio_url ? "يوجد تسجيل صوتي مرفق." : "الصيغ: MP3، M4A، AAC، WAV، OGG، OPUS، FLAC، 3GP، WEBM — الحد 20 ميجابايت."}</p>
           <div class="form-group" style="display:flex;gap:var(--space-2);flex-wrap:wrap;margin-block-start:var(--space-3);">
@@ -2876,11 +2879,32 @@ async function initSheikhQuestions() {
           if (!file.size || file.size > 20 * 1024 * 1024) { audioStatus.textContent = "التسجيل فارغ أو يتجاوز 20 ميجابايت."; return; }
           questionAudioFiles.set(id, file);
           audioUrlField.value = "";
+          const preview = $(`#answer-audio-preview-${CSS.escape(id)}`);
+          if (preview) {
+            const oldUrl = questionAudioPreviewUrls.get(id);
+            if (oldUrl) URL.revokeObjectURL(oldUrl);
+            const previewUrl = URL.createObjectURL(file);
+            questionAudioPreviewUrls.set(id, previewUrl);
+            preview.src = previewUrl;
+            preview.style.display = "block";
+          }
           audioStatus.textContent = `تم إرفاق التسجيل: ${file.name} (${(file.size / 1048576).toFixed(1)} MB). اضغط نشر الإجابة لرفعه.`;
         });
         recorder.start();
         button.textContent = "إيقاف التسجيل";
         audioStatus.textContent = "جارٍ التسجيل… اضغط إيقاف التسجيل عند الانتهاء.";
+        return;
+      }
+      if (button.dataset.questionAction === "clear-audio") {
+        questionAudioFiles.delete(id);
+        const input = $(`#answer-audio-file-${CSS.escape(id)}`);
+        if (input) input.value = "";
+        const preview = $(`#answer-audio-preview-${CSS.escape(id)}`);
+        if (preview) { preview.pause(); preview.removeAttribute("src"); preview.load(); preview.style.display = "none"; }
+        const oldUrl = questionAudioPreviewUrls.get(id);
+        if (oldUrl) URL.revokeObjectURL(oldUrl);
+        questionAudioPreviewUrls.delete(id);
+        audioStatus.textContent = "تم حذف التسجيل المختار. يمكنك تسجيل أو اختيار تسجيل آخر.";
         return;
       }
       button.disabled = true;
@@ -2952,6 +2976,15 @@ async function initSheikhQuestions() {
     questionAudioFiles.set(id, file);
     const audioUrlField = $(`#answer-audio-url-${CSS.escape(id)}`);
     if (audioUrlField) audioUrlField.value = "";
+    const preview = $(`#answer-audio-preview-${CSS.escape(id)}`);
+    if (preview) {
+      const oldUrl = questionAudioPreviewUrls.get(id);
+      if (oldUrl) URL.revokeObjectURL(oldUrl);
+      const previewUrl = URL.createObjectURL(file);
+      questionAudioPreviewUrls.set(id, previewUrl);
+      preview.src = previewUrl;
+      preview.style.display = "block";
+    }
     status.textContent = `تم اختيار ${file.name} (${(file.size / 1048576).toFixed(1)} MB). اضغط نشر الإجابة لرفعه.`;
   });
   await load();
