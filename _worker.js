@@ -933,8 +933,11 @@ async function handleApiRoute(request, env, url, context) {
           const body = await request.json().catch(() => ({}));
           const answer = String(body.answer_text ?? body.answer ?? "").trim();
           const hasAudioField = Object.prototype.hasOwnProperty.call(body, "answer_audio_url");
-          const audioUrl = hasAudioField ? String(body.answer_audio_url || "").trim() : null;
-          if ((answer.length < 2 && !audioUrl) || answer.length > 10000) return jsonResponse({ error: "اكتب إجابة أو أرفق تسجيلاً صوتياً." }, 400, origin);
+          const rawAudioUrl = hasAudioField ? body.answer_audio_url : null;
+           const normalizedAudioUrl = rawAudioUrl == null ? "" : String(rawAudioUrl).trim();
+          const audioUrl = ["", "null", "undefined"].includes(normalizedAudioUrl.toLowerCase())
+           ? ""
+  : normalizedAudioUrl;          if ((answer.length < 2 && !audioUrl) || answer.length > 10000) return jsonResponse({ error: "اكتب إجابة أو أرفق تسجيلاً صوتياً." }, 400, origin);
           if (audioUrl) {
             const parsedAudioUrl = new URL(audioUrl, url.origin);
             if (parsedAudioUrl.origin !== url.origin || !parsedAudioUrl.pathname.startsWith(`/api/media/questions/answers/${id}/`)) {
